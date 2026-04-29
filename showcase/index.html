@@ -4,136 +4,356 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lokt | Text Your Workout Coach</title>
+  <meta
+    name="description"
+    content="Lokt is an AI workout coach that turns text, voice, photos, and chat into editable workout drafts."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <main class="page">
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">Built with Codex</p>
+        <div class="topbar">
+          <p class="eyebrow">Built with Codex</p>
+          <a class="topbar-link" href="https://github.com/barronneumann78/Lokt" target="_blank" rel="noreferrer">
+            View repo
+          </a>
+        </div>
+
         <h1>Text your workout coach.</h1>
         <p class="lede">
-          Lokt turns text, voice, photo, and coach-style chat into editable workout drafts.
-          Instead of bouncing between separate tools, users can ask for a workout, refine it like
-          a conversation, and log it quickly once they start lifting.
+          Lokt is an AI workout coach for people who want less friction between an idea and an
+          actual training session. Users can ask for a workout in plain English, refine it like a
+          conversation, import a plan from voice or photo, and then log the workout quickly once
+          they start lifting.
         </p>
 
         <div class="hero-actions">
-          <a class="button primary" href="#gallery">See the app</a>
-          <a class="button secondary" href="#how">How it works</a>
+          <a class="button primary" href="#tour">See the product tour</a>
+          <a class="button secondary" href="#story">Why it stands out</a>
+        </div>
+
+        <div class="stat-row">
+          <article class="stat-card">
+            <span class="stat-value">4</span>
+            <span class="stat-label">ways to start</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-value">1</span>
+            <span class="stat-label">coach-style workflow</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-value">100%</span>
+            <span class="stat-label">review before save</span>
+          </article>
         </div>
       </div>
 
-      <div class="hero-card">
-        <div class="phone-screenshot-wrap">
-          <img
-            src="./assets/lokt-coach-preview.png"
-            alt="Lokt coach-generated workout draft"
-            class="phone-screenshot"
-          />
+      <div class="hero-panel">
+        <div class="hero-panel-copy">
+          <p class="panel-kicker">Quick walkthrough</p>
+          <h2>Conversation becomes a structured draft.</h2>
+          <p>
+            The demo below shows Lokt moving from home, to AI tools, to coach chat, to a real
+            workout draft with exercises and sets already laid out.
+          </p>
+        </div>
+
+        <div class="video-shell">
+          <video
+            class="hero-video"
+            controls
+            playsinline
+            preload="metadata"
+            poster="./assets/lokt-coach-preview.jpg"
+          >
+            <source src="./assets/lokt-demo-walkthrough.mp4" type="video/mp4" />
+          </video>
         </div>
       </div>
     </section>
 
-    <section class="grid" id="features">
-      <article class="card">
-        <h2>Ask</h2>
-        <p>Describe the workout you want in plain English and get back a structured routine draft.</p>
-      </article>
-      <article class="card">
-        <h2>Import</h2>
-        <p>Use voice or a photo to turn messy workout ideas into something clean, matched, and editable.</p>
-      </article>
-      <article class="card">
-        <h2>Refine</h2>
-        <p>Talk to Lokt like a coach. It can explain choices, suggest swaps, or update the draft.</p>
-      </article>
-      <article class="card">
-        <h2>Log</h2>
-        <p>Once the workout starts, Lokt keeps logging fast with guided set entry, timers, and clean review-first flows.</p>
-      </article>
-    </section>
-
-    <section class="gallery-section" id="gallery">
-      <div class="section-heading">
-        <p class="eyebrow">Product Tour</p>
-        <h2>More of the app, not just one screenshot.</h2>
+    <section class="feature-band">
+      <article class="feature-card">
+        <h3>Ask</h3>
         <p>
-          These are real Lokt screens showing the main product story: start from the home flow,
-          open the AI tools, jump into coach chat, and end on a structured workout draft.
+          Users can type a goal like “make me a 45-minute dumbbell-only push day” and get back a
+          structured draft instead of generic freeform advice.
         </p>
-      </div>
-
-      <div class="gallery-grid">
-        <article class="gallery-card">
-          <div class="gallery-shot-wrap">
-            <img src="./assets/01-home.png" alt="Lokt home screen" class="gallery-shot" />
-          </div>
-          <h3>Home</h3>
-          <p>The product starts with one clear idea: ask Lokt for a workout or build your own.</p>
-        </article>
-
-        <article class="gallery-card">
-          <div class="gallery-shot-wrap">
-            <img src="./assets/02-ai-options.png" alt="Lokt AI tools" class="gallery-shot" />
-          </div>
-          <h3>AI Tools</h3>
-          <p>Text, voice, photo, and add-on flows are grouped together instead of feeling scattered.</p>
-        </article>
-
-        <article class="gallery-card">
-          <div class="gallery-shot-wrap">
-            <img src="./assets/04-coach.png" alt="Lokt coach chat" class="gallery-shot" />
-          </div>
-          <h3>Coach Tab</h3>
-          <p>Coach is its own dedicated chat-first experience, not just a hidden form inside another screen.</p>
-        </article>
-
-        <article class="gallery-card">
-          <div class="gallery-shot-wrap">
-            <img src="./assets/05-coach-composer.png" alt="Lokt coach prompt composer" class="gallery-shot" />
-          </div>
-          <h3>Quick Prompting</h3>
-          <p>Suggested prompts make it easy to start a conversation without typing the whole request from scratch.</p>
-        </article>
-
-        <article class="gallery-card gallery-card-wide">
-          <div class="gallery-shot-wrap">
-            <img src="./assets/06-coach-draft.png" alt="Lokt workout draft generated by coach" class="gallery-shot" />
-          </div>
-          <h3>AI Draft Review</h3>
-          <p>Lokt replies naturally, then turns the request into a real draft that users can review and save.</p>
-        </article>
-      </div>
+      </article>
+      <article class="feature-card">
+        <h3>Import</h3>
+        <p>
+          Voice notes and photos can become clean workout drafts, so a rough idea does not have to
+          be rebuilt manually from scratch.
+        </p>
+      </article>
+      <article class="feature-card">
+        <h3>Refine</h3>
+        <p>
+          Lokt’s coach can answer questions, explain choices, suggest swaps, or update the draft
+          when the user is clearly asking for a change.
+        </p>
+      </article>
+      <article class="feature-card">
+        <h3>Log</h3>
+        <p>
+          Once the workout starts, the app focuses on low-friction set entry, guided flow, and
+          clean workout review instead of clutter.
+        </p>
+      </article>
     </section>
 
-    <section class="split" id="how">
-      <div class="section-copy">
-        <p class="eyebrow">Why it stands out</p>
+    <section class="story-grid" id="story">
+      <article class="story-card story-card-accent">
+        <p class="eyebrow">The idea</p>
+        <h2>Most workout apps still make planning feel manual.</h2>
+        <p>
+          Existing products often separate advice, generation, tracking, notes, and workout edits
+          into different tools. Lokt tries to pull those pieces together so the user can talk to one
+          coach layer that still results in a real, reviewable workout.
+        </p>
+      </article>
+
+      <article class="story-card">
+        <p class="eyebrow">The product bet</p>
         <h2>More than a tracker. More than a chatbot.</h2>
         <p>
-          Most workout apps either track well or answer questions well. Lokt tries to bridge that gap
-          by letting users talk naturally while still turning the result into a real, structured workout
-          they can review, edit, and actually use.
+          Lokt is meant to feel like texting a coach who can actually do things for you. It should
+          be able to answer naturally, but also create or revise a workout draft when that is what
+          the user wants.
+        </p>
+      </article>
+    </section>
+
+    <section class="tour-section" id="tour">
+      <div class="section-heading">
+        <p class="eyebrow">Product Tour</p>
+        <h2>Feature by feature, with the right screen next to it.</h2>
+        <p>
+          Instead of one generic gallery, this section lines each product explanation up with the
+          screen that actually demonstrates it. The goal is to make the product story feel obvious
+          as soon as someone scrolls.
         </p>
       </div>
-      <div class="section-copy">
+
+      <div class="showcase-flow">
+        <article class="feature-showcase">
+          <div class="feature-text">
+            <p class="eyebrow">1. Home</p>
+            <h3>Start from one clear product idea.</h3>
+            <p>
+              The home screen is intentionally simple. It tells the user what Lokt is, gives them a
+              strong “Ask Lokt for a Workout” entry point, and still keeps manual building, exercise
+              browsing, and progress review visible.
+            </p>
+            <p>
+              For a project page, this matters because it shows Lokt is not just an API demo. It is
+              a full product with a clear front door.
+            </p>
+          </div>
+          <div class="feature-media">
+            <div class="shot-wrap">
+              <img src="./assets/01-home.jpg" alt="Lokt home screen" class="shot" />
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-showcase reverse">
+          <div class="feature-text">
+            <p class="eyebrow">2. AI Entry</p>
+            <h3>Group the smart tools instead of scattering them.</h3>
+            <p>
+              Once the user taps into Lokt, they can choose how they want to start: typed prompt,
+              voice, photo, or add-on generation. That keeps the AI layer feeling like one coherent
+              system rather than a bunch of disconnected features.
+            </p>
+            <p>
+              The next screen then lets them type a normal request and get a draft back without
+              forcing them through a long setup flow.
+            </p>
+          </div>
+          <div class="feature-media dual-media">
+            <div class="shot-wrap">
+              <img src="./assets/02-ai-options.jpg" alt="Lokt AI tools page" class="shot" />
+            </div>
+            <div class="shot-wrap">
+              <img src="./assets/03-generate-screen.jpg" alt="Lokt AI prompt screen" class="shot" />
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-showcase">
+          <div class="feature-text">
+            <p class="eyebrow">3. Coach Chat</p>
+            <h3>Give the AI its own real chat surface.</h3>
+            <p>
+              Lokt also has a dedicated coach tab. This is where the app starts to feel different
+              from a normal tracker. Users can talk to the coach naturally, ask training questions,
+              or start from suggested prompts when they do not want to type from scratch.
+            </p>
+            <p>
+              The quick-prompt composer lowers friction and helps the product feel more like a
+              modern AI experience than a rigid form.
+            </p>
+          </div>
+          <div class="feature-media dual-media">
+            <div class="shot-wrap">
+              <img src="./assets/04-coach.jpg" alt="Lokt coach chat" class="shot" />
+            </div>
+            <div class="shot-wrap">
+              <img src="./assets/05-coach-composer.jpg" alt="Lokt coach composer with prompt" class="shot" />
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-showcase reverse featured-showcase">
+          <div class="feature-text">
+            <p class="eyebrow">4. Payoff</p>
+            <h3>The conversation becomes a real workout draft.</h3>
+            <p>
+              This is the core value proposition. Lokt does not stop at advice. It turns the chat
+              into a structured routine draft with a title, exercises, set counts, and a clear save
+              action.
+            </p>
+            <p>
+              That is the product wedge: something that feels like talking to a coach, but can also
+              do the workout-building work for the user.
+            </p>
+          </div>
+          <div class="feature-media">
+            <div class="shot-wrap">
+              <img src="./assets/06-coach-draft.jpg" alt="Lokt coach-generated workout draft" class="shot" />
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-showcase">
+          <div class="feature-text">
+            <p class="eyebrow">5. Manual Control</p>
+            <h3>AI-first does not mean AI-only.</h3>
+            <p>
+              Lokt still supports a full manual builder for people who want direct control over
+              structure, order, and exercise selection. That makes the product more flexible than a
+              one-shot generator.
+            </p>
+            <p>
+              It is important that users can move between AI assistance and manual control without
+              feeling like they have to start over.
+            </p>
+          </div>
+          <div class="feature-media">
+            <div class="shot-wrap">
+              <img src="./assets/09-create-routine.jpg" alt="Lokt manual routine builder" class="shot" />
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-showcase reverse">
+          <div class="feature-text">
+            <p class="eyebrow">6. Supporting Surfaces</p>
+            <h3>Library and analytics keep the app useful beyond generation.</h3>
+            <p>
+              The exercise library gives the app a real foundation: search, filtering, and detail
+              access for the movement database. Analytics keeps the long-term loop intact so Lokt is
+              not just about creating workouts, but also about staying with the user over time.
+            </p>
+            <p>
+              Together, those screens help the product feel complete instead of like a thin AI layer
+              on top of nothing.
+            </p>
+          </div>
+          <div class="feature-media dual-media">
+            <div class="shot-wrap">
+              <img src="./assets/07-exercise-library.jpg" alt="Lokt exercise library" class="shot" />
+            </div>
+            <div class="shot-wrap">
+              <img src="./assets/08-analytics.jpg" alt="Lokt analytics screen" class="shot" />
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="workflow-section">
+      <div class="section-heading">
+        <p class="eyebrow">How it works</p>
+        <h2>Lokt is built around one simple user loop.</h2>
+      </div>
+
+      <div class="workflow-grid">
+        <article class="workflow-step">
+          <span class="step-number">01</span>
+          <h3>Start with an intent</h3>
+          <p>
+            The user types a prompt, speaks a voice note, uploads a photo, or opens the coach chat
+            to explain what they want.
+          </p>
+        </article>
+        <article class="workflow-step">
+          <span class="step-number">02</span>
+          <h3>Get a structured draft</h3>
+          <p>
+            The AI layer turns that input into a real workout draft instead of leaving the user with
+            a paragraph of advice they still have to manually rebuild.
+          </p>
+        </article>
+        <article class="workflow-step">
+          <span class="step-number">03</span>
+          <h3>Refine like a conversation</h3>
+          <p>
+            Users can keep chatting with Lokt to change difficulty, equipment, exercise selection,
+            or overall structure before saving.
+          </p>
+        </article>
+        <article class="workflow-step">
+          <span class="step-number">04</span>
+          <h3>Log the session quickly</h3>
+          <p>
+            Once the workout begins, Lokt shifts from planning into execution with faster set entry,
+            guided workflow, and cleaner tracking.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="build-section">
+      <div class="build-copy">
         <p class="eyebrow">How I built it</p>
-        <h2>SwiftUI iPhone app, AI backend, structured review UX.</h2>
+        <h2>Native iPhone app, lightweight AI backend, review-first UX.</h2>
         <p>
-          Lokt is built as a SwiftUI iPhone app with a lightweight Node backend for AI routes. I used
-          Codex heavily for product iteration, feature implementation, parsing flows, review screens,
-          coach chat behavior, and UI polish across the app.
+          Lokt is built as a SwiftUI iPhone app with a Node backend for AI generation, revision,
+          photo import, voice import, exercise coaching, and structured draft workflows. I used
+          Codex heavily for product iteration, UI polish, feature implementation, parsing behavior,
+          and the overall coach-chat experience.
         </p>
+      </div>
+
+      <div class="build-card">
+        <h3>Core pieces</h3>
+        <ul class="build-list">
+          <li>SwiftUI app for planning, review, logging, and analytics</li>
+          <li>AI backend routes for generation, revision, coach chat, voice, and photo flows</li>
+          <li>Structured JSON drafts so users can review edits before saving</li>
+          <li>Exercise library and metadata system to support matching and swaps</li>
+          <li>Submission-ready showcase site and demo assets built around the real product flow</li>
+        </ul>
       </div>
     </section>
 
     <section class="footer-card">
       <p class="eyebrow">Submission note</p>
-      <h2>Public product page, public repo, and a clear AI story.</h2>
+      <h2>A native app presented like a real product.</h2>
       <p>
-        This showcase is designed to make a native app submission feel more like a polished product page
-        by showing the workflow, the core screens, and the AI payoff immediately.
+        This page is designed to make Lokt easy to judge quickly: strong hero, visible product
+        story, multiple real screens, and a clear explanation of why the AI matters.
       </p>
     </section>
   </main>
