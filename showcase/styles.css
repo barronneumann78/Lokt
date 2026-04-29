@@ -7,12 +7,14 @@
   --text: #f4f4f5;
   --muted: #b3b3c1;
   --accent: #4f8cff;
-  --accent-soft: rgba(79, 140, 255, 0.14);
-  --success: #31c26b;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -25,14 +27,14 @@ body {
 }
 
 .page {
-  width: min(1120px, calc(100vw - 40px));
+  width: min(1160px, calc(100vw - 40px));
   margin: 0 auto;
   padding: 48px 0 80px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1.08fr 0.92fr;
   gap: 32px;
   align-items: center;
   margin-bottom: 44px;
@@ -57,12 +59,22 @@ h1 {
   margin-bottom: 20px;
 }
 
+h2 {
+  font-size: clamp(1.6rem, 2vw, 2.4rem);
+  margin-bottom: 12px;
+}
+
+h3 {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
 .lede,
 .section-copy p,
 .card p,
 .footer-card p,
-.reply,
-.draft li {
+.gallery-card p,
+.section-heading p {
   color: var(--muted);
   line-height: 1.65;
   font-size: 1rem;
@@ -100,25 +112,35 @@ h1 {
 .hero-card,
 .card,
 .footer-card,
-.section-copy {
+.section-copy,
+.gallery-card {
   border: 1px solid var(--card-border);
   background: var(--card);
   border-radius: 28px;
   backdrop-filter: blur(20px);
 }
 
+.hero-card,
+.card,
+.section-copy,
+.footer-card {
+  padding: 24px;
+}
+
 .hero-card {
   padding: 18px;
 }
 
-.phone-screenshot-wrap {
+.phone-screenshot-wrap,
+.gallery-shot-wrap {
   border-radius: 30px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, #121218 0%, #0b0b10 100%);
 }
 
-.phone-screenshot {
+.phone-screenshot,
+.gallery-shot {
   display: block;
   width: 100%;
   height: auto;
@@ -126,15 +148,36 @@ h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
-.card,
-.section-copy,
-.footer-card {
-  padding: 24px;
+.gallery-section {
+  margin-bottom: 28px;
+}
+
+.section-heading {
+  max-width: 760px;
+  margin-bottom: 22px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.gallery-card {
+  padding: 18px;
+}
+
+.gallery-card-wide {
+  grid-column: 1 / -1;
+}
+
+.gallery-shot-wrap {
+  margin-bottom: 16px;
 }
 
 .split {
@@ -148,15 +191,16 @@ h1 {
   margin-bottom: 10px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .hero,
   .split,
-  .grid {
+  .grid,
+  .gallery-grid {
     grid-template-columns: 1fr;
   }
 
   .page {
-    width: min(100vw - 28px, 1120px);
+    width: min(100vw - 28px, 1160px);
     padding-top: 28px;
   }
 
