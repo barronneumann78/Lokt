@@ -66,3 +66,4 @@ Prepared contest materials live in:
 - [submission/handshake-entry.md](/Users/barronneumann/Desktop/Locked%20In%20Set%20Tracker/submission/handshake-entry.md)
 - [showcase/index.html](/Users/barronneumann/Desktop/Locked%20In%20Set%20Tracker/showcase/index.html)
 - [submission/assets/lokt-home-preview.png](/Users/barronneumann/Desktop/Locked%20In%20Set%20Tracker/submission/assets/lokt-home-preview.png)
+# Lokt
