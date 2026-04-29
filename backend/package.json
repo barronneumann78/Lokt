@@ -1,0 +1,9 @@
+{
+  "name": "locked-in-ai-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.mjs",
+    "dev": "node --watch --env-file=.env server.mjs"
+  }
+}
