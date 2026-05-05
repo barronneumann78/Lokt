@@ -52,7 +52,7 @@ struct WorkoutLoggerView: View {
                         let isPrimaryExercise = isPrimaryExercise(exercise)
 
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 6) {
                                     if isPrimaryExercise {
                                         Text("Up Next")
@@ -91,8 +91,6 @@ struct WorkoutLoggerView: View {
                                     }
                                 }
 
-                                Spacer()
-
                                 HStack(spacing: 8) {
                                     ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
 
@@ -104,7 +102,7 @@ struct WorkoutLoggerView: View {
                                     }
                                     .buttonStyle(SecondaryButtonStyle())
 
-                                    Button(expandedExercises.contains(exercise) ? "Hide" : "History") {
+                                    Button(expandedExercises.contains(exercise) ? "Hide History" : "History") {
                                         toggleHistory(exercise)
                                     }
                                     .buttonStyle(SecondaryButtonStyle())
