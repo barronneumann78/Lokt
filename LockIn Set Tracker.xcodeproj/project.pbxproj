@@ -12,37 +12,37 @@
 			containerPortal = 97CA2F522E1F637800B71060 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 97CA2F592E1F637800B71060;
-			remoteInfo = "Locked In Set Tracker";
+			remoteInfo = "LockIn Set Tracker";
 		};
 		97CA2F732E1F637900B71060 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97CA2F522E1F637800B71060 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 97CA2F592E1F637800B71060;
-			remoteInfo = "Locked In Set Tracker";
+			remoteInfo = "LockIn Set Tracker";
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		97CA2F5A2E1F637800B71060 /* Locked In Set Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "Locked In Set Tracker.app"; path = Lokt.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		97CA2F682E1F637900B71060 /* Locked In Set TrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Locked In Set TrackerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		97CA2F722E1F637900B71060 /* Locked In Set TrackerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Locked In Set TrackerUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		97CA2F5A2E1F637800B71060 /* LockIn Set Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "LockIn Set Tracker.app"; path = Lokt.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		97CA2F682E1F637900B71060 /* LockIn Set TrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "LockIn Set TrackerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		97CA2F722E1F637900B71060 /* LockIn Set TrackerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "LockIn Set TrackerUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		97CA2F5C2E1F637800B71060 /* Locked In Set Tracker */ = {
+		97CA2F5C2E1F637800B71060 /* LockIn Set Tracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Locked In Set Tracker";
+			path = "LockIn Set Tracker";
 			sourceTree = "<group>";
 		};
-		97CA2F6B2E1F637900B71060 /* Locked In Set TrackerTests */ = {
+		97CA2F6B2E1F637900B71060 /* LockIn Set TrackerTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Locked In Set TrackerTests";
+			path = "LockIn Set TrackerTests";
 			sourceTree = "<group>";
 		};
-		97CA2F752E1F637900B71060 /* Locked In Set TrackerUITests */ = {
+		97CA2F752E1F637900B71060 /* LockIn Set TrackerUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Locked In Set TrackerUITests";
+			path = "LockIn Set TrackerUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,9 +75,9 @@
 		97CA2F512E1F637800B71060 = {
 			isa = PBXGroup;
 			children = (
-				97CA2F5C2E1F637800B71060 /* Locked In Set Tracker */,
-				97CA2F6B2E1F637900B71060 /* Locked In Set TrackerTests */,
-				97CA2F752E1F637900B71060 /* Locked In Set TrackerUITests */,
+				97CA2F5C2E1F637800B71060 /* LockIn Set Tracker */,
+				97CA2F6B2E1F637900B71060 /* LockIn Set TrackerTests */,
+				97CA2F752E1F637900B71060 /* LockIn Set TrackerUITests */,
 				97CA2F5B2E1F637800B71060 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,9 +85,9 @@
 		97CA2F5B2E1F637800B71060 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				97CA2F5A2E1F637800B71060 /* Locked In Set Tracker.app */,
-				97CA2F682E1F637900B71060 /* Locked In Set TrackerTests.xctest */,
-				97CA2F722E1F637900B71060 /* Locked In Set TrackerUITests.xctest */,
+				97CA2F5A2E1F637800B71060 /* LockIn Set Tracker.app */,
+				97CA2F682E1F637900B71060 /* LockIn Set TrackerTests.xctest */,
+				97CA2F722E1F637900B71060 /* LockIn Set TrackerUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		97CA2F592E1F637800B71060 /* Locked In Set Tracker */ = {
+		97CA2F592E1F637800B71060 /* LockIn Set Tracker */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 97CA2F7C2E1F637900B71060 /* Build configuration list for PBXNativeTarget "Locked In Set Tracker" */;
+			buildConfigurationList = 97CA2F7C2E1F637900B71060 /* Build configuration list for PBXNativeTarget "LockIn Set Tracker" */;
 			buildPhases = (
 				97CA2F562E1F637800B71060 /* Sources */,
 				97CA2F572E1F637800B71060 /* Frameworks */,
@@ -108,18 +108,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				97CA2F5C2E1F637800B71060 /* Locked In Set Tracker */,
+				97CA2F5C2E1F637800B71060 /* LockIn Set Tracker */,
 			);
-			name = "Locked In Set Tracker";
+			name = "LockIn Set Tracker";
 			packageProductDependencies = (
 			);
-			productName = "Locked In Set Tracker";
-			productReference = 97CA2F5A2E1F637800B71060 /* Locked In Set Tracker.app */;
+			productName = "LockIn Set Tracker";
+			productReference = 97CA2F5A2E1F637800B71060 /* LockIn Set Tracker.app */;
 			productType = "com.apple.product-type.application";
 		};
-		97CA2F672E1F637900B71060 /* Locked In Set TrackerTests */ = {
+		97CA2F672E1F637900B71060 /* LockIn Set TrackerTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 97CA2F7F2E1F637900B71060 /* Build configuration list for PBXNativeTarget "Locked In Set TrackerTests" */;
+			buildConfigurationList = 97CA2F7F2E1F637900B71060 /* Build configuration list for PBXNativeTarget "LockIn Set TrackerTests" */;
 			buildPhases = (
 				97CA2F642E1F637900B71060 /* Sources */,
 				97CA2F652E1F637900B71060 /* Frameworks */,
@@ -131,18 +131,18 @@
 				97CA2F6A2E1F637900B71060 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				97CA2F6B2E1F637900B71060 /* Locked In Set TrackerTests */,
+				97CA2F6B2E1F637900B71060 /* LockIn Set TrackerTests */,
 			);
-			name = "Locked In Set TrackerTests";
+			name = "LockIn Set TrackerTests";
 			packageProductDependencies = (
 			);
-			productName = "Locked In Set TrackerTests";
-			productReference = 97CA2F682E1F637900B71060 /* Locked In Set TrackerTests.xctest */;
+			productName = "LockIn Set TrackerTests";
+			productReference = 97CA2F682E1F637900B71060 /* LockIn Set TrackerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		97CA2F712E1F637900B71060 /* Locked In Set TrackerUITests */ = {
+		97CA2F712E1F637900B71060 /* LockIn Set TrackerUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 97CA2F822E1F637900B71060 /* Build configuration list for PBXNativeTarget "Locked In Set TrackerUITests" */;
+			buildConfigurationList = 97CA2F822E1F637900B71060 /* Build configuration list for PBXNativeTarget "LockIn Set TrackerUITests" */;
 			buildPhases = (
 				97CA2F6E2E1F637900B71060 /* Sources */,
 				97CA2F6F2E1F637900B71060 /* Frameworks */,
@@ -154,13 +154,13 @@
 				97CA2F742E1F637900B71060 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				97CA2F752E1F637900B71060 /* Locked In Set TrackerUITests */,
+				97CA2F752E1F637900B71060 /* LockIn Set TrackerUITests */,
 			);
-			name = "Locked In Set TrackerUITests";
+			name = "LockIn Set TrackerUITests";
 			packageProductDependencies = (
 			);
-			productName = "Locked In Set TrackerUITests";
-			productReference = 97CA2F722E1F637900B71060 /* Locked In Set TrackerUITests.xctest */;
+			productName = "LockIn Set TrackerUITests";
+			productReference = 97CA2F722E1F637900B71060 /* LockIn Set TrackerUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -186,7 +186,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 97CA2F552E1F637800B71060 /* Build configuration list for PBXProject "Locked In Set Tracker" */;
+			buildConfigurationList = 97CA2F552E1F637800B71060 /* Build configuration list for PBXProject "LockIn Set Tracker" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -200,9 +200,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				97CA2F592E1F637800B71060 /* Locked In Set Tracker */,
-				97CA2F672E1F637900B71060 /* Locked In Set TrackerTests */,
-				97CA2F712E1F637900B71060 /* Locked In Set TrackerUITests */,
+				97CA2F592E1F637800B71060 /* LockIn Set Tracker */,
+				97CA2F672E1F637900B71060 /* LockIn Set TrackerTests */,
+				97CA2F712E1F637900B71060 /* LockIn Set TrackerUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -258,12 +258,12 @@
 /* Begin PBXTargetDependency section */
 		97CA2F6A2E1F637900B71060 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 97CA2F592E1F637800B71060 /* Locked In Set Tracker */;
+			target = 97CA2F592E1F637800B71060 /* LockIn Set Tracker */;
 			targetProxy = 97CA2F692E1F637900B71060 /* PBXContainerItemProxy */;
 		};
 		97CA2F742E1F637900B71060 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 97CA2F592E1F637800B71060 /* Locked In Set Tracker */;
+			target = 97CA2F592E1F637800B71060 /* LockIn Set Tracker */;
 			targetProxy = 97CA2F732E1F637900B71060 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -388,7 +388,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Locked In Set Tracker/Locked_In_Set_Tracker.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "LockIn Set Tracker/LockIn_Set_Tracker.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y2389Q8L48;
@@ -414,8 +414,8 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Locked-In.Locked-In-Set-Tracker";
-				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "Locked-In";
+				PRODUCT_BUNDLE_IDENTIFIER = "LockIn.LockIn-Set-Tracker";
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = LockIn;
 				PRODUCT_NAME = Lokt;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -432,7 +432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Locked In Set Tracker/Locked_In_Set_Tracker.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "LockIn Set Tracker/LockIn_Set_Tracker.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Y2389Q8L48;
@@ -458,8 +458,8 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Locked-In.Locked-In-Set-Tracker";
-				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "Locked-In";
+				PRODUCT_BUNDLE_IDENTIFIER = "LockIn.LockIn-Set-Tracker";
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = LockIn;
 				PRODUCT_NAME = Lokt;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -481,14 +481,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Locked-In.Locked-In-Set-TrackerTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "LockIn.LockIn-Set-TrackerTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Locked In Set Tracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Locked In Set Tracker";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LockIn Set Tracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LockIn Set Tracker";
 				XROS_DEPLOYMENT_TARGET = 2.5;
 			};
 			name = Debug;
@@ -503,14 +503,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Locked-In.Locked-In-Set-TrackerTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "LockIn.LockIn-Set-TrackerTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Locked In Set Tracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Locked In Set Tracker";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LockIn Set Tracker.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LockIn Set Tracker";
 				XROS_DEPLOYMENT_TARGET = 2.5;
 			};
 			name = Release;
@@ -524,14 +524,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Locked-In.Locked-In-Set-TrackerUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "LockIn.LockIn-Set-TrackerUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "Locked In Set Tracker";
+				TEST_TARGET_NAME = "LockIn Set Tracker";
 				XROS_DEPLOYMENT_TARGET = 2.5;
 			};
 			name = Debug;
@@ -545,14 +545,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Locked-In.Locked-In-Set-TrackerUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "LockIn.LockIn-Set-TrackerUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = "Locked In Set Tracker";
+				TEST_TARGET_NAME = "LockIn Set Tracker";
 				XROS_DEPLOYMENT_TARGET = 2.5;
 			};
 			name = Release;
@@ -560,7 +560,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		97CA2F552E1F637800B71060 /* Build configuration list for PBXProject "Locked In Set Tracker" */ = {
+		97CA2F552E1F637800B71060 /* Build configuration list for PBXProject "LockIn Set Tracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				97CA2F7A2E1F637900B71060 /* Debug */,
@@ -569,7 +569,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		97CA2F7C2E1F637900B71060 /* Build configuration list for PBXNativeTarget "Locked In Set Tracker" */ = {
+		97CA2F7C2E1F637900B71060 /* Build configuration list for PBXNativeTarget "LockIn Set Tracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				97CA2F7D2E1F637900B71060 /* Debug */,
@@ -578,7 +578,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		97CA2F7F2E1F637900B71060 /* Build configuration list for PBXNativeTarget "Locked In Set TrackerTests" */ = {
+		97CA2F7F2E1F637900B71060 /* Build configuration list for PBXNativeTarget "LockIn Set TrackerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				97CA2F802E1F637900B71060 /* Debug */,
@@ -587,7 +587,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		97CA2F822E1F637900B71060 /* Build configuration list for PBXNativeTarget "Locked In Set TrackerUITests" */ = {
+		97CA2F822E1F637900B71060 /* Build configuration list for PBXNativeTarget "LockIn Set TrackerUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				97CA2F832E1F637900B71060 /* Debug */,

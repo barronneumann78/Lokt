@@ -2,8 +2,10 @@ import SwiftUI
 import UIKit
 
 @main
-struct LockedInSetTrackerApp: App {
+struct LockInSetTrackerApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    // Single source of truth for routines + sessions (build plan M1).
+    @StateObject private var store = WorkoutStore()
 
     init() {
         let appearance = UINavigationBarAppearance()
@@ -53,13 +55,16 @@ struct LockedInSetTrackerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if hasCompletedOnboarding {
-                MainTabView()
-            } else {
-                OnboardingView {
-                    hasCompletedOnboarding = true
+            Group {
+                if hasCompletedOnboarding {
+                    MainTabView()
+                } else {
+                    OnboardingView {
+                        hasCompletedOnboarding = true
+                    }
                 }
             }
+            .environmentObject(store)
         }
     }
 }

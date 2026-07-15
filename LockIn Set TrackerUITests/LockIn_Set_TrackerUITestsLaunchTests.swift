@@ -1,13 +1,13 @@
 //
-//  Locked_In_Set_TrackerUITestsLaunchTests.swift
-//  Locked In Set TrackerUITests
+//  LockIn_Set_TrackerUITestsLaunchTests.swift
+//  LockIn Set TrackerUITests
 //
 //  Created by Barron Neumann on 7/9/25.
 //
 
 import XCTest
 
-final class Locked_In_Set_TrackerUITestsLaunchTests: XCTestCase {
+final class LockIn_Set_TrackerUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

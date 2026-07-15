@@ -1,13 +1,13 @@
 //
-//  Locked_In_Set_TrackerUITests.swift
-//  Locked In Set TrackerUITests
+//  LockIn_Set_TrackerUITests.swift
+//  LockIn Set TrackerUITests
 //
 //  Created by Barron Neumann on 7/9/25.
 //
 
 import XCTest
 
-final class Locked_In_Set_TrackerUITests: XCTestCase {
+final class LockIn_Set_TrackerUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
