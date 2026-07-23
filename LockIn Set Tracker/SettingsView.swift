@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage(AIBackendConfiguration.userDefaultsKey) private var aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var workoutSessions: [WorkoutSession] = []
     @State private var pendingAction: PendingAction?
     @State private var preferredEquipmentText = ""
@@ -163,8 +164,8 @@ struct SettingsView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
 
-                Button("Reset") {
-                    resetPreferences()
+                Button("Retake Quiz") {
+                    retakeQuiz()
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -289,9 +290,11 @@ struct SettingsView: View {
         loadPreferences()
     }
 
-    private func resetPreferences() {
-        AIUserPreferencesStore.reset()
-        loadPreferences()
+    private func retakeQuiz() {
+        // Returning to the quiz is handled at the app root, which swaps back to
+        // OnboardingView whenever this flag is false. Finishing (or skipping) the
+        // quiz sets it true again.
+        hasCompletedOnboarding = false
     }
 
     private func saveWorkoutSessions(_ sessions: [WorkoutSession]) {

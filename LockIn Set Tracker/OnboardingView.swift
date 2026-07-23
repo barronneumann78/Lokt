@@ -1,181 +1,289 @@
 import SwiftUI
+import UIKit
 
 struct OnboardingView: View {
     var onComplete: () -> Void
 
-    @State private var selectedLocation: OnboardingTrainingLocation = .commercialGym
-    @State private var selectedGoal: OnboardingPrimaryGoal = .buildMuscle
-    @State private var selectedTimeLimit: OnboardingTimeLimit = .minutes45
+    @State private var step = 0
+    @State private var goingForward = true
+
+    @State private var selectedLocation: OnboardingTrainingLocation?
+    @State private var selectedGoal: OnboardingPrimaryGoal?
+    @State private var selectedTimeLimit: OnboardingTimeLimit?
     @State private var limitations = ""
+
+    private let totalSteps = 4
 
     var body: some View {
         ZStack {
             AppBackground()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
-                    headerSection
-                    locationSection
-                    goalSection
-                    timeSection
-                    limitationsSection
-                    actionSection
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+            VStack(spacing: 20) {
+                topBar
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+
+                stepContent
+                    .id(step)
+                    .transition(slideTransition)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Help Lokt get a head start.")
-                .font(.system(size: 32, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
+    // MARK: - Top bar (back · progress · skip)
 
-            Text("This is a quick setup, not a long quiz. You can skip it now and edit everything later in Settings.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private var locationSection: some View {
-        questionCard(
-            title: "Where do you train most?",
-            options: OnboardingTrainingLocation.allCases,
-            selected: selectedLocation
-        ) { selectedLocation = $0 }
-    }
-
-    private var goalSection: some View {
-        questionCard(
-            title: "What are you focused on right now?",
-            options: OnboardingPrimaryGoal.allCases,
-            selected: selectedGoal
-        ) { selectedGoal = $0 }
-    }
-
-    private var timeSection: some View {
-        questionCard(
-            title: "How much time do you usually have?",
-            options: OnboardingTimeLimit.allCases,
-            selected: selectedTimeLimit
-        ) { selectedTimeLimit = $0 }
-    }
-
-    private var limitationsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Anything to work around?")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .fill(AppTheme.fieldBackground)
-
-                if limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Optional: shoulder irritation, knee pain, low back sensitivity")
-                        .font(.body)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                }
-
-                TextEditor(text: $limitations)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 92)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .trackerTextEditorStyle()
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                goBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(AppTheme.fieldBackground, in: Circle())
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
+            .buttonStyle(.plain)
+            .opacity(step > 0 ? 1 : 0)
+            .disabled(step == 0)
 
-            Text("Optional. Short notes are enough.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
-    }
+            Spacer()
 
-    private var actionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button("Save and Continue") {
-                savePreferences()
+            progressDots
+
+            Spacer()
+
+            Button("Skip") {
                 onComplete()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
-
-            Button("Skip for Now") {
-                onComplete()
-            }
-            .buttonStyle(SecondaryButtonStyle())
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.textSecondary)
+            .frame(minWidth: 40, alignment: .trailing)
         }
-        .padding(20)
-        .glassCard()
     }
 
-    private func questionCard<Option: OnboardingOption>(
+    private var progressDots: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<totalSteps, id: \.self) { index in
+                Capsule()
+                    .fill(index == step ? AppTheme.primary : AppTheme.cardBorder)
+                    .frame(width: index == step ? 24 : 8, height: 8)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: step)
+    }
+
+    // MARK: - Steps
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case 0:
+            questionStep(
+                eyebrow: "Where you train",
+                title: "Where do you train most?",
+                options: OnboardingTrainingLocation.allCases,
+                selection: selectedLocation
+            ) { option in
+                selectedLocation = option
+                scheduleAdvance()
+            }
+        case 1:
+            questionStep(
+                eyebrow: "Your focus",
+                title: "What are you focused on right now?",
+                options: OnboardingPrimaryGoal.allCases,
+                selection: selectedGoal
+            ) { option in
+                selectedGoal = option
+                scheduleAdvance()
+            }
+        case 2:
+            questionStep(
+                eyebrow: "Session length",
+                title: "How much time do you usually have?",
+                options: OnboardingTimeLimit.allCases,
+                selection: selectedTimeLimit
+            ) { option in
+                selectedTimeLimit = option
+                scheduleAdvance()
+            }
+        default:
+            limitationsStep
+        }
+    }
+
+    private func questionStep<Option: OnboardingOption>(
+        eyebrow: String,
         title: String,
         options: [Option],
-        selected: Option,
+        selection: Option?,
         onSelect: @escaping (Option) -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 24) {
+                stepHeader(eyebrow: eyebrow, title: title, subtitle: nil)
 
-            ForEach(options) { option in
-                let isSelected = selected.id == option.id
-                let iconName = isSelected ? "checkmark.circle.fill" : "circle"
-                let iconColor = isSelected ? AppTheme.primary : AppTheme.textSecondary
-                let borderColor = isSelected ? AppTheme.primary.opacity(0.32) : AppTheme.cardBorder
-
-                Button {
-                    onSelect(option)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: iconName)
-                            .font(.headline)
-                            .foregroundStyle(iconColor)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(option.title)
-                                .font(.headline.weight(.semibold))
-                                .foregroundStyle(AppTheme.textPrimary)
-
-                            Text(option.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer()
+                VStack(spacing: 12) {
+                    ForEach(options) { option in
+                        optionCard(
+                            option: option,
+                            isSelected: selection?.id == option.id,
+                            action: { onSelect(option) }
+                        )
                     }
-                    .padding(16)
-                    .surfaceCard(cornerRadius: 18, border: borderColor)
                 }
-                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+        }
+    }
+
+    private var limitationsStep: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 24) {
+                stepHeader(
+                    eyebrow: "Almost done",
+                    title: "Anything to work around?",
+                    subtitle: "Optional — a quick note helps Lokt avoid aggravating anything. You can edit this later in Settings."
+                )
+
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                        .fill(AppTheme.fieldBackground)
+
+                    if limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Shoulder irritation, knee pain, low back sensitivity")
+                            .font(.body)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                    }
+
+                    TextEditor(text: $limitations)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 120)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .trackerTextEditorStyle()
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+
+                Button("Finish Setup") {
+                    finish()
+                }
+                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+        }
+    }
+
+    private func stepHeader(eyebrow: String, title: String, subtitle: String?) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(eyebrow.uppercased())
+                .font(.caption.weight(.bold))
+                .tracking(1.6)
+                .foregroundStyle(AppTheme.primary)
+
+            Text(title)
+                .font(.system(size: 30, weight: .black, design: .rounded))
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(20)
-        .glassCard()
+    }
+
+    private func optionCard<Option: OnboardingOption>(
+        option: Option,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        let borderColor = isSelected ? AppTheme.primary.opacity(0.55) : AppTheme.cardBorder
+
+        return Button(action: action) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(option.title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+
+                    Text(option.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "chevron.right")
+                    .font(.headline)
+                    .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textSecondary)
+            }
+            .padding(16)
+            .surfaceCard(cornerRadius: 18, border: borderColor)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Navigation
+
+    private var slideTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: goingForward ? .trailing : .leading).combined(with: .opacity),
+            removal: .move(edge: goingForward ? .leading : .trailing).combined(with: .opacity)
+        )
+    }
+
+    /// Selecting an answer briefly shows the highlight, then slides to the next question.
+    private func scheduleAdvance() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            goingForward = true
+            withAnimation(.easeInOut(duration: 0.35)) {
+                if step < totalSteps - 1 {
+                    step += 1
+                }
+            }
+        }
+    }
+
+    private func goBack() {
+        guard step > 0 else { return }
+        goingForward = false
+        withAnimation(.easeInOut(duration: 0.35)) {
+            step -= 1
+        }
+    }
+
+    private func finish() {
+        savePreferences()
+        onComplete()
     }
 
     private func savePreferences() {
+        let location = selectedLocation ?? .commercialGym
+        let goal = selectedGoal ?? .buildMuscle
+        let timeLimit = selectedTimeLimit ?? .minutes45
+
         let preferences = AIUserPreferences(
-            preferredEquipment: selectedLocation.preferredEquipment,
+            preferredEquipment: location.preferredEquipment,
             dislikedExercises: [],
-            primaryGoal: selectedGoal.title,
+            primaryGoal: goal.title,
             limitations: limitations.trimmingCharacters(in: .whitespacesAndNewlines),
-            trainingStyle: selectedGoal.trainingStyleHint,
-            defaultTimeLimitMinutes: selectedTimeLimit.minutes
+            trainingStyle: goal.trainingStyleHint,
+            defaultTimeLimitMinutes: timeLimit.minutes
         )
 
         AIUserPreferencesStore.save(preferences)
