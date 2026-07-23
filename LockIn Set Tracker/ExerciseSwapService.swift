@@ -81,7 +81,7 @@ struct ExerciseSwapSuggestionService {
             throw ExerciseSwapError.invalidReason
         }
 
-        guard let currentExercise = exercises.exercise(named: currentExerciseName) else {
+        guard let currentExercise = exercises.resolvedExercise(named: currentExerciseName) else {
             throw ExerciseSwapError.exerciseNotFound
         }
 
