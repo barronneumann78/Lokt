@@ -39,7 +39,6 @@ struct ExerciseLibraryView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    headerSection
                     filterSection
                     librarySection
                 }
@@ -50,20 +49,6 @@ struct ExerciseLibraryView: View {
         .navigationTitle("Exercise Library")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search Exercises")
-    }
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Exercise Library")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Search fast, filter fast, and open any exercise for the details.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
     }
 
     private var filterSection: some View {

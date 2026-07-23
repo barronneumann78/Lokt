@@ -17,15 +17,13 @@ struct CreateWorkoutOptionsView: View {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    headerSection
+                VStack(alignment: .leading, spacing: 24) {
                     smartToolsSection
                     if entryMode == .allOptions {
                         manualSection
                     } else {
                         optionalManualFooter
                     }
-                    trustSection
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
@@ -40,20 +38,6 @@ struct CreateWorkoutOptionsView: View {
         }
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(entryMode == .aiTools ? "Choose how Lokt should help." : "Choose how you want to start.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text(entryMode == .aiTools ? "Pick the AI flow that fits how you want to ask." : "Manual first, smart tools when you want a shortcut.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
-    }
-
     private var manualSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Start Here")
@@ -63,7 +47,6 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: CreateRoutineView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Create Manually",
-                    subtitle: "Pick exercises and build the routine yourself.",
                     icon: "square.and.pencil",
                     accent: AppTheme.primary,
                     isPrimary: true
@@ -71,8 +54,6 @@ struct CreateWorkoutOptionsView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(20)
-        .glassCard()
     }
 
     private var smartToolsSection: some View {
@@ -84,7 +65,6 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: AIWorkoutGeneratorView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Generate with AI",
-                    subtitle: "Describe the workout and review the draft.",
                     icon: "sparkles",
                     accent: AppTheme.accent
                 )
@@ -94,7 +74,6 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: SupplementaryWorkoutGeneratorView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Add-On Block",
-                    subtitle: "Build a finisher, warm-up, or recovery block.",
                     icon: "plus.rectangle.on.folder.fill",
                     accent: AppTheme.primary
                 )
@@ -104,7 +83,6 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: VoiceWorkoutImportView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Import by Voice",
-                    subtitle: "Speak the workout and confirm the matches.",
                     icon: "waveform.badge.mic",
                     accent: AppTheme.success
                 )
@@ -114,19 +92,16 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: WorkoutPhotoImportView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Import from Photo",
-                    subtitle: "Pull a plan from a screenshot or photo.",
                     icon: "sparkles.rectangle.stack.fill",
                     accent: AppTheme.secondary
                 )
             }
             .buttonStyle(.plain)
         }
-        .padding(20)
-        .glassCard()
     }
 
     private var optionalManualFooter: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Prefer to build it yourself?")
                 .font(.headline)
                 .foregroundStyle(AppTheme.textPrimary)
@@ -134,7 +109,6 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: CreateRoutineView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Create Manually",
-                    subtitle: "Pick exercises and build the routine yourself.",
                     icon: "square.and.pencil",
                     accent: AppTheme.primary,
                     isPrimary: true
@@ -142,26 +116,10 @@ struct CreateWorkoutOptionsView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(20)
-        .glassCard()
     }
 
-    private var trustSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Review before save")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("AI, voice, and photo tools all stop at a review screen before anything gets saved.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private func optionCard(title: String, subtitle: String, icon: String, accent: Color, isPrimary: Bool = false) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+    private func optionCard(title: String, icon: String, accent: Color, isPrimary: Bool = false) -> some View {
+        HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
                 .font(.title2.weight(.bold))
                 .foregroundStyle(isPrimary ? AppTheme.textPrimary : accent)
@@ -169,26 +127,17 @@ struct CreateWorkoutOptionsView: View {
                 .background(isPrimary ? AppTheme.surfaceElevated : AppTheme.mutedFill)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(AppTheme.textPrimary)
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(AppTheme.textSecondary)
-                .padding(.top, 4)
         }
-        .padding(18)
+        .padding(16)
         .surfaceCard(cornerRadius: 20, border: isPrimary ? AppTheme.primary.opacity(0.45) : AppTheme.cardBorder)
     }
 

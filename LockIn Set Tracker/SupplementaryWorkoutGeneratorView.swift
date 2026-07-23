@@ -84,23 +84,13 @@ struct SupplementaryWorkoutGeneratorView: View {
             if let errorMessage {
                 messageCard(title: "Add-On Needs Attention", text: errorMessage, tint: AppTheme.secondary)
             }
-
-            trustSection
         }
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Build a small extra block.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Ask for a warm-up, finisher, burnout, or recovery add-on, then choose where to drop it in.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
+        Text("Build a small extra block.")
+            .font(.system(size: 30, weight: .black, design: .rounded))
+            .foregroundStyle(AppTheme.textPrimary)
     }
 
     private var promptSection: some View {
@@ -162,39 +152,25 @@ struct SupplementaryWorkoutGeneratorView: View {
     }
 
     private var generatingContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Building your add-on...")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(AppTheme.textPrimary)
+        VStack(spacing: 18) {
+            Text("Building your add-on...")
+                .font(.system(size: 30, weight: .black, design: .rounded))
+                .foregroundStyle(AppTheme.textPrimary)
+                .multilineTextAlignment(.center)
 
-                Text("Lokt is shaping a small block that you can layer into a workout.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .padding(20)
-            .glassCard()
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(AppTheme.primary)
+                .scaleEffect(1.2)
 
-            VStack(spacing: 18) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(AppTheme.primary)
-                    .scaleEffect(1.2)
-
-                Text(prompt)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .multilineTextAlignment(.center)
-
-                Text("This comes back as a draft first, so you can edit it before adding it anywhere.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity)
-            .glassCard()
+            Text(prompt)
+                .font(.headline)
+                .foregroundStyle(AppTheme.textPrimary)
+                .multilineTextAlignment(.center)
         }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .glassCard()
     }
 
     private var reviewContent: some View {
@@ -222,10 +198,6 @@ struct SupplementaryWorkoutGeneratorView: View {
             Text("Review your add-on block")
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Keep it tight and useful. You can tweak the exercises below before adding it to a workout or routine.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
 
             HStack(spacing: 10) {
                 statPill(title: "\(generatedBlock.exercises.count)", subtitle: "Exercises")
@@ -343,16 +315,6 @@ struct SupplementaryWorkoutGeneratorView: View {
             }
 
             HStack(spacing: 10) {
-                if matchedExercise != nil {
-                    Text("Looks like a library exercise.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                } else {
-                    Text("Rename this if you want something more specific.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-
                 Spacer()
 
                 Button("Smart Swap") {
@@ -387,20 +349,6 @@ struct SupplementaryWorkoutGeneratorView: View {
             }
             .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
         }
-    }
-
-    private var trustSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("How the add-on flow works")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Your request is processed through \(aiBackendBaseURL). The block stays editable until you choose where to add it.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
     }
 
     private var titleBinding: Binding<String> {
@@ -616,15 +564,9 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                         .font(.title3)
                         .foregroundStyle(AppTheme.success)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Add to \(currentWorkoutTitle)")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Text("Append this block to the live session and keep logging.")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+                    Text("Add to \(currentWorkoutTitle)")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Spacer()
                 }
@@ -705,15 +647,9 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                         .font(.title3)
                         .foregroundStyle(AppTheme.primary)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Create a New Routine")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Text("Save this whole add-on as its own editable routine.")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+                    Text("Create a New Routine")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Spacer()
                 }

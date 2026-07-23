@@ -74,23 +74,13 @@ struct AIWorkoutGeneratorView: View {
             if let errorMessage {
                 messageCard(title: "Generation Needs Attention", text: errorMessage, tint: AppTheme.secondary)
             }
-
-            trustSection
         }
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Describe the workout you want.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Type a goal, time cap, split, or equipment, then review the draft before saving.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
+        Text("Describe the workout you want.")
+            .font(.system(size: 30, weight: .black, design: .rounded))
+            .foregroundStyle(AppTheme.textPrimary)
     }
 
     private var promptSection: some View {
@@ -152,39 +142,25 @@ struct AIWorkoutGeneratorView: View {
     }
 
     private var generatingContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Building your routine...")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(AppTheme.textPrimary)
+        VStack(spacing: 18) {
+            Text("Building your routine...")
+                .font(.system(size: 30, weight: .black, design: .rounded))
+                .foregroundStyle(AppTheme.textPrimary)
+                .multilineTextAlignment(.center)
 
-                Text("Lokt is turning your request into a structured routine draft.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .padding(20)
-            .glassCard()
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(AppTheme.primary)
+                .scaleEffect(1.2)
 
-            VStack(spacing: 18) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(AppTheme.primary)
-                    .scaleEffect(1.2)
-
-                Text(prompt)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .multilineTextAlignment(.center)
-
-                Text("This comes back as a draft first, so nothing gets saved silently.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity)
-            .glassCard()
+            Text(prompt)
+                .font(.headline)
+                .foregroundStyle(AppTheme.textPrimary)
+                .multilineTextAlignment(.center)
         }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .glassCard()
     }
 
     private var reviewContent: some View {
@@ -209,10 +185,6 @@ struct AIWorkoutGeneratorView: View {
             Text("Review your workout")
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Text("This is still just a draft. Confirm the exercise names and programming, then save it as a normal routine.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
 
             reviewSummaryBanner(for: generatedRoutine)
 
@@ -255,15 +227,9 @@ struct AIWorkoutGeneratorView: View {
     private func revisionSection(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Coach Chat")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Keep refining this same draft with follow-up requests until it feels right.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+                Text("Coach Chat")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 Spacer()
 
@@ -339,15 +305,8 @@ struct AIWorkoutGeneratorView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                aiStatusChip(
-                    title: matchedExercise == nil ? "Check Name" : "Known Exercise",
-                    color: matchedExercise == nil ? AppTheme.secondary : AppTheme.success
-                )
-
-                if let note = exercise.notes, !note.isEmpty {
-                    aiStatusChip(title: "Has Note", color: AppTheme.primary)
-                }
+            if matchedExercise == nil {
+                aiStatusChip(title: "Check Name", color: AppTheme.secondary)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -393,16 +352,6 @@ struct AIWorkoutGeneratorView: View {
             }
 
             HStack(spacing: 10) {
-                if matchedExercise != nil {
-                    Text("Looks like a library exercise.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                } else {
-                    Text("Rename this if the AI picked something vague.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-
                 Spacer()
 
                 Button("Smart Swap") {
@@ -439,20 +388,6 @@ struct AIWorkoutGeneratorView: View {
             }
             .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
         }
-    }
-
-    private var trustSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("How the AI flow works")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Your prompt is processed through \(aiBackendBaseURL). The result stays as a draft until you review and save it.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
     }
 
     private var titleBinding: Binding<String> {
@@ -687,16 +622,9 @@ struct AIWorkoutGeneratorView: View {
                 .font(.headline)
                 .foregroundStyle(canSave(generatedRoutine) ? AppTheme.success : AppTheme.secondary)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(canSave(generatedRoutine) ? "Draft looks ready to save" : "A few details still need review")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text(canSave(generatedRoutine) ? "You can still edit anything below, but the required fields are filled in." : "Make sure every exercise name and rep target looks right before you save.")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(canSave(generatedRoutine) ? "Draft looks ready to save" : "A few details still need review")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
 
             Spacer()
         }

@@ -194,7 +194,7 @@ struct CoachView: View {
             }
             .padding(.horizontal, 24)
 
-            Text("Lokt can make mistakes. Review important workout changes before saving.")
+            Text("Lokt can make mistakes.")
                 .font(.caption2)
                 .foregroundStyle(AppTheme.textSecondary.opacity(0.9))
                 .multilineTextAlignment(.center)
@@ -380,7 +380,8 @@ struct CoachView: View {
     private var contextBannerText: String? {
         switch initialContext {
         case .planning:
-            return "Planning mode is active."
+            // The top bar subtitle already says "Planning a new workout" — no banner needed.
+            return nil
         case .activeWorkout(let snapshot):
             if let nextExercise = nonEmptyText(snapshot.nextExercise) {
                 return "Active workout: \(snapshot.routineName) • Up next: \(nextExercise)"

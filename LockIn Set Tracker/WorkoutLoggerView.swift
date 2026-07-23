@@ -84,10 +84,6 @@ struct WorkoutLoggerView: View {
                                         Text("Suggested: \(formatWeight(suggestion.suggestedWeight))")
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(AppTheme.secondary)
-
-                                        Text(fatigueExplanation(for: suggestion))
-                                            .font(.caption2)
-                                            .foregroundStyle(AppTheme.textSecondary)
                                     }
                                 }
 
@@ -347,10 +343,6 @@ struct WorkoutLoggerView: View {
                 .font(.system(size: 32, weight: .black, design: .rounded))
                 .foregroundStyle(AppTheme.textPrimary)
 
-            Text("Stay focused, record the lift, and adjust your set count when needed.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-
             if let nextTarget = nextLoggingTarget {
                 HStack(spacing: 10) {
                     Image(systemName: "scope")
@@ -457,10 +449,6 @@ struct WorkoutLoggerView: View {
                     completionStat(title: "Exercises", value: "\(completedExerciseCount)")
                 }
 
-                Text("Your next workout will use this session for history and weight suggestions.")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-
                 Button("Back to Home") {
                     dismiss()
                 }
@@ -471,10 +459,6 @@ struct WorkoutLoggerView: View {
                 Text("Wrap Up")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(AppTheme.textPrimary)
-
-                Text("Save the workout once you finish your last working set.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
 
                 HStack(spacing: 12) {
                     completionStat(title: "Logged Sets", value: "\(loggedSetCount)")
@@ -1047,14 +1031,6 @@ struct WorkoutLoggerView: View {
         return WorkoutFatigueModel.suggestion(baseWeight: baseWeight, orderIndex: orderIndex)
     }
 
-    private func fatigueExplanation(for suggestion: FatigueAdjustedWeightSuggestion) -> String {
-        if suggestion.fatiguePercent <= 0 {
-            return "Base \(formatWeight(suggestion.baseWeight)) from your last workout."
-        }
-
-        return "Base \(formatWeight(suggestion.baseWeight)) • Slot \(suggestion.orderIndex + 1) • -\(formatPercent(suggestion.fatiguePercent)) fatigue"
-    }
-
     private func recentWorkingWeight(for exercise: String) -> Double? {
         let sessions = loadWorkoutSessions().filter(matchesRoutine)
         guard let latestWeights = sessions.last?.logs[exercise] else { return nil }
@@ -1078,14 +1054,6 @@ struct WorkoutLoggerView: View {
         }
 
         return String(format: "%.1f", weight)
-    }
-
-    private func formatPercent(_ value: Double) -> String {
-        if value.rounded() == value {
-            return "\(Int(value))%"
-        }
-
-        return String(format: "%.1f%%", value)
     }
 
     private func toggleHistory(_ exercise: String) {

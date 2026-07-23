@@ -92,15 +92,9 @@ struct HomeView: View {
     private var heroSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Lokt")
-                        .font(.system(size: 38, weight: .black, design: .rounded))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Tell Lokt what you want, get a workout fast, and keep the rest of your training easy to manage.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+                Text("Lokt")
+                    .font(.system(size: 38, weight: .black, design: .rounded))
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 Spacer()
 
@@ -149,7 +143,7 @@ struct HomeView: View {
                             .font(.title2.weight(.bold))
                             .foregroundStyle(AppTheme.textPrimary)
 
-                        Text("\(quickStartRoutine.exercises.count) exercises ready to go")
+                        Text("\(quickStartRoutine.exercises.count) exercises")
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.textSecondary)
                     }
@@ -160,16 +154,10 @@ struct HomeView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
 
-                    HStack(spacing: 10) {
-                        Text("Want something different today?")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-
-                    Button("Ask Lokt") {
-                            navigateToCreate = true
-                        }
-                        .buttonStyle(TertiaryButtonStyle())
+                    Button("Ask Lokt for Something Different") {
+                        navigateToCreate = true
                     }
+                    .buttonStyle(TertiaryButtonStyle())
                 }
                 .padding(20)
                 .glassCard()
@@ -178,10 +166,6 @@ struct HomeView: View {
                     Text("Start with Lokt")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Describe the workout you want and Lokt can build the first draft for you.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
 
                     Button("Ask Lokt for a Workout") {
                         navigateToCreate = true
@@ -216,15 +200,9 @@ struct HomeView: View {
                         .background(AppTheme.accent.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Ask Lokt for a Workout")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Text("Use text, voice, photo, or add-on tools to let Lokt build the draft.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+                    Text("Ask Lokt for a Workout")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Spacer()
 
@@ -248,15 +226,9 @@ struct HomeView: View {
                         .background(AppTheme.mutedFill)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Create Manually")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Text("Pick exercises and build the routine yourself.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+                    Text("Create Manually")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Spacer()
 
@@ -285,16 +257,10 @@ struct HomeView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                Text("Want less setup?")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-
-                Button("Start with a Plan") {
-                    navigateToPresetGenerator = true
-                }
-                .buttonStyle(TertiaryButtonStyle())
+            Button("Start with a Preset Plan") {
+                navigateToPresetGenerator = true
             }
+            .buttonStyle(TertiaryButtonStyle())
         }
         .padding(20)
         .glassCard()
@@ -410,7 +376,7 @@ struct HomeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .glassCard()
+        .surfaceCard()
     }
 
     private func tertiaryActionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
@@ -433,7 +399,7 @@ struct HomeView: View {
 
     private func compactFlowButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 Image(systemName: icon)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(AppTheme.textPrimary)
@@ -441,21 +407,12 @@ struct HomeView: View {
                     .background(AppTheme.mutedFill)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(title == "Explore Exercises" ? "Browse and add exercises fast." : "See trends, lifts, and progress.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(16)
             .surfaceCard(cornerRadius: 20)
         }

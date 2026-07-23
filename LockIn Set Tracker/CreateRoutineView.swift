@@ -151,7 +151,6 @@ struct CreateRoutineView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    headerSection
                     routineSetupSection
 
                     NavigationLink(
@@ -178,18 +177,6 @@ struct CreateRoutineView: View {
         .navigationTitle(screenTitle)
         .searchable(text: $searchText, prompt: "Search Exercises")
         .onAppear(perform: configureFormIfNeeded)
-    }
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(isEditing ? "Update your routine without losing the structure you already use." : "Create a routine that feels effortless to start.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Name it, add exercises, then drag to set the order.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
     }
 
     private var routineSetupSection: some View {
@@ -247,10 +234,6 @@ struct CreateRoutineView: View {
                     .background(AppTheme.mutedFill)
                     .clipShape(Capsule())
             }
-
-            Text("Drag to reorder, adjust sets, or remove anything you do not need.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
 
             if selectedExercises.isEmpty {
                 Text("No exercises selected yet. Tap exercises below to build the routine.")
@@ -352,10 +335,6 @@ struct CreateRoutineView: View {
                     .clipShape(Capsule())
             }
 
-            Text("Narrow the list when you want a faster add flow.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-
             HStack(spacing: 12) {
                 filterPicker(title: "Muscle", selection: $selectedMuscleGroup, options: muscleGroupOptions)
                 filterPicker(title: "Equipment", selection: $selectedEquipment, options: equipmentOptions)
@@ -377,10 +356,6 @@ struct CreateRoutineView: View {
                     .font(.title3.weight(.bold))
                     .foregroundStyle(AppTheme.textPrimary)
             }
-
-            Text("These are just optional hints to help keep the workout balanced.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
 
             ForEach(workoutSuggestions) { suggestion in
                 VStack(alignment: .leading, spacing: 10) {

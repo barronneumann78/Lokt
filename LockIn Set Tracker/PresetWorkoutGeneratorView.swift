@@ -76,17 +76,9 @@ struct PresetWorkoutGeneratorView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Start with a split and keep it easy.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Choose a preset split, save it in one tap, and edit any routine later if you want to personalize it.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
+        Text("Start with a split and keep it easy.")
+            .font(.system(size: 30, weight: .black, design: .rounded))
+            .foregroundStyle(AppTheme.textPrimary)
     }
 
     private func recommendedSection(_ split: WorkoutPresetSplit) -> some View {
@@ -101,10 +93,6 @@ struct PresetWorkoutGeneratorView: View {
 
             Text(split.subtitle)
                 .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            Text("Best default if you just want something simple and editable.")
-                .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
 
             Button("Start with \(split.title)") {
@@ -225,10 +213,6 @@ struct PresetWorkoutGeneratorView: View {
             Text("Equipment")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Only change this if you want the preset to match the equipment you have.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
 
             LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(EquipmentType.selectionOptions, id: \.self) { equipment in

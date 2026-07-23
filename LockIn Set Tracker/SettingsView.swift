@@ -18,11 +18,9 @@ struct SettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    headerSection
                     aiSection
                     aiPreferencesSection
-                    deleteAllSection
-                    exerciseHistorySection
+                    historySection
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
@@ -58,43 +56,17 @@ struct SettingsView: View {
         }
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Settings")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Manage workout history and the app services that power your tracker.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            Text("Your AI workout preferences stay on this device and help future drafts feel more like your style.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
-    }
-
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("AI Backend")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
-            Text("The app sends workout prompts, voice transcriptions, and photo imports here, and the backend keeps your OpenAI API key off the device.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-
             TextField("Backend URL", text: $aiBackendBaseURL)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .keyboardType(.URL)
-
-            Text("For local simulator testing, the app prefers http://127.0.0.1:8788 and also tries the common local fallback ports automatically.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
 
             Button("Reset to Local Default") {
                 aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
@@ -111,50 +83,40 @@ struct SettingsView: View {
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
-            Text("Set a few standing preferences so Lokt can shape workouts around your normal setup and constraints.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-
             preferenceField(
                 title: "Preferred Equipment",
                 placeholder: "Dumbbells, cables, machines",
-                text: $preferredEquipmentText,
-                helpText: "Comma-separated. Used when the prompt does not fully specify equipment."
+                text: $preferredEquipmentText
             )
 
             preferenceField(
                 title: "Disliked Exercises",
                 placeholder: "Burpees, upright rows, barbell back squat",
-                text: $dislikedExercisesText,
-                helpText: "Comma-separated. Lokt will try to avoid these when possible."
+                text: $dislikedExercisesText
             )
 
             multilinePreferenceField(
                 title: "Injuries or Limitations",
                 placeholder: "Sensitive shoulders, avoid deep knee flexion, low back gets irritated",
-                text: $limitationsText,
-                helpText: "Short plain-English notes are enough."
+                text: $limitationsText
             )
 
             preferenceField(
                 title: "Primary Goal",
                 placeholder: "Build muscle, get stronger, general fitness",
-                text: $primaryGoalText,
-                helpText: "Used when your prompt does not clearly state the goal."
+                text: $primaryGoalText
             )
 
             preferenceField(
                 title: "Training Style",
                 placeholder: "Hypertrophy-focused, simple compounds first, higher reps",
-                text: $trainingStyleText,
-                helpText: "Describe how you usually like your sessions programmed."
+                text: $trainingStyleText
             )
 
             preferenceField(
-                title: "Default Time Limit",
+                title: "Default Time Limit (minutes)",
                 placeholder: "45",
                 text: $defaultTimeLimitText,
-                helpText: "Optional minutes. Used when you do not mention time.",
                 keyboardType: .numberPad
             )
 
@@ -174,7 +136,7 @@ struct SettingsView: View {
         .glassCard()
     }
 
-    private var deleteAllSection: some View {
+    private var historySection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Workout History")
                 .font(.title3.weight(.bold))
@@ -184,65 +146,44 @@ struct SettingsView: View {
                 pendingAction = .deleteAll
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Delete All History")
-                            .font(.headline)
-                            .foregroundStyle(.red)
-
-                        Text("Remove every saved workout session.")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+                    Text("Delete All History")
+                        .font(.headline)
+                        .foregroundStyle(.red)
 
                     Spacer()
 
                     Image(systemName: "trash")
                         .foregroundStyle(.red)
                 }
-                .padding(16)
-                .background(Color.white.opacity(0.72))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(14)
+                .background(AppTheme.mutedFill)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
             }
             .buttonStyle(.plain)
-        }
-        .padding(20)
-        .glassCard()
-    }
 
-    private var exerciseHistorySection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Delete One Exercise")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            if !exerciseNames.isEmpty {
+                Text("Delete One Exercise")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.top, 6)
 
-            if exerciseNames.isEmpty {
-                Text("No exercise history found yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            } else {
                 ForEach(exerciseNames, id: \.self) { exercise in
                     Button {
                         pendingAction = .deleteExercise(exercise)
                     } label: {
                         HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(exercise)
-                                    .font(.headline)
-                                    .foregroundStyle(AppTheme.textPrimary)
-
-                                Text("Delete this exercise from saved history")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
+                            Text(exercise)
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.textPrimary)
 
                             Spacer()
 
                             Image(systemName: "minus.circle")
                                 .foregroundStyle(AppTheme.secondary)
                         }
-                        .padding(16)
-                        .background(Color.white.opacity(0.72))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(14)
+                        .background(AppTheme.mutedFill)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -323,7 +264,6 @@ struct SettingsView: View {
         title: String,
         placeholder: String,
         text: Binding<String>,
-        helpText: String,
         keyboardType: UIKeyboardType = .default
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -334,18 +274,13 @@ struct SettingsView: View {
             TextField(placeholder, text: text)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .keyboardType(keyboardType)
-
-            Text(helpText)
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
         }
     }
 
     private func multilinePreferenceField(
         title: String,
         placeholder: String,
-        text: Binding<String>,
-        helpText: String
+        text: Binding<String>
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -375,10 +310,6 @@ struct SettingsView: View {
                 RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
-
-            Text(helpText)
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
         }
     }
 }
