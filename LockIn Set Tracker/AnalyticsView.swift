@@ -1,13 +1,17 @@
 import SwiftUI
 import Charts
+import Combine
 
+/// Insight-dense analytics: training consistency, estimated-1RM trends with PR
+/// markers, muscle-group balance and rep-range distribution — all derived once
+/// per data change in `AnalyticsSnapshot` (see AnalyticsModels.swift).
 struct AnalyticsView: View {
+    @EnvironmentObject private var store: WorkoutStore
     @StateObject private var exerciseStore = ExerciseStore()
-    @State private var workoutSessions: [WorkoutSession] = []
-    @State private var selectedExercise = ""
-    private let analyticsSecondaryText = Color.white.opacity(0.84)
-    private let analyticsMutedText = Color.white.opacity(0.70)
-    private let chartGridColor = Color.white.opacity(0.12)
+    @State private var snapshot: AnalyticsSnapshot = .empty
+
+    private let secondaryText = Color.white.opacity(0.84)
+    private let mutedText = Color.white.opacity(0.62)
 
     var body: some View {
         ZStack {
@@ -15,9 +19,21 @@ struct AnalyticsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
-                    headerSection
-                    exercisePickerSection
-                    chartSection
+                    if snapshot.totalSessions == 0 {
+                        emptyState
+                    } else {
+                        if let headline = snapshot.headline {
+                            headlineStrip(headline)
+                        }
+                        consistencyCard
+                        strengthCard
+                        if !snapshot.muscleShares.isEmpty {
+                            balanceCard
+                        }
+                        if !snapshot.repBins.isEmpty {
+                            repRangeCard
+                        }
+                    }
                 }
                 .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
@@ -25,55 +41,180 @@ struct AnalyticsView: View {
         }
         .navigationTitle("Analytics")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: loadWorkoutSessions)
-    }
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Analytics")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Follow your best weight and your recent trend for one exercise.")
-                .font(.subheadline)
-                .foregroundStyle(analyticsSecondaryText)
+        .onAppear {
+            // Pick up sessions written directly by screens not yet on the store.
+            store.reload()
         }
-        .padding(AppTheme.cardPadding)
-        .glassCard()
+        .onReceive(store.$sessions) { sessions in
+            rebuild(with: sessions)
+        }
     }
 
-    private var exercisePickerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Exercise")
+    private func rebuild(with sessions: [WorkoutSession]) {
+        let exercises = exerciseStore.exercises
+        snapshot = AnalyticsSnapshot.build(
+            sessions: sessions,
+            resolve: { exercises.resolvedExercise(named: $0) }
+        )
+    }
+
+    // MARK: - Empty state
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 40, weight: .medium))
+                .foregroundStyle(AppTheme.primary.opacity(0.8))
+
+            Text("Nothing to chart yet")
                 .font(.headline)
                 .foregroundStyle(AppTheme.textPrimary)
 
-            if exerciseNames.isEmpty {
-                Text("No saved exercise history yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(analyticsSecondaryText)
+            Text("Log a workout and Lokt will map your consistency, strength gains and muscle balance here.")
+                .font(.subheadline)
+                .foregroundStyle(secondaryText)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 56)
+        .glassCard()
+    }
+
+    // MARK: - Headline strip
+
+    private func headlineStrip(_ headline: AnalyticsSnapshot.Headline) -> some View {
+        HStack(spacing: 10) {
+            statTile(
+                label: "Sessions",
+                value: "\(headline.thisWeekSessions)",
+                detail: "this week"
+            )
+
+            if headline.volumeIsMeaningful {
+                statTile(
+                    label: "Volume",
+                    value: compactNumber(headline.thisWeekVolume),
+                    detail: "lbs this week",
+                    delta: headline.volumeDeltaPercent.map { delta in
+                        (text: signedPercent(delta) + " vs avg", isPositive: delta >= 0)
+                    }
+                )
             } else {
-                Picker("Exercise", selection: $selectedExercise) {
-                    ForEach(exerciseNames, id: \.self) { exercise in
-                        Text(exercise).tag(exercise)
+                statTile(
+                    label: "Sets",
+                    value: "\(headline.thisWeekSets)",
+                    detail: "this week"
+                )
+            }
+
+            statTile(
+                label: "Streak",
+                value: headline.streakWeeks == 0 ? "—" : "\(headline.streakWeeks) wk",
+                detail: headline.streakWeeks == 0 ? "train to start one" : "in a row"
+            )
+        }
+    }
+
+    private func statTile(
+        label: String,
+        value: String,
+        detail: String,
+        delta: (text: String, isPositive: Bool)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.semibold))
+                .tracking(0.7)
+                .foregroundStyle(mutedText)
+
+            Text(value)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            if let delta {
+                Text(delta.text)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(delta.isPositive ? AppTheme.success : AppTheme.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            } else {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(mutedText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+    }
+
+    // MARK: - Consistency heatmap
+
+    private var consistencyCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeader(
+                title: "Consistency",
+                caption: "Sessions over the last \(AnalyticsSnapshot.heatmapWeekCount) weeks"
+            )
+
+            ConsistencyHeatmapGrid(model: snapshot.heatmap)
+
+            HStack(alignment: .center) {
+                if let insight = snapshot.heatmapInsight {
+                    insightLine(insight)
+                }
+                Spacer(minLength: 12)
+                heatmapLegend
+            }
+        }
+        .padding(16)
+        .glassCard()
+    }
+
+    private var heatmapLegend: some View {
+        HStack(spacing: 3) {
+            Text("Less")
+                .font(.system(size: 9))
+                .foregroundStyle(mutedText)
+            ForEach(0..<5) { level in
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(AnalyticsPalette.heatLevel(level))
+                    .frame(width: 8, height: 8)
+            }
+            Text("More")
+                .font(.system(size: 9))
+                .foregroundStyle(mutedText)
+        }
+    }
+
+    // MARK: - Strength trends
+
+    private var strengthCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeader(
+                title: "Strength trend",
+                caption: "Estimated 1RM from your best set — orange dots mark new PRs"
+            )
+
+            if snapshot.trends.isEmpty {
+                Text("Log an exercise three or more times with weight and reps to unlock strength trends.")
+                    .font(.footnote)
+                    .foregroundStyle(mutedText)
+                    .padding(.vertical, 16)
+            } else {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(snapshot.trends) { trend in
+                        trendPanel(trend)
                     }
                 }
-                .pickerStyle(.menu)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .tint(AppTheme.textPrimary)
-                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.cardBorder.opacity(0.9))
 
-                if let selectedExerciseDetail {
-                    NavigationLink(destination: ExerciseDetailView(exercise: selectedExerciseDetail)) {
-                        Label("Open Exercise Details", systemImage: "info.circle")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-                    }
-                    .buttonStyle(.plain)
+                if let insight = snapshot.trendInsight {
+                    insightLine(insight)
                 }
             }
         }
@@ -81,340 +222,467 @@ struct AnalyticsView: View {
         .glassCard()
     }
 
-    private var chartSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Best Weight Over Time")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Your top set each time you logged this exercise.")
-                        .font(.subheadline)
-                        .foregroundStyle(analyticsSecondaryText)
-                }
-
-                Spacer()
-
-                if !chartData.isEmpty {
-                    Text("\(chartData.count) logs")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(AppTheme.mutedFill)
-                        .clipShape(Capsule())
-                        .overlay {
-                            Capsule()
-                                .stroke(AppTheme.cardBorder.opacity(0.8), lineWidth: 1)
-                        }
-                }
-            }
-
-            if chartData.isEmpty {
-                Text("Log a few workouts for this exercise to see progress here.")
-                    .font(.subheadline)
-                    .foregroundStyle(analyticsSecondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 36)
-            } else {
-                HStack(spacing: 12) {
-                    analyticsStatCard(
-                        title: "Best",
-                        value: formattedWeight(bestWeight),
-                        caption: "All-time top set",
-                        accent: AppTheme.primary
-                    )
-                    analyticsStatCard(
-                        title: "Latest",
-                        value: formattedWeight(latestWeight),
-                        caption: latestWeightCaption,
-                        accent: Color.white
-                    )
-                    analyticsStatCard(
-                        title: progressLabel,
-                        value: progressValueText,
-                        caption: progressCaption,
-                        accent: progressAccent
-                    )
-                }
-                .frame(minHeight: 96)
-
-                performanceContextCard
-
-                Chart(chartData) { point in
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.value)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(AppTheme.primary)
-                    .lineStyle(StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
-
-                    AreaMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.value)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [AppTheme.primary.opacity(0.28), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                    if isLatestPoint(point) {
-                        PointMark(
-                            x: .value("Date", point.date),
-                            y: .value("Weight", point.value)
-                        )
-                        .symbolSize(110)
-                        .foregroundStyle(AppTheme.textPrimary)
-                    }
-
-                    PointMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.value)
-                    )
-                    .symbolSize(isLatestPoint(point) ? 44 : 26)
-                    .foregroundStyle(isLatestPoint(point) ? AppTheme.primary : AppTheme.secondary)
-                }
-                .frame(height: 300)
-                .chartPlotStyle { plot in
-                    plot
-                        .background(AppTheme.surfaceElevated.opacity(0.85))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(AppTheme.cardBorder.opacity(0.85), lineWidth: 1)
-                        }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .automatic) {
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
-                            .foregroundStyle(chartGridColor)
-                        AxisTick()
-                            .foregroundStyle(chartGridColor)
-                        AxisValueLabel()
-                            .foregroundStyle(analyticsSecondaryText)
+    private func trendPanel(_ trend: AnalyticsSnapshot.ExerciseTrend) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                ExerciseTextNavigationLink(exerciseName: trend.name, exercises: exerciseStore.exercises) {
+                    HStack(spacing: 4) {
+                        Text(trend.name)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(mutedText)
                     }
                 }
-                .chartYAxis {
-                    AxisMarks(position: .leading) {
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
-                            .foregroundStyle(chartGridColor)
-                        AxisTick()
-                            .foregroundStyle(chartGridColor)
-                        AxisValueLabel()
-                            .foregroundStyle(analyticsSecondaryText)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 20)
-        .glassCard()
-    }
 
-    private var performanceContextCard: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: performanceIconName)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(performanceIconColor)
-                .frame(width: 34, height: 34)
-                .background(performanceIconColor.opacity(0.16))
-                .clipShape(Circle())
+                Spacer(minLength: 8)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(performanceContextTitle)
+                Text("\(Int(trend.currentE1RM.rounded())) lbs")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(AppTheme.textPrimary)
 
-                Text(performanceContextBody)
-                    .font(.caption)
-                    .foregroundStyle(analyticsSecondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let delta = trend.windowDeltaPercent {
+                    deltaBadge(delta)
+                }
+            }
+
+            trendChart(trend)
+
+            if let first = trend.points.first, let last = trend.points.last {
+                HStack {
+                    Text(shortDate(first.date))
+                    Spacer()
+                    Text(shortDate(last.date))
+                }
+                .font(.system(size: 9))
+                .foregroundStyle(mutedText)
             }
         }
-        .padding(14)
-        .surfaceCard(border: performanceIconColor.opacity(0.22))
     }
 
-    private var exerciseNames: [String] {
-        let names = workoutSessions.flatMap { Array($0.logs.keys) }
-        return Array(Set(names)).sorted()
-    }
+    private func trendChart(_ trend: AnalyticsSnapshot.ExerciseTrend) -> some View {
+        let values = trend.points.map(\.e1RM)
+        let low = values.min() ?? 0
+        let high = values.max() ?? 1
+        let pad = max((high - low) * 0.18, 2)
 
-    private var selectedExerciseDetail: Exercise? {
-        exerciseStore.exercises.exercise(named: selectedExercise)
-    }
+        return Chart(trend.points) { point in
+            AreaMark(
+                x: .value("Date", point.date),
+                y: .value("e1RM", point.e1RM)
+            )
+            .interpolationMethod(.monotone)
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [AppTheme.primary.opacity(0.16), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
 
-    private var chartData: [AnalyticsPoint] {
-        guard !selectedExercise.isEmpty else { return [] }
+            LineMark(
+                x: .value("Date", point.date),
+                y: .value("e1RM", point.e1RM)
+            )
+            .interpolationMethod(.monotone)
+            .foregroundStyle(AppTheme.primary)
+            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
-        return workoutSessions
-            .compactMap { session -> AnalyticsPoint? in
-                guard let sets = session.logs[selectedExercise] else { return nil }
+            if point.isPR {
+                // Surface ring under the PR dot keeps it legible on the line.
+                PointMark(
+                    x: .value("Date", point.date),
+                    y: .value("e1RM", point.e1RM)
+                )
+                .symbolSize(96)
+                .foregroundStyle(AppTheme.card)
 
-                let weights = sets.compactMap { parseWeight($0.weight) }
-                guard let bestWeight = weights.max() else { return nil }
-
-                return AnalyticsPoint(date: session.date, value: bestWeight)
+                PointMark(
+                    x: .value("Date", point.date),
+                    y: .value("e1RM", point.e1RM)
+                )
+                .symbolSize(42)
+                .foregroundStyle(AppTheme.secondary)
             }
-            .sorted { $0.date < $1.date }
+        }
+        .chartYScale(domain: (low - pad)...(high + pad))
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .frame(height: 64)
     }
 
-    private var bestWeight: Double {
-        chartData.map(\.value).max() ?? 0
-    }
-
-    private var latestWeight: Double {
-        chartData.last?.value ?? 0
-    }
-
-    private var latestWeightCaption: String {
-        guard let latestDate = chartData.last?.date else { return "Most recent session" }
-        return "Logged \(formattedShortDate(latestDate))"
-    }
-
-    private var progressLabel: String {
-        overallChange == nil ? "Progress" : "Change"
-    }
-
-    private var progressValueText: String {
-        guard let overallChange else { return "--" }
-        return formattedDelta(overallChange)
-    }
-
-    private var progressCaption: String {
-        overallChange == nil ? "Need more history" : "Since first logged set"
-    }
-
-    private var progressAccent: Color {
-        guard let overallChange else { return AppTheme.textSecondary }
-        return overallChange >= 0 ? AppTheme.success : AppTheme.secondary
-    }
-
-    private var overallChange: Double? {
-        guard let first = chartData.first, let latest = chartData.last, chartData.count >= 2 else { return nil }
-        return latest.value - first.value
-    }
-
-    private var performanceIconName: String {
-        guard let overallChange else { return "sparkles" }
-        return overallChange >= 0 ? "arrow.up.right" : "arrow.down.right"
-    }
-
-    private var performanceIconColor: Color {
-        guard let overallChange else { return AppTheme.primary }
-        return overallChange >= 0 ? AppTheme.success : AppTheme.secondary
-    }
-
-    private var performanceContextTitle: String {
-        guard let overallChange else { return "One more log unlocks your trend" }
-
-        if overallChange > 0 {
-            return "Trending up \(formattedDelta(overallChange))"
-        } else if overallChange < 0 {
-            return "Down \(formattedWeight(abs(overallChange))) from your first log"
+    private func deltaBadge(_ delta: Double) -> some View {
+        let direction: (icon: String, color: Color)
+        if delta > 1.5 {
+            direction = ("arrow.up.right", AppTheme.success)
+        } else if delta < -1.5 {
+            direction = ("arrow.down.right", AppTheme.secondary)
         } else {
-            return "Holding steady"
-        }
-    }
-
-    private var performanceContextBody: String {
-        guard let first = chartData.first, let latest = chartData.last, chartData.count >= 2 else {
-            return "Log this exercise again and Lokt will compare your latest top set against your first one."
+            direction = ("minus", AppTheme.textSecondary)
         }
 
-        return "From \(formattedShortDate(first.date)) to \(formattedShortDate(latest.date)), your latest top set is \(formattedWeight(latest.value))."
+        return HStack(spacing: 3) {
+            Image(systemName: direction.icon)
+                .font(.system(size: 8, weight: .bold))
+            Text(signedPercent(delta))
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(direction.color)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(direction.color.opacity(0.14))
+        .clipShape(Capsule())
     }
 
-    private func loadWorkoutSessions() {
-        if let data = UserDefaults.standard.data(forKey: "workoutSessions"),
-           let decoded = try? JSONDecoder().decode([WorkoutSession].self, from: data) {
-            workoutSessions = decoded
-            if selectedExercise.isEmpty {
-                selectedExercise = Array(Set(decoded.flatMap { Array($0.logs.keys) })).sorted().first ?? ""
-            }
+    // MARK: - Muscle balance
+
+    private var balanceCard: some View {
+        let showDeltas = snapshot.muscleShares.contains { $0.deltaPoints != nil }
+        let caption: String
+        if snapshot.muscleWindowIsRecent {
+            caption = showDeltas
+                ? "Share of sets — last 4 weeks vs the 4 before"
+                : "Share of sets — last 4 weeks"
         } else {
-            workoutSessions = []
-            selectedExercise = ""
-        }
-    }
-
-    private func parseWeight(_ value: String) -> Double? {
-        let cleaned = value.filter { "0123456789.".contains($0) }
-        return Double(cleaned)
-    }
-
-    private func formattedWeight(_ value: Double) -> String {
-        guard value > 0 else { return "--" }
-
-        if value.rounded() == value {
-            return "\(Int(value)) lbs"
+            caption = "Share of sets — all time"
         }
 
-        return "\(value.formatted(.number.precision(.fractionLength(1)))) lbs"
-    }
+        return VStack(alignment: .leading, spacing: 14) {
+            sectionHeader(title: "Muscle balance", caption: caption)
 
-    private func formattedDelta(_ value: Double) -> String {
-        let prefix = value > 0 ? "+" : ""
-        if value.rounded() == value {
-            return "\(prefix)\(Int(value)) lbs"
-        }
-
-        return "\(prefix)\(value.formatted(.number.precision(.fractionLength(1)))) lbs"
-    }
-
-    private func formattedShortDate(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated).day())
-    }
-
-    private func isLatestPoint(_ point: AnalyticsPoint) -> Bool {
-        guard let latest = chartData.last else { return false }
-        return latest.date == point.date && latest.value == point.value
-    }
-
-    private func analyticsStatCard(title: String, value: String, caption: String, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(accent)
-                    .frame(width: 8, height: 8)
-
-                Text(title.uppercased())
-                    .font(.caption.weight(.bold))
-                    .tracking(0.8)
-                    .foregroundStyle(analyticsMutedText)
+            VStack(spacing: 10) {
+                ForEach(displayedMuscleShares) { share in
+                    muscleRow(share, showDeltas: showDeltas)
+                }
             }
 
-            Text(value)
-                .font(.title3.weight(.black))
+            if let insight = snapshot.balanceInsight {
+                insightLine(insight)
+            }
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    /// Cap the ranked list at 7 rows; anything past that folds into "Other".
+    private var displayedMuscleShares: [AnalyticsSnapshot.MuscleShare] {
+        let shares = snapshot.muscleShares
+        guard shares.count > 7 else { return shares }
+
+        var kept = Array(shares.prefix(6))
+        let tail = shares.dropFirst(6)
+        let tailSets = tail.reduce(0) { $0 + $1.sets }
+        let tailShare = tail.reduce(0.0) { $0 + $1.share }
+
+        if let otherIndex = kept.firstIndex(where: { $0.group == MuscleGroup.other.rawValue }) {
+            kept[otherIndex].sets += tailSets
+            kept[otherIndex].share += tailShare
+            kept[otherIndex].deltaPoints = nil
+        } else {
+            kept.append(AnalyticsSnapshot.MuscleShare(
+                group: MuscleGroup.other.rawValue,
+                sets: tailSets,
+                share: tailShare,
+                deltaPoints: nil
+            ))
+        }
+        return kept
+    }
+
+    private func muscleRow(_ share: AnalyticsSnapshot.MuscleShare, showDeltas: Bool) -> some View {
+        HStack(spacing: 10) {
+            Text(share.group)
+                .font(.footnote.weight(.medium))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                .minimumScaleFactor(0.75)
+                .frame(width: 82, alignment: .leading)
 
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.white.opacity(0.05))
+
+                    UnevenRoundedRectangle(
+                        cornerRadii: RectangleCornerRadii(
+                            topLeading: 1,
+                            bottomLeading: 1,
+                            bottomTrailing: 4,
+                            topTrailing: 4
+                        ),
+                        style: .continuous
+                    )
+                    .fill(AppTheme.primary)
+                    .frame(width: max(3, geo.size.width * share.share))
+                }
+            }
+            .frame(height: 10)
+
+            Text("\(Int((share.share * 100).rounded()))%")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textPrimary)
+                .frame(width: 38, alignment: .trailing)
+
+            if showDeltas {
+                muscleDelta(share.deltaPoints)
+                    .frame(width: 32, alignment: .trailing)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func muscleDelta(_ deltaPoints: Double?) -> some View {
+        if let delta = deltaPoints, abs(delta) >= 1 {
+            HStack(spacing: 2) {
+                Image(systemName: delta > 0 ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
+                    .font(.system(size: 6))
+                Text("\(Int(abs(delta).rounded()))")
+                    .font(.caption2)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(mutedText)
+        } else {
+            Text("")
+        }
+    }
+
+    // MARK: - Rep ranges
+
+    private var repRangeCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeader(
+                title: "Rep ranges",
+                caption: snapshot.repWindowIsRecent
+                    ? "Where your sets land — last 60 days"
+                    : "Where your sets land — all time"
+            )
+
+            repHistogram
+
+            repZoneLegend
+
+            if let insight = snapshot.repInsight {
+                insightLine(insight)
+            }
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private var repHistogram: some View {
+        Chart(snapshot.repBins) { bin in
+            BarMark(
+                x: .value("Reps", Double(bin.reps)),
+                y: .value("Sets", bin.count),
+                width: .fixed(9)
+            )
+            .foregroundStyle(AnalyticsPalette.zoneColor(bin.zone))
+            .cornerRadius(2)
+        }
+        .chartXScale(domain: 0.3...21.2)
+        .chartXAxis {
+            AxisMarks(values: [1.0, 5.0, 10.0, 15.0, 20.0]) { value in
+                AxisValueLabel {
+                    if let reps = value.as(Double.self) {
+                        Text(reps >= 20 ? "20+" : "\(Int(reps))")
+                            .font(.caption2)
+                            .foregroundStyle(mutedText)
+                            .fixedSize()
+                    }
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
+                    .foregroundStyle(Color.white.opacity(0.08))
+                AxisValueLabel()
+                    .font(.caption2)
+                    .foregroundStyle(mutedText)
+            }
+        }
+        .frame(height: 130)
+    }
+
+    private var repZoneLegend: some View {
+        HStack(alignment: .top, spacing: 16) {
+            ForEach(RepZone.allCases) { zone in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(AnalyticsPalette.zoneColor(zone))
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 3)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(zone.label)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text("\(zone.rangeText) · \(zonePercent(zone))")
+                            .font(.caption2)
+                            .foregroundStyle(mutedText)
+                    }
+                }
+            }
+        }
+    }
+
+    private func zonePercent(_ zone: RepZone) -> String {
+        let share = snapshot.repZoneShares[zone] ?? 0
+        return "\(Int((share * 100).rounded()))%"
+    }
+
+    // MARK: - Shared pieces
+
+    private func sectionHeader(title: String, caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(AppTheme.textPrimary)
             Text(caption)
                 .font(.caption)
-                .foregroundStyle(analyticsSecondaryText)
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
+                .foregroundStyle(mutedText)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(AppTheme.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                .stroke(accent.opacity(0.20), lineWidth: 1)
+    }
+
+    private func insightLine(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.accent)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func signedPercent(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        let prefix = rounded > 0 ? "+" : ""
+        if rounded == rounded.rounded() {
+            return "\(prefix)\(Int(rounded))%"
+        }
+        return "\(prefix)\(rounded.formatted(.number.precision(.fractionLength(1))))%"
+    }
+
+    private func compactNumber(_ value: Double) -> String {
+        if value >= 100_000 {
+            return String(format: "%.0fk", value / 1000)
+        }
+        if value >= 10_000 {
+            return String(format: "%.1fk", value / 1000)
+        }
+        return value.formatted(.number.precision(.fractionLength(0)))
+    }
+
+    private func shortDate(_ date: Date) -> String {
+        date.formatted(.dateTime.month(.abbreviated).day())
     }
 }
 
-private struct AnalyticsPoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let value: Double
+// MARK: - Heatmap grid
+
+/// GitHub-style calendar: columns are weeks (oldest → newest), rows are weekdays.
+/// Cell intensity is a quartile of the user's own non-zero daily set counts.
+private struct ConsistencyHeatmapGrid: View {
+    let model: AnalyticsSnapshot.HeatmapModel
+
+    @State private var availableWidth: CGFloat = 0
+
+    private let gap: CGFloat = 3
+    private let gutter: CGFloat = 20
+
+    var body: some View {
+        let columns = max(model.weeks.count, 1)
+        let rawCell = (availableWidth - gutter - gap * CGFloat(columns - 1)) / CGFloat(columns)
+        let cell = max(6, min(18, rawCell.isFinite ? rawCell : 6))
+
+        VStack(alignment: .leading, spacing: 4) {
+            monthLabelRow(cell: cell)
+
+            HStack(alignment: .top, spacing: gap) {
+                weekdayGutter(cell: cell)
+
+                ForEach(Array(model.weeks.enumerated()), id: \.offset) { _, week in
+                    VStack(spacing: gap) {
+                        ForEach(week) { day in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(day.isFuture ? Color.clear : AnalyticsPalette.heatLevel(day.level))
+                                .frame(width: cell, height: cell)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            availableWidth = width
+        }
+    }
+
+    private func monthLabelRow(cell: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+                .frame(height: 12)
+
+            ForEach(model.monthLabels, id: \.weekIndex) { item in
+                Text(item.label)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.white.opacity(0.62))
+                    .fixedSize()
+                    .offset(x: gutter + gap + CGFloat(item.weekIndex) * (cell + gap))
+            }
+        }
+    }
+
+    private func weekdayGutter(cell: CGFloat) -> some View {
+        VStack(spacing: gap) {
+            ForEach(0..<7, id: \.self) { row in
+                Text(row % 2 == 1 ? weekdayLabel(row) : "")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Color.white.opacity(0.62))
+                    .frame(width: gutter, height: cell, alignment: .leading)
+            }
+        }
+    }
+
+    private func weekdayLabel(_ row: Int) -> String {
+        guard model.weekdayLabels.indices.contains(row) else { return "" }
+        return model.weekdayLabels[row]
+    }
+}
+
+// MARK: - Palette
+//
+// Validated with the dataviz six-checks validator against the card surface
+// (#171A1C, dark mode): both ramps pass monotone lightness, step gaps and
+// light-end contrast. Single hue (the app's primary blue) — magnitude is
+// carried by lightness, never by extra hues.
+private enum AnalyticsPalette {
+    // Sequential heat ramp, low -> high activity.
+    private static let heatRamp: [Color] = [
+        Color.white.opacity(0.05),                       // rest day
+        Color(red: 0.165, green: 0.322, blue: 0.522),    // #2A5285
+        Color(red: 0.208, green: 0.420, blue: 0.690),    // #356BB0
+        Color(red: 0.251, green: 0.522, blue: 0.847),    // #4085D8
+        AppTheme.primary                                 // #4A9EFF
+    ]
+
+    static func heatLevel(_ level: Int) -> Color {
+        heatRamp[max(0, min(heatRamp.count - 1, level))]
+    }
+
+    // Ordinal ramp across the ordered rep zones (strength -> endurance).
+    static func zoneColor(_ zone: RepZone) -> Color {
+        switch zone {
+        case .strength: return Color(red: 0.165, green: 0.353, blue: 0.561)     // #2A5A8F
+        case .hypertrophy: return Color(red: 0.227, green: 0.486, blue: 0.769)  // #3A7CC4
+        case .endurance: return AppTheme.primary                                // #4A9EFF
+        }
+    }
 }
