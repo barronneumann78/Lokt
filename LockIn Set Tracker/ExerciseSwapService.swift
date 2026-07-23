@@ -362,9 +362,14 @@ struct ExerciseSwapSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(suggestion.exerciseName)
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(AppTheme.textPrimary)
+                            ExerciseTextNavigationLink(
+                                exerciseName: suggestion.exerciseName,
+                                exercises: exercises
+                            ) {
+                                Text(suggestion.exerciseName)
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                            }
 
                             Text(suggestion.reason)
                                 .font(.subheadline)

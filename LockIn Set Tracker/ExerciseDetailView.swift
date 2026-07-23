@@ -11,6 +11,13 @@ struct ExerciseDetailView: View {
     @State private var coachReply: ExerciseCoachReply?
     @State private var coachErrorMessage: String?
     @State private var isRequestingCoach = false
+    @State private var fetchedCues: [String]?
+    @State private var isLoadingCues = false
+    @State private var cuesFailed = false
+    @State private var simpleExplanation: String?
+    @State private var showSimpleExplanation = false
+    @State private var isLoadingSimpleExplanation = false
+    @State private var simpleExplanationErrorMessage: String?
 
     var body: some View {
         ZStack {
@@ -27,6 +34,9 @@ struct ExerciseDetailView: View {
         }
         .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            loadCuesIfNeeded()
+        }
     }
 
     private var imageSection: some View {
@@ -58,6 +68,8 @@ struct ExerciseDetailView: View {
                 .font(.system(size: 30, weight: .black, design: .rounded))
                 .foregroundStyle(AppTheme.textPrimary)
 
+            cueSection
+            overviewSection
             addActionSection
             coachSection
 
@@ -87,9 +99,9 @@ struct ExerciseDetailView: View {
                 )
             }
 
-            textSection(title: "Overview", text: exercise.description)
-            bulletSection(title: "How To", items: exercise.howTo)
-            bulletSection(title: "Key Cues", items: exercise.cues)
+            if !exercise.howTo.isEmpty {
+                bulletSection(title: "How To", items: exercise.howTo)
+            }
         }
         .padding(20)
         .glassCard()
@@ -127,6 +139,150 @@ struct ExerciseDetailView: View {
                     .padding(.vertical, 9)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.success.opacity(0.22))
+            }
+        }
+    }
+
+    private var displayCues: [String] {
+        if !exercise.cues.isEmpty {
+            return Array(exercise.cues.prefix(3))
+        }
+
+        if let fetchedCues {
+            return Array(fetchedCues.prefix(3))
+        }
+
+        return []
+    }
+
+    @ViewBuilder
+    private var cueSection: some View {
+        if !displayCues.isEmpty {
+            bulletSection(title: "Form Cues", items: displayCues)
+        } else if isLoadingCues {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(AppTheme.primary)
+
+                Text("Loading form cues...")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        } else if cuesFailed {
+            HStack(spacing: 12) {
+                Text("Form cues unavailable.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+
+                Button("Retry") {
+                    loadCuesIfNeeded(forceRefetch: true)
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primary)
+            }
+        }
+    }
+
+    private var overviewSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !exercise.description.isEmpty {
+                textSection(title: "Overview", text: exercise.description)
+            }
+
+            if showSimpleExplanation, let simpleExplanation {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("In Plain Words")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+
+                    Text(simpleExplanation)
+                        .font(.body)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+            } else {
+                Button(isLoadingSimpleExplanation ? "Explaining..." : "Explain It Simply") {
+                    requestSimpleExplanation()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(isLoadingSimpleExplanation)
+            }
+
+            if let simpleExplanationErrorMessage {
+                Text(simpleExplanationErrorMessage)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondary)
+            }
+        }
+    }
+
+    private func loadCuesIfNeeded(forceRefetch: Bool = false) {
+        guard exercise.cues.isEmpty, !isLoadingCues else { return }
+        guard fetchedCues == nil || forceRefetch else { return }
+
+        if !forceRefetch,
+           let cached = ExerciseInsightCache.record(for: exercise.name)?.cues,
+           !cached.isEmpty {
+            fetchedCues = cached
+            return
+        }
+
+        isLoadingCues = true
+        cuesFailed = false
+
+        Task {
+            do {
+                let cues = try await ExerciseInsightService().formCues(for: exercise)
+
+                await MainActor.run {
+                    fetchedCues = cues
+                    isLoadingCues = false
+                    ExerciseInsightCache.saveCues(cues, for: exercise.name)
+                }
+            } catch {
+                await MainActor.run {
+                    cuesFailed = true
+                    isLoadingCues = false
+                }
+            }
+        }
+    }
+
+    private func requestSimpleExplanation() {
+        if simpleExplanation == nil,
+           let cached = ExerciseInsightCache.record(for: exercise.name)?.simpleExplanation,
+           !cached.isEmpty {
+            simpleExplanation = cached
+            showSimpleExplanation = true
+            return
+        }
+
+        if simpleExplanation != nil {
+            showSimpleExplanation = true
+            return
+        }
+
+        isLoadingSimpleExplanation = true
+        simpleExplanationErrorMessage = nil
+
+        Task {
+            do {
+                let explanation = try await ExerciseInsightService().simpleExplanation(for: exercise)
+
+                await MainActor.run {
+                    simpleExplanation = explanation
+                    showSimpleExplanation = true
+                    isLoadingSimpleExplanation = false
+                    ExerciseInsightCache.saveSimpleExplanation(explanation, for: exercise.name)
+                }
+            } catch {
+                await MainActor.run {
+                    simpleExplanationErrorMessage = error.localizedDescription
+                    isLoadingSimpleExplanation = false
+                }
             }
         }
     }
@@ -405,7 +561,7 @@ struct ExerciseTextNavigationLink<Label: View>: View {
     @ViewBuilder var label: () -> Label
 
     var body: some View {
-        if let exercise = exercises.exercise(named: exerciseName) {
+        if let exercise = exercises.resolvedExercise(named: exerciseName) {
             NavigationLink(destination: ExerciseDetailView(exercise: exercise, primaryAddAction: primaryAddAction)) {
                 label()
             }

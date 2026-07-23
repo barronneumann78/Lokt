@@ -67,6 +67,7 @@ the main reason we moved to Claude Code. Fix against the real compiler, don't gu
   - `/api/ai/workout-generator/revise` ← reuse this for the M4 adaptation nudge
   - `/api/ai/photo-to-workout/extract`, `/api/ai/workout-import/revise`
   - `/api/ai/coach/chat`, `/api/ai/exercise-swap/suggest`, `/api/ai/exercise-coach/answer`
+  - `/api/ai/exercise-coach/explain` (mode `"cues"` → 3 form cues; mode `"simple"` → plain-language explanation)
   - `/api/ai/voice-to-workout/transcribe`
   - `GET /health`
   - Responses use OpenAI's Responses API with **strict JSON schemas** — keep new

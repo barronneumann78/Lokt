@@ -11,6 +11,8 @@ struct CoachView: View {
     @State private var errorMessage: String?
     @State private var savedMessage: String?
 
+    @StateObject private var exerciseStore = ExerciseStore()
+
     private let coachService = CoachChatService()
 
     init(initialContext: CoachLaunchContext = .planning) {
@@ -19,6 +21,13 @@ struct CoachView: View {
     }
 
     var body: some View {
+        NavigationView {
+            coachContent
+                .navigationBarHidden(true)
+        }
+    }
+
+    private var coachContent: some View {
         ZStack {
             AppBackground()
 
@@ -332,9 +341,14 @@ struct CoachView: View {
                             .foregroundStyle(AppTheme.textSecondary)
 
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(item.element.name)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(AppTheme.textPrimary)
+                            ExerciseTextNavigationLink(
+                                exerciseName: item.element.name,
+                                exercises: exerciseStore.exercises
+                            ) {
+                                Text(item.element.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                            }
 
                             Text("\(item.element.sets) sets • \(item.element.reps)")
                                 .font(.caption)

@@ -262,7 +262,7 @@ struct SupplementaryWorkoutGeneratorView: View {
     }
 
     private func exerciseCard(index: Int, exercise: AIGeneratedExercise) -> some View {
-        let matchedExercise = exerciseStore.exercises.exercise(named: exercise.name)
+        let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack {

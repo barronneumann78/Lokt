@@ -116,6 +116,29 @@ const exerciseCoachSchema = {
   }
 };
 
+const exerciseFormCuesSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["cues"],
+  properties: {
+    cues: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: { type: "string" }
+    }
+  }
+};
+
+const exerciseSimpleExplanationSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["explanation"],
+  properties: {
+    explanation: { type: "string" }
+  }
+};
+
 const photoWorkoutSchema = {
   type: "object",
   additionalProperties: false,
@@ -385,6 +408,27 @@ const exerciseCoachInstructions = [
   "If you include suggestions, only choose names from the provided candidate list.",
   "Each suggestion reason should be one short coach-style sentence.",
   "Do not include markdown or extra commentary outside the JSON schema."
+].join(" ");
+
+const exerciseFormCuesInstructions = [
+  "You write ultra-brief form cues for one gym exercise in a workout tracking app.",
+  "Return exactly three cues.",
+  "Cue 1: setup — stance, foot position, grip, or body position.",
+  "Cue 2: the single most important thing to do while performing the rep.",
+  "Cue 3: the most common mistake, phrased as what to avoid.",
+  "Each cue is one short sentence, at most 12 words.",
+  "Use plain language a beginner understands. No anatomy jargon.",
+  "Do not include markdown, numbering, or anything outside the JSON schema."
+].join(" ");
+
+const exerciseSimpleExplanationInstructions = [
+  "You explain one gym exercise to someone who has never lifted weights.",
+  "Write like you are talking to a friend. Plain, everyday words only.",
+  "Never use gym or anatomy jargon such as hypertrophy, scapular retraction, RPE, eccentric, tempo, or posterior chain.",
+  "Cover: what the exercise is, what part of the body it works in everyday terms, why it is worth doing, and how it should feel when done right.",
+  "Go a little deeper than a one-line summary, but stay under 120 words.",
+  "Use short sentences in one or two flowing paragraphs. No markdown, no lists.",
+  "Do not include anything outside the JSON schema."
 ].join(" ");
 
 const server = http.createServer(async (request, response) => {
@@ -748,6 +792,47 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       sendJson(response, 502, {
         error: error instanceof Error ? error.message : "Failed to answer the exercise question."
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/ai/exercise-coach/explain") {
+    try {
+      if (!apiKey) {
+        sendJson(response, 500, {
+          error: "OPENAI_API_KEY is missing on the backend."
+        });
+        return;
+      }
+
+      const body = await readJsonBody(request);
+      const exercise = body?.exercise ?? null;
+      const mode = typeof body?.mode === "string" ? body.mode.trim().toLowerCase() : "";
+
+      if (!exercise || typeof exercise !== "object" || typeof exercise.name !== "string" || !exercise.name.trim()) {
+        sendJson(response, 400, {
+          error: "Exercise data with a name is required."
+        });
+        return;
+      }
+
+      if (mode !== "cues" && mode !== "simple") {
+        sendJson(response, 400, {
+          error: "Mode must be \"cues\" or \"simple\"."
+        });
+        return;
+      }
+
+      const explainResult = await explainExercise({ exercise, mode });
+
+      sendJson(response, 200, {
+        ...explainResult,
+        model: workoutGeneratorModel
+      });
+    } catch (error) {
+      sendJson(response, 502, {
+        error: error instanceof Error ? error.message : "Failed to explain the exercise."
       });
     }
     return;
@@ -1315,6 +1400,90 @@ async function answerExerciseQuestion({ currentExercise, question, candidates })
     requestId: payload.id ?? null,
     answer: sanitizeCoachAnswer(responseBody?.answer),
     suggestions: sanitizeExerciseCoachSuggestions(responseBody?.suggestions, candidates)
+  };
+}
+
+async function explainExercise({ exercise, mode }) {
+  const isCuesMode = mode === "cues";
+
+  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: workoutGeneratorModel,
+      store: false,
+      instructions: isCuesMode ? exerciseFormCuesInstructions : exerciseSimpleExplanationInstructions,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                "Exercise JSON:",
+                JSON.stringify(exercise, null, 2)
+              ].join("\n")
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: isCuesMode ? "exercise_form_cues" : "exercise_simple_explanation",
+          strict: true,
+          schema: isCuesMode ? exerciseFormCuesSchema : exerciseSimpleExplanationSchema
+        }
+      }
+    })
+  });
+
+  const payload = await apiResponse.json();
+
+  if (!apiResponse.ok) {
+    throw new Error(payload?.error?.message ?? "OpenAI exercise explain request failed.");
+  }
+
+  const outputText = extractOutputText(payload);
+  if (!outputText) {
+    throw new Error("OpenAI returned a response without structured exercise explanation JSON.");
+  }
+
+  let responseBody;
+
+  try {
+    responseBody = JSON.parse(outputText);
+  } catch {
+    throw new Error("OpenAI returned malformed exercise explanation JSON.");
+  }
+
+  if (isCuesMode) {
+    const cues = Array.isArray(responseBody?.cues)
+      ? responseBody.cues.map((cue) => String(cue).trim()).filter(Boolean).slice(0, 3)
+      : [];
+
+    if (cues.length < 3) {
+      throw new Error("The form cues came back incomplete.");
+    }
+
+    return {
+      requestId: payload.id ?? null,
+      cues
+    };
+  }
+
+  const explanation = typeof responseBody?.explanation === "string" ? responseBody.explanation.trim() : "";
+
+  if (!explanation) {
+    throw new Error("The simple explanation came back empty.");
+  }
+
+  return {
+    requestId: payload.id ?? null,
+    explanation
   };
 }
 

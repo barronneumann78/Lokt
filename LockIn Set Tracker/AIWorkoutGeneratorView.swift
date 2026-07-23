@@ -285,7 +285,7 @@ struct AIWorkoutGeneratorView: View {
     }
 
     private func exerciseCard(index: Int, exercise: AIGeneratedExercise) -> some View {
-        let matchedExercise = exerciseStore.exercises.exercise(named: exercise.name)
+        let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -478,7 +478,7 @@ struct AIWorkoutGeneratorView: View {
 
     private func matchedLibraryExerciseCount(for generatedRoutine: AIGeneratedRoutineDraft) -> Int {
         generatedRoutine.exercises.reduce(0) { count, exercise in
-            count + (exerciseStore.exercises.exercise(named: exercise.name) == nil ? 0 : 1)
+            count + (exerciseStore.exercises.resolvedExercise(named: exercise.name) == nil ? 0 : 1)
         }
     }
 
