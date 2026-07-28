@@ -639,7 +639,7 @@ struct WorkoutLoggerView: View {
                     completionStat(title: "Exercises", value: "\(completedExerciseCount)")
                 }
 
-                Button("Back to Home") {
+                Button("Done") {
                     dismiss()
                 }
                 .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))

@@ -11,6 +11,12 @@ struct MainTabView: View {
             }
             .tag(AppRootTab.home)
 
+            WorkoutTabView()
+            .tabItem {
+                Label("Workout", systemImage: "dumbbell.fill")
+            }
+            .tag(AppRootTab.workout)
+
             CoachView(initialContext: coachRouter.launchRequest.context)
                 .id(coachRouter.launchRequest.id)
             .tabItem {

@@ -2,6 +2,7 @@ import Foundation
 
 enum AppRootTab: Hashable {
     case home
+    case workout
     case coach
 }
 

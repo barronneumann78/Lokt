@@ -1,19 +1,14 @@
 import SwiftUI
 
+// Overview only: greeting, this week's numbers, a recent-activity glance, and
+// the dive into full Analytics. Creating and starting workouts lives on the
+// Workout tab.
 struct HomeView: View {
     @EnvironmentObject private var store: WorkoutStore
-    @StateObject private var exerciseStore = ExerciseStore()
-    @State private var routines: [Routine] = []
-    @State private var navigateToCreate = false
-    @State private var selectedRoutine: Routine?
-    @State private var routineToEdit: Routine?
-    @State private var navigateToLogger = false
-    @State private var navigateToEdit = false
+    @EnvironmentObject private var coachRouter: CoachRouter
     @State private var navigateToSettings = false
     @State private var navigateToAnalytics = false
     @State private var navigateToExerciseLibrary = false
-    @State private var navigateToPresetGenerator = false
-    @State private var routinePendingDelete: Routine?
 
     var body: some View {
         NavigationView {
@@ -24,33 +19,12 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         headerSection
 
-                        if !store.sessions.isEmpty {
-                            weekSection
-                        }
-
-                        primaryActionSection
-                        coreFlowsSection
-
-                        if routines.isEmpty {
+                        if store.sessions.isEmpty {
                             emptyState
-                        } else if routines.count > 1 {
-                            routineSection
-                        }
-
-                        NavigationLink(destination: CreateWorkoutOptionsView(entryMode: .aiTools, onSave: {
-                            loadRoutines()
-                        }), isActive: $navigateToCreate) {
-                            EmptyView()
-                        }
-
-                        NavigationLink(destination: CreateRoutineView(routineToEdit: routineToEdit, onSave: {
-                            loadRoutines()
-                        }), isActive: $navigateToEdit) {
-                            EmptyView()
-                        }
-
-                        NavigationLink(destination: WorkoutLoggerView(routine: selectedRoutine ?? Routine(name: "", exercises: [])), isActive: $navigateToLogger) {
-                            EmptyView()
+                        } else {
+                            weekSection
+                            analyticsButton
+                            recentSection
                         }
 
                         NavigationLink(destination: SettingsView(), isActive: $navigateToSettings) {
@@ -64,12 +38,6 @@ struct HomeView: View {
                         NavigationLink(destination: ExerciseLibraryView(), isActive: $navigateToExerciseLibrary) {
                             EmptyView()
                         }
-
-                        NavigationLink(destination: PresetWorkoutGeneratorView(onSave: {
-                            loadRoutines()
-                        }), isActive: $navigateToPresetGenerator) {
-                            EmptyView()
-                        }
                     }
                     .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.top, 20)
@@ -78,22 +46,7 @@ struct HomeView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
-                loadRoutines()
                 store.reload()
-            }
-            .alert("Delete routine?", isPresented: deleteAlertBinding) {
-                Button("Cancel", role: .cancel) {
-                    routinePendingDelete = nil
-                }
-
-                Button("Delete", role: .destructive) {
-                    if let routinePendingDelete {
-                        deleteRoutine(id: routinePendingDelete.id)
-                    }
-                    routinePendingDelete = nil
-                }
-            } message: {
-                Text("This removes the routine, but your saved workout history stays intact.")
             }
         }
         .tint(AppTheme.textPrimary)
@@ -118,9 +71,9 @@ struct HomeView: View {
 
             HStack(spacing: 10) {
                 Button {
-                    navigateToAnalytics = true
+                    navigateToExerciseLibrary = true
                 } label: {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
+                    Image(systemName: "books.vertical")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .frame(width: 42, height: 42)
@@ -209,147 +162,57 @@ struct HomeView: View {
         .glassCard()
     }
 
-    // MARK: - Primary action
+    // MARK: - Analytics dive
 
-    private var primaryActionSection: some View {
-        Group {
-            if let quickStartRoutine {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("UP NEXT · \(quickStartRoutine.name.uppercased())")
-                            .microLabel(AppTheme.textSecondary)
-                            .lineLimit(1)
+    private var analyticsButton: some View {
+        Button {
+            navigateToAnalytics = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.headline.weight(.bold))
 
-                        Spacer()
-
-                        Text("\(quickStartRoutine.exercises.count) exercises")
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textTertiary)
-                    }
-                    .padding(.bottom, 14)
-
-                    hairline
-
-                    VStack(spacing: 0) {
-                        ForEach(quickStartRoutine.exercises, id: \.self) { exercise in
-                            ExerciseTextNavigationLink(exerciseName: exercise, exercises: exerciseStore.exercises) {
-                                HStack {
-                                    Text(exercise)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                        .lineLimit(1)
-
-                                    Spacer()
-
-                                    Text("× \(quickStartRoutine.preferredSetCount(for: exercise))")
-                                        .font(.subheadline)
-                                        .monospacedDigit()
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                }
-                                .padding(.vertical, 11)
-                            }
-
-                            if exercise != quickStartRoutine.exercises.last {
-                                hairline
-                            }
-                        }
-                    }
-
-                    Button("Start Workout") {
-                        selectedRoutine = quickStartRoutine
-                        navigateToLogger = true
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .padding(.top, 14)
-
-                    HStack {
-                        Button("Edit") {
-                            routineToEdit = quickStartRoutine
-                            navigateToEdit = true
-                        }
-                        .buttonStyle(TertiaryButtonStyle())
-
-                        Button("Delete") {
-                            routinePendingDelete = quickStartRoutine
-                        }
-                        .buttonStyle(TertiaryButtonStyle())
-
-                        Spacer()
-                    }
-                    .padding(.top, 10)
-                }
-                .padding(AppTheme.cardPadding)
-                .glassCard()
-            } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("START")
-                        .microLabel()
-
-                    Text("Build your first routine")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Button("Ask Lokt for a Workout") {
-                        navigateToCreate = true
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-
-                    Button("Create Manually") {
-                        navigateToEdit = true
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-                .padding(AppTheme.cardPadding)
-                .glassCard()
+                Text("View Analytics")
             }
         }
+        .buttonStyle(PrimaryButtonStyle())
     }
 
-    // MARK: - Plan flows
+    // MARK: - Recent activity
 
-    private var coreFlowsSection: some View {
+    private var recentSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("PLAN")
+            Text("RECENT")
                 .microLabel()
-                .padding(.bottom, 12)
+                .padding(.bottom, 4)
 
-            Button {
-                navigateToCreate = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+            ForEach(Array(recentSessions.enumerated()), id: \.element.id) { index, session in
+                VStack(spacing: 0) {
+                    if index > 0 {
+                        hairline
+                    }
 
-                    Text("Ask Lokt for a Workout")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(session.routineName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .lineLimit(1)
 
-                    Spacer()
+                            Text(session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
 
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textTertiary)
+                        Spacer()
+
+                        Text(volumeText(for: session))
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                    .padding(.vertical, 12)
                 }
-                .padding(.vertical, 16)
-            }
-            .buttonStyle(.plain)
-
-            compactFlowRow(title: "Create Manually", icon: "square.and.pencil") {
-                navigateToEdit = true
-            }
-
-            compactFlowRow(title: "Start with a Preset Plan", icon: "list.bullet.rectangle") {
-                navigateToPresetGenerator = true
-            }
-
-            compactFlowRow(title: "Explore Exercises", icon: "books.vertical") {
-                navigateToExerciseLibrary = true
-            }
-
-            compactFlowRow(title: "Review Progress", icon: "chart.line.uptrend.xyaxis", isLast: true) {
-                navigateToAnalytics = true
             }
         }
         .padding(.horizontal, AppTheme.cardPadding)
@@ -357,120 +220,22 @@ struct HomeView: View {
         .glassCard()
     }
 
-    private func compactFlowRow(title: String, icon: String, isLast: Bool = false, action: @escaping () -> Void) -> some View {
-        VStack(spacing: 0) {
-            hairline
-
-            Button(action: action) {
-                HStack(spacing: 12) {
-                    Image(systemName: icon)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .frame(width: 22)
-
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(AppTheme.textSecondary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(AppTheme.textTertiary)
-                }
-                .padding(.vertical, 13)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    // MARK: - Saved routines (beyond the quick-start one)
-
-    private var routineSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("SAVED ROUTINES")
-                .microLabel()
-
-            ForEach(routines.dropFirst()) { routine in
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(routine.name)
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(AppTheme.textPrimary)
-
-                            Text("\(routine.exercises.count) exercises")
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-
-                        Spacer()
-
-                        HStack(spacing: 8) {
-                            Button {
-                                routineToEdit = routine
-                                navigateToEdit = true
-                            } label: {
-                                Image(systemName: "pencil")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .frame(width: 34, height: 34)
-                                    .background(AppTheme.surfaceElevated)
-                                    .clipShape(Circle())
-                            }
-
-                            Button {
-                                routinePendingDelete = routine
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(AppTheme.danger.opacity(0.85))
-                                    .frame(width: 34, height: 34)
-                                    .background(AppTheme.surfaceElevated)
-                                    .clipShape(Circle())
-                            }
-                        }
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(routine.exercises.prefix(5), id: \.self) { exercise in
-                                ExerciseTextNavigationLink(exerciseName: exercise, exercises: exerciseStore.exercises) {
-                                    Text(exercise)
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(AppTheme.mutedFill)
-                                        .clipShape(Capsule())
-                                }
-                            }
-                        }
-                    }
-
-                    Button("Start Routine") {
-                        selectedRoutine = routine
-                        navigateToLogger = true
-                    }
-                    .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
-                }
-                .padding(AppTheme.rowPadding)
-                .glassCard()
-            }
-        }
-    }
+    // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Nothing saved yet")
-                .font(.headline.weight(.bold))
+        VStack(alignment: .leading, spacing: 16) {
+            Text("No sessions yet")
+                .font(.title3.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
-            Text("Ask Lokt for a workout or create one manually so your next session is ready to go.")
+            Text("Your numbers land here after your first workout.")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
+
+            Button("Start Your First Workout") {
+                coachRouter.selectedTab = .workout
+            }
+            .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppTheme.cardPadding)
@@ -485,15 +250,15 @@ struct HomeView: View {
 
     // MARK: - Derived data
 
-    private var quickStartRoutine: Routine? {
-        routines.first
-    }
-
     private var dateLine: String {
         Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 
     private var calendar: Calendar { Calendar.current }
+
+    private var recentSessions: [WorkoutSession] {
+        Array(store.sessions.sorted { $0.date > $1.date }.prefix(3))
+    }
 
     private var sessionsThisWeek: Int {
         sessions(inWeekOffset: 0).count
@@ -560,30 +325,12 @@ struct HomeView: View {
         }
     }
 
-    private var deleteAlertBinding: Binding<Bool> {
-        Binding(
-            get: { routinePendingDelete != nil },
-            set: { isPresented in
-                if !isPresented {
-                    routinePendingDelete = nil
-                }
-            }
-        )
-    }
-
-    func loadRoutines() {
-        if let data = UserDefaults.standard.data(forKey: "routines"),
-           let decoded = try? JSONDecoder().decode([Routine].self, from: data) {
-            routines = decoded
-        } else {
-            routines = []
+    private func volumeText(for session: WorkoutSession) -> String {
+        let volume = totalVolume(for: [session])
+        guard volume > 0 else { return "—" }
+        if volume >= 1000 {
+            return String(format: "%.1fk lb", volume / 1000)
         }
-    }
-
-    func deleteRoutine(id: UUID) {
-        routines.removeAll { $0.id == id }
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
-        }
+        return "\(Int(volume)) lb"
     }
 }
