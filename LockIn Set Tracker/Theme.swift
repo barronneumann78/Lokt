@@ -30,6 +30,22 @@ enum AppTheme {
     static let textPrimary = Color(red: 0.957, green: 0.957, blue: 0.961)   // #F4F4F5
     static let textSecondary = Color(red: 0.604, green: 0.604, blue: 0.635) // #9A9AA2
     static let textTertiary = Color(red: 0.369, green: 0.369, blue: 0.400)  // #5E5E66
+
+    // Categorical chart palette — DATA ENCODING ONLY (series identity), never UI
+    // chrome. Six hues laddered by lightness inside the allowed warm→green→teal
+    // band (blue/purple stay banned), validated against #141416 for contrast and
+    // color-vision separation (worst adjacent pair ΔE 12.3 CVD / 16.6 normal).
+    // Slot order: volt, teal, gold, green, orange, coral.
+    static let chartCategorical: [Color] = [
+        Color(red: 0.839, green: 1.0, blue: 0.247),   // #D6FF3F volt
+        Color(red: 0.184, green: 0.710, blue: 0.651), // #2FB5A6 teal
+        Color(red: 0.965, green: 0.788, blue: 0.290), // #F6C94A gold
+        Color(red: 0.122, green: 0.541, blue: 0.298), // #1F8A4C green
+        Color(red: 1.0, green: 0.580, blue: 0.251),   // #FF9440 orange
+        Color(red: 0.910, green: 0.282, blue: 0.247)  // #E8483F coral
+    ]
+    /// Neutral series color for "Other" / folded tails.
+    static let chartNeutral = Color(red: 0.557, green: 0.557, blue: 0.588)  // #8E8E96
 }
 
 struct AppBackground: View {

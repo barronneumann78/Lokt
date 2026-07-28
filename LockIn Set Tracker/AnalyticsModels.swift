@@ -40,6 +40,34 @@ enum AnalyticsMath {
         return weight * Double(reps)
     }
 
+    /// Compact "sets × reps · weight" line for a day-summary row.
+    /// "3 × 8–10 · 145 lb", "3 × 12" (bodyweight), "2 sets · 145 lb" (no reps).
+    static func setSummary(for sets: [WorkoutSet]) -> String {
+        let meaningful = sets.filter(isMeaningfulSet)
+        guard !meaningful.isEmpty else { return "Logged" }
+
+        let reps = meaningful.compactMap { parseReps($0.reps) }
+        let topWeight = meaningful.compactMap { parseWeight($0.weight) }.max()
+
+        var parts: [String] = []
+        if let low = reps.min(), let high = reps.max() {
+            let range = low == high ? "\(low)" : "\(low)–\(high)"
+            parts.append("\(meaningful.count) × \(range)")
+        } else {
+            parts.append("\(meaningful.count) set\(meaningful.count == 1 ? "" : "s")")
+        }
+        if let topWeight {
+            parts.append("\(formattedWeight(topWeight)) lb")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    static func formattedWeight(_ weight: Double) -> String {
+        weight == weight.rounded()
+            ? "\(Int(weight))"
+            : String(format: "%.1f", weight)
+    }
+
     private static func firstNumber(in raw: String) -> Double? {
         let scanner = Scanner(string: raw)
         scanner.charactersToBeSkipped = CharacterSet(charactersIn: "0123456789.").inverted
@@ -82,6 +110,55 @@ enum RepZone: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Progression metric & timeframe
+
+enum ProgressionMetric: String, CaseIterable, Identifiable {
+    case estOneRepMax
+    case volume
+    case maxWeight
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .estOneRepMax: return "Est 1RM"
+        case .volume: return "Volume"
+        case .maxWeight: return "Max Weight"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .estOneRepMax: return "EST 1RM"
+        case .volume: return "VOLUME"
+        case .maxWeight: return "MAX WT"
+        }
+    }
+}
+
+enum AnalyticsTimeframe: String, CaseIterable, Identifiable {
+    case threeMonths = "3M"
+    case sixMonths = "6M"
+    case oneYear = "1Y"
+    case all = "ALL"
+
+    var id: String { rawValue }
+
+    var months: Int? {
+        switch self {
+        case .threeMonths: return 3
+        case .sixMonths: return 6
+        case .oneYear: return 12
+        case .all: return nil
+        }
+    }
+
+    func startDate(now: Date, calendar: Calendar) -> Date? {
+        guard let months else { return nil }
+        return calendar.date(byAdding: .month, value: -months, to: now)
+    }
+}
+
 // MARK: - Snapshot
 
 /// All derived analytics, computed once per data change (never per chart mark).
@@ -101,62 +178,84 @@ struct AnalyticsSnapshot {
         var thisWeekSets: Int
     }
 
-    // MARK: Consistency heatmap
+    // MARK: Exercise progression (chart 1)
 
-    struct DayCell: Identifiable {
-        var id: Date { date }
-        var date: Date
-        var sets: Int
-        /// 0 = rest day, 1...4 = quartile of the user's own non-zero daily set counts.
-        var level: Int
-        var isFuture: Bool
-    }
-
-    struct HeatmapModel {
-        /// Oldest week first; each week has exactly 7 day cells (calendar row order).
-        var weeks: [[DayCell]]
-        /// Column index -> short month label, only where the month changes.
-        var monthLabels: [(weekIndex: Int, label: String)]
-        var weekdayLabels: [String]
-    }
-
-    // MARK: Strength trends
-
-    struct TrendPoint: Identifiable {
-        var id: Date { date }
-        var date: Date
-        var e1RM: Double
-        var isPR: Bool
-    }
-
-    enum Momentum {
-        case climbing
-        case steady
-        case declining
-    }
-
-    struct ExerciseTrend: Identifiable {
+    struct ExerciseOption: Identifiable {
         var id: String { name }
+        /// Canonical (library-resolved) exercise name.
         var name: String
-        var points: [TrendPoint]
-        var currentE1RM: Double
-        /// Percent change first shown point -> latest.
-        var windowDeltaPercent: Double?
-        /// Recent direction: mean of last 3 points vs the 3 before them.
-        var recentMomentum: Momentum
-        var recentDeltaPercent: Double?
+        /// Number of sessions with usable data for this exercise.
+        var sessionCount: Int
     }
 
-    // MARK: Muscle balance
+    struct ProgressionPoint: Identifiable {
+        var id: Date { date }
+        var date: Date
+        /// Best Epley e1RM across the session's sets (needs weight + reps).
+        var e1RM: Double?
+        /// Session tonnage for this exercise (sum of weight × reps).
+        var volume: Double?
+        /// Heaviest successfully loaded single set (needs weight).
+        var maxWeight: Double?
 
-    struct MuscleShare: Identifiable {
+        func value(for metric: ProgressionMetric) -> Double? {
+            switch metric {
+            case .estOneRepMax: return e1RM
+            case .volume: return volume
+            case .maxWeight: return maxWeight
+            }
+        }
+    }
+
+    // MARK: Weekly sets per muscle (chart 2)
+
+    struct WeekPoint: Identifiable {
+        var id: Date { weekStart }
+        var weekStart: Date
+        var sets: Int
+    }
+
+    struct MuscleSeries: Identifiable {
+        var id: String { group }
+        /// Display muscle group ("Chest", ..., "Other").
+        var group: String
+        /// Zero-filled weekly set counts, oldest first, through the current week.
+        var points: [WeekPoint]
+        var totalSets: Int
+    }
+
+    // MARK: Muscle distribution donut (chart 3)
+
+    struct DonutSegment: Identifiable {
         var id: String { group }
         var group: String
         var sets: Int
         /// 0...1 share of all sets in the window.
         var share: Double
-        /// Change vs the prior window, in percentage points (nil without prior data).
-        var deltaPoints: Double?
+    }
+
+    struct DonutModel {
+        /// Ranked by sets desc, "Other" always last. At most 6 segments.
+        var segments: [DonutSegment]
+        var totalSets: Int
+    }
+
+    // MARK: Training calendar (chart 4)
+
+    struct CalendarDayCell: Identifiable {
+        var id: Date { date }
+        var date: Date
+        var day: Int
+        var sessionCount: Int
+        var isToday: Bool
+        var isFuture: Bool
+    }
+
+    struct CalendarMonth {
+        var monthStart: Date
+        /// Empty grid slots before day 1 (calendar column alignment).
+        var leadingBlanks: Int
+        var days: [CalendarDayCell]
     }
 
     // MARK: Rep distribution
@@ -173,13 +272,16 @@ struct AnalyticsSnapshot {
 
     var totalSessions: Int
     var headline: Headline?
-    var heatmap: HeatmapModel
-    var heatmapInsight: String?
-    var trends: [ExerciseTrend]
-    var trendInsight: String?
-    var muscleShares: [MuscleShare]
-    var muscleWindowIsRecent: Bool
-    var balanceInsight: String?
+    /// Sorted by session count desc — first entry is the default picker selection.
+    var exerciseOptions: [ExerciseOption]
+    /// Canonical exercise name -> per-session progression points, oldest first.
+    var progression: [String: [ProgressionPoint]]
+    var weeklyMuscle: [MuscleSeries]
+    var donut: DonutModel?
+    var donutInsight: String?
+    /// Start-of-day -> that day's sessions (for the calendar + day sheet).
+    var sessionsByDay: [Date: [WorkoutSession]]
+    var firstSessionDate: Date?
     var repBins: [RepBin]
     var repZoneShares: [RepZone: Double]
     var repWindowIsRecent: Bool
@@ -188,13 +290,13 @@ struct AnalyticsSnapshot {
     static let empty = AnalyticsSnapshot(
         totalSessions: 0,
         headline: nil,
-        heatmap: HeatmapModel(weeks: [], monthLabels: [], weekdayLabels: []),
-        heatmapInsight: nil,
-        trends: [],
-        trendInsight: nil,
-        muscleShares: [],
-        muscleWindowIsRecent: false,
-        balanceInsight: nil,
+        exerciseOptions: [],
+        progression: [:],
+        weeklyMuscle: [],
+        donut: nil,
+        donutInsight: nil,
+        sessionsByDay: [:],
+        firstSessionDate: nil,
         repBins: [],
         repZoneShares: [:],
         repWindowIsRecent: false,
@@ -203,9 +305,21 @@ struct AnalyticsSnapshot {
 
     // MARK: - Build
 
-    static let heatmapWeekCount = 17
-    static let maxTrendExercises = 3
-    static let maxTrendPoints = 15
+    /// Weeks of history shown by the weekly-sets chart (including the current week).
+    static let weeklyMuscleWeekCount = 13
+    /// Days covered by the muscle-distribution donut.
+    static let donutWindowDays = 30
+
+    /// The six groups that get their own series color; everything else folds
+    /// into "Other" so the palette never has to invent a seventh hue.
+    static let chartMuscleGroups: [MuscleGroup] = [.chest, .back, .shoulders, .arms, .legs, .core]
+
+    static func chartGroup(for group: MuscleGroup?) -> String {
+        guard let group, chartMuscleGroups.contains(group) else {
+            return MuscleGroup.other.rawValue
+        }
+        return group.rawValue
+    }
 
     /// Pure builder — inject the exercise resolver so the math stays testable.
     /// `resolve` maps a logged (possibly abbreviated) name to a library exercise.
@@ -231,31 +345,31 @@ struct AnalyticsSnapshot {
         }
 
         let headline = buildHeadline(sorted: sorted, currentWeek: currentWeek, calendar: calendar)
-        let (heatmap, heatmapInsight) = buildHeatmap(
-            sorted: sorted,
-            currentWeek: currentWeek,
-            streakWeeks: headline.streakWeeks,
-            now: now,
-            calendar: calendar
-        )
-        let (trends, trendInsight) = buildTrends(sorted: sorted, resolved: resolved)
-        let (muscleShares, muscleRecent, balanceInsight) = buildMuscleBalance(
+        let (options, progression) = buildProgression(sorted: sorted, resolved: resolved)
+        let weeklyMuscle = buildWeeklyMuscle(
             sorted: sorted,
             resolved: resolved,
-            now: now
+            currentWeek: currentWeek,
+            calendar: calendar
         )
+        let (donut, donutInsight) = buildDonut(sorted: sorted, resolved: resolved, now: now)
         let (repBins, zoneShares, repRecent, repInsight) = buildRepDistribution(sorted: sorted, now: now)
+
+        var sessionsByDay: [Date: [WorkoutSession]] = [:]
+        for session in sorted {
+            sessionsByDay[calendar.startOfDay(for: session.date), default: []].append(session)
+        }
 
         return AnalyticsSnapshot(
             totalSessions: sorted.count,
             headline: headline,
-            heatmap: heatmap,
-            heatmapInsight: heatmapInsight,
-            trends: trends,
-            trendInsight: trendInsight,
-            muscleShares: muscleShares,
-            muscleWindowIsRecent: muscleRecent,
-            balanceInsight: balanceInsight,
+            exerciseOptions: options,
+            progression: progression,
+            weeklyMuscle: weeklyMuscle,
+            donut: donut,
+            donutInsight: donutInsight,
+            sessionsByDay: sessionsByDay,
+            firstSessionDate: sorted.first?.date,
             repBins: repBins,
             repZoneShares: zoneShares,
             repWindowIsRecent: repRecent,
@@ -340,280 +454,167 @@ struct AnalyticsSnapshot {
         )
     }
 
-    // MARK: Consistency heatmap
+    // MARK: Exercise progression
 
-    private static func buildHeatmap(
-        sorted: [WorkoutSession],
-        currentWeek: DateInterval,
-        streakWeeks: Int,
-        now: Date,
-        calendar: Calendar
-    ) -> (HeatmapModel, String?) {
-        guard let firstColumnStart = calendar.date(
-            byAdding: .weekOfYear,
-            value: -(heatmapWeekCount - 1),
-            to: currentWeek.start
-        ) else {
-            return (HeatmapModel(weeks: [], monthLabels: [], weekdayLabels: []), nil)
-        }
-
-        // Sets per day and sessions per weekday within the window.
-        var setsPerDay: [Date: Int] = [:]
-        var sessionsPerWeekday: [Int: Int] = [:]
-        var sessionsInWindow = 0
-        for session in sorted where session.date >= firstColumnStart {
-            let day = calendar.startOfDay(for: session.date)
-            let sets = session.logs.values
-                .flatMap { $0 }
-                .filter(AnalyticsMath.isMeaningfulSet)
-                .count
-            setsPerDay[day, default: 0] += max(sets, 1) // a logged session is activity even if sets didn't parse
-            sessionsPerWeekday[calendar.component(.weekday, from: session.date), default: 0] += 1
-            sessionsInWindow += 1
-        }
-
-        // Intensity levels are quartiles of the user's own non-zero days, so the
-        // scale adapts to how they actually train.
-        let nonZero = setsPerDay.values.sorted()
-        func quantile(_ q: Double) -> Int {
-            guard !nonZero.isEmpty else { return 0 }
-            let index = min(nonZero.count - 1, Int(Double(nonZero.count) * q))
-            return nonZero[index]
-        }
-        let q1 = quantile(0.25), q2 = quantile(0.5), q3 = quantile(0.75)
-        func level(forSets sets: Int) -> Int {
-            guard sets > 0 else { return 0 }
-            if sets <= q1 { return 1 }
-            if sets <= q2 { return 2 }
-            if sets <= q3 { return 3 }
-            return 4
-        }
-
-        var weeks: [[DayCell]] = []
-        var monthLabels: [(weekIndex: Int, label: String)] = []
-        var lastLabeledMonth = -1
-        var lastLabelColumn = -10
-
-        for weekIndex in 0..<heatmapWeekCount {
-            guard let weekStart = calendar.date(byAdding: .weekOfYear, value: weekIndex, to: firstColumnStart) else { continue }
-
-            let month = calendar.component(.month, from: weekStart)
-            if month != lastLabeledMonth, weekIndex - lastLabelColumn >= 3 {
-                monthLabels.append((weekIndex, calendar.shortMonthSymbols[month - 1]))
-                lastLabeledMonth = month
-                lastLabelColumn = weekIndex
-            }
-
-            var cells: [DayCell] = []
-            for dayOffset in 0..<7 {
-                guard let date = calendar.date(byAdding: .day, value: dayOffset, to: weekStart) else { continue }
-                let day = calendar.startOfDay(for: date)
-                let sets = setsPerDay[day] ?? 0
-                cells.append(DayCell(
-                    date: day,
-                    sets: sets,
-                    level: level(forSets: sets),
-                    isFuture: day > now
-                ))
-            }
-            weeks.append(cells)
-        }
-
-        // Weekday labels in calendar row order (rotated by firstWeekday).
-        let symbols = calendar.veryShortWeekdaySymbols
-        let first = calendar.firstWeekday - 1
-        let weekdayLabels = (0..<7).map { symbols[(first + $0) % 7] }
-
-        // One short insight: streak, favorite training day, or a count.
-        var favoriteDay: String?
-        if let (weekday, count) = sessionsPerWeekday.max(by: { $0.value < $1.value }), count >= 3 {
-            favoriteDay = calendar.weekdaySymbols[weekday - 1]
-        }
-        var insight: String?
-        if streakWeeks >= 2, let day = favoriteDay {
-            insight = "\(streakWeeks)-week streak — \(day)s are your day"
-        } else if streakWeeks >= 2 {
-            insight = "\(streakWeeks) weeks in a row without missing"
-        } else if let day = favoriteDay {
-            insight = "You show up most on \(day)s"
-        } else if sessionsInWindow > 0 {
-            insight = "\(sessionsInWindow) session\(sessionsInWindow == 1 ? "" : "s") in the last \(heatmapWeekCount) weeks"
-        }
-
-        let model = HeatmapModel(weeks: weeks, monthLabels: monthLabels, weekdayLabels: weekdayLabels)
-        return (model, insight)
-    }
-
-    // MARK: Strength trends
-
-    private static func buildTrends(
+    private static func buildProgression(
         sorted: [WorkoutSession],
         resolved: (String) -> Exercise?
-    ) -> ([ExerciseTrend], String?) {
-        // Best estimated 1RM per exercise per session. Logged aliases collapse
-        // onto the library name ("DB Bench" and "Dumbbell Bench Press" merge).
-        var history: [String: [(date: Date, e1RM: Double)]] = [:]
+    ) -> ([ExerciseOption], [String: [ProgressionPoint]]) {
+        var series: [String: [ProgressionPoint]] = [:]
+
         for session in sorted {
+            // Merge aliases that resolve to the same library exercise within a
+            // session ("DB Bench" + "Dumbbell Bench Press" -> one point).
+            var perExercise: [String: [WorkoutSet]] = [:]
             for (name, sets) in session.logs {
-                let best = sets.compactMap { set -> Double? in
+                let canonical = resolved(name)?.name ?? name
+                perExercise[canonical, default: []].append(contentsOf: sets)
+            }
+
+            for (canonical, sets) in perExercise {
+                let e1RM = sets.compactMap { set -> Double? in
                     guard let weight = AnalyticsMath.parseWeight(set.weight),
                           let reps = AnalyticsMath.parseReps(set.reps) else { return nil }
                     return AnalyticsMath.epleyOneRepMax(weight: weight, reps: reps)
                 }.max()
-                guard let best else { continue }
-                let canonical = resolved(name)?.name ?? name
-                history[canonical, default: []].append((session.date, best))
+
+                let volumes = sets.compactMap(AnalyticsMath.setVolume)
+                let volume = volumes.isEmpty ? nil : volumes.reduce(0, +)
+                let maxWeight = sets.compactMap { AnalyticsMath.parseWeight($0.weight) }.max()
+
+                guard e1RM != nil || volume != nil || maxWeight != nil else { continue }
+                series[canonical, default: []].append(ProgressionPoint(
+                    date: session.date,
+                    e1RM: e1RM,
+                    volume: volume,
+                    maxWeight: maxWeight
+                ))
             }
         }
 
-        let top = history
-            .filter { $0.value.count >= 3 }
+        let options = series
+            .map { ExerciseOption(name: $0.key, sessionCount: $0.value.count) }
             .sorted { lhs, rhs in
-                if lhs.value.count != rhs.value.count { return lhs.value.count > rhs.value.count }
-                return (lhs.value.map(\.e1RM).max() ?? 0) > (rhs.value.map(\.e1RM).max() ?? 0)
-            }
-            .prefix(maxTrendExercises)
-
-        var trends: [ExerciseTrend] = []
-        for (name, rawPoints) in top {
-            let ordered = rawPoints.sorted { $0.date < $1.date }
-
-            // PR flags computed over the FULL history so an old best isn't
-            // re-announced inside a trimmed window.
-            var runningMax = -Double.infinity
-            var flagged: [TrendPoint] = []
-            for (index, point) in ordered.enumerated() {
-                let isPR = index > 0 && point.e1RM > runningMax
-                runningMax = max(runningMax, point.e1RM)
-                flagged.append(TrendPoint(date: point.date, e1RM: point.e1RM, isPR: isPR))
+                if lhs.sessionCount != rhs.sessionCount { return lhs.sessionCount > rhs.sessionCount }
+                return lhs.name < rhs.name
             }
 
-            let shown = Array(flagged.suffix(maxTrendPoints))
-            guard let firstShown = shown.first, let last = shown.last else { continue }
-
-            var windowDelta: Double?
-            if firstShown.e1RM > 0 {
-                windowDelta = (last.e1RM - firstShown.e1RM) / firstShown.e1RM * 100
-            }
-
-            // Recent momentum: mean of the last 3 points vs the 3 before them.
-            var momentum: Momentum = .steady
-            var recentDelta: Double?
-            if shown.count >= 6 {
-                let lastThree = shown.suffix(3).map(\.e1RM)
-                let priorThree = shown.dropLast(3).suffix(3).map(\.e1RM)
-                let recentMean = lastThree.reduce(0, +) / 3
-                let priorMean = priorThree.reduce(0, +) / 3
-                if priorMean > 0 {
-                    let delta = (recentMean - priorMean) / priorMean * 100
-                    recentDelta = delta
-                    momentum = delta > 1.5 ? .climbing : (delta < -1.5 ? .declining : .steady)
-                }
-            } else if let delta = windowDelta {
-                recentDelta = delta
-                momentum = delta > 1.5 ? .climbing : (delta < -1.5 ? .declining : .steady)
-            }
-
-            trends.append(ExerciseTrend(
-                name: name,
-                points: shown,
-                currentE1RM: last.e1RM,
-                windowDeltaPercent: windowDelta,
-                recentMomentum: momentum,
-                recentDeltaPercent: recentDelta
-            ))
-        }
-
-        // One line: a lift that climbed overall but has gone flat is the most
-        // actionable thing to say; otherwise name the fastest climber.
-        var insight: String?
-        if let stalled = trends.first(where: { trend in
-            (trend.windowDeltaPercent ?? 0) > 4 && trend.recentMomentum != .climbing && trend.points.count >= 6
-        }) {
-            insight = "\(stalled.name) has gone flat after a strong run — time to change the stimulus?"
-        } else if let best = trends
-            .filter({ $0.recentMomentum == .climbing })
-            .max(by: { ($0.recentDeltaPercent ?? 0) < ($1.recentDeltaPercent ?? 0) }) {
-            insight = "\(best.name) is your fastest climber right now"
-        } else if trends.contains(where: { $0.recentMomentum == .declining }) {
-            insight = "Recent sessions are trending down — check sleep and recovery"
-        } else if !trends.isEmpty {
-            insight = "Holding steady across your top lifts"
-        }
-
-        return (trends, insight)
+        return (options, series)
     }
 
-    // MARK: Muscle balance
+    // MARK: Weekly sets per muscle
 
-    private static func buildMuscleBalance(
+    private static func buildWeeklyMuscle(
+        sorted: [WorkoutSession],
+        resolved: (String) -> Exercise?,
+        currentWeek: DateInterval,
+        calendar: Calendar
+    ) -> [MuscleSeries] {
+        guard let windowStart = calendar.date(
+            byAdding: .weekOfYear,
+            value: -(weeklyMuscleWeekCount - 1),
+            to: currentWeek.start
+        ) else { return [] }
+
+        // group -> weekStart -> sets
+        var counts: [String: [Date: Int]] = [:]
+        var earliestWeek: Date?
+        for session in sorted where session.date >= windowStart {
+            guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: session.date)?.start else { continue }
+            earliestWeek = min(earliestWeek ?? weekStart, weekStart)
+            for (name, sets) in session.logs {
+                let meaningful = sets.filter(AnalyticsMath.isMeaningfulSet).count
+                guard meaningful > 0 else { continue }
+                let group = chartGroup(for: resolved(name)?.muscleGroup)
+                counts[group, default: [:]][weekStart, default: 0] += meaningful
+            }
+        }
+
+        guard let earliestWeek, !counts.isEmpty else { return [] }
+
+        // Zero-filled week axis from the first trained week through the current one.
+        var weekAxis: [Date] = []
+        var cursor = earliestWeek
+        while cursor <= currentWeek.start {
+            weekAxis.append(cursor)
+            guard let next = calendar.date(byAdding: .weekOfYear, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        let order = chartMuscleGroups.map(\.rawValue) + [MuscleGroup.other.rawValue]
+        return order.compactMap { group in
+            guard let weekCounts = counts[group] else { return nil }
+            let points = weekAxis.map { WeekPoint(weekStart: $0, sets: weekCounts[$0] ?? 0) }
+            let total = weekCounts.values.reduce(0, +)
+            guard total > 0 else { return nil }
+            return MuscleSeries(group: group, points: points, totalSets: total)
+        }
+    }
+
+    // MARK: Muscle distribution donut
+
+    private static func buildDonut(
         sorted: [WorkoutSession],
         resolved: (String) -> Exercise?,
         now: Date
-    ) -> ([MuscleShare], Bool, String?) {
-        let day: TimeInterval = 86_400
-        let windowStart = now.addingTimeInterval(-28 * day)
-        let priorStart = now.addingTimeInterval(-56 * day)
+    ) -> (DonutModel?, String?) {
+        let windowStart = now.addingTimeInterval(-Double(donutWindowDays) * 86_400)
 
-        func groupCounts(from start: Date, to end: Date) -> [String: Int] {
-            var counts: [String: Int] = [:]
-            for session in sorted where session.date >= start && session.date < end {
-                for (name, sets) in session.logs {
-                    let meaningful = sets.filter(AnalyticsMath.isMeaningfulSet).count
-                    guard meaningful > 0 else { continue }
-                    let group = resolved(name)?.muscleGroup.rawValue ?? MuscleGroup.other.rawValue
-                    counts[group, default: 0] += meaningful
-                }
+        var counts: [String: Int] = [:]
+        for session in sorted where session.date >= windowStart && session.date <= now {
+            for (name, sets) in session.logs {
+                let meaningful = sets.filter(AnalyticsMath.isMeaningfulSet).count
+                guard meaningful > 0 else { continue }
+                let group = chartGroup(for: resolved(name)?.muscleGroup)
+                counts[group, default: 0] += meaningful
             }
-            return counts
         }
 
-        var current = groupCounts(from: windowStart, to: now.addingTimeInterval(day))
-        var currentTotal = current.values.reduce(0, +)
-        var isRecent = true
-        var prior: [String: Int] = [:]
+        let total = counts.values.reduce(0, +)
+        guard total > 0 else { return (nil, nil) }
 
-        if currentTotal >= 10 {
-            prior = groupCounts(from: priorStart, to: windowStart)
-        } else {
-            // Sparse recent data: fall back to all time so the chart stays useful.
-            current = groupCounts(from: .distantPast, to: now.addingTimeInterval(day))
-            currentTotal = current.values.reduce(0, +)
-            isRecent = false
-        }
-
-        guard currentTotal > 0 else { return ([], isRecent, nil) }
-
-        let priorTotal = prior.values.reduce(0, +)
-        let shares = current
-            .map { group, sets -> MuscleShare in
-                let share = Double(sets) / Double(currentTotal)
-                var delta: Double?
-                if priorTotal >= 10 {
-                    let priorShare = Double(prior[group] ?? 0) / Double(priorTotal)
-                    delta = (share - priorShare) * 100
-                }
-                return MuscleShare(group: group, sets: sets, share: share, deltaPoints: delta)
-            }
+        let otherName = MuscleGroup.other.rawValue
+        var ranked = counts
+            .map { (group: $0.key, sets: $0.value) }
             .sorted { lhs, rhs in
                 if lhs.sets != rhs.sets { return lhs.sets > rhs.sets }
                 return lhs.group < rhs.group
             }
 
-        // Neglect check across the core groups a balanced program should touch.
+        // Fold tiny groups (<3%) and anything past the 5 biggest into "Other" so
+        // the ring never carries more than 6 segments.
+        var otherSets = 0
+        if let otherIndex = ranked.firstIndex(where: { $0.group == otherName }) {
+            otherSets = ranked.remove(at: otherIndex).sets
+        }
+        var kept: [(group: String, sets: Int)] = []
+        for entry in ranked {
+            let share = Double(entry.sets) / Double(total)
+            if kept.count >= 5 || share < 0.03 {
+                otherSets += entry.sets
+            } else {
+                kept.append(entry)
+            }
+        }
+        if otherSets > 0 {
+            kept.append((otherName, otherSets))
+        }
+
+        let segments = kept.map { entry in
+            DonutSegment(group: entry.group, sets: entry.sets, share: Double(entry.sets) / Double(total))
+        }
+
+        // One line: name the biggest imbalance across the core groups.
         var insight: String?
-        if currentTotal >= 15 {
-            let coreGroups = [
-                MuscleGroup.legs, .back, .chest, .core, .shoulders, .arms
-            ].map(\.rawValue)
-            let shareByGroup = Dictionary(uniqueKeysWithValues: shares.map { ($0.group, $0.share) })
-            if let weakest = coreGroups
-                .map({ (group: $0, share: shareByGroup[$0] ?? 0) })
+        if total >= 15 {
+            let shareByGroup = Dictionary(uniqueKeysWithValues: segments.map { ($0.group, $0.share) })
+            if let weakest = chartMuscleGroups
+                .map({ (group: $0.rawValue, share: shareByGroup[$0.rawValue] ?? 0) })
                 .min(by: { $0.share < $1.share }) {
                 if weakest.share < 0.08 {
                     let pct = Int((weakest.share * 100).rounded())
                     insight = pct == 0
-                        ? "\(weakest.group) hasn't been trained in this window"
+                        ? "\(weakest.group) hasn't been trained in the last \(donutWindowDays) days"
                         : "\(weakest.group) is getting just \(pct)% of your sets"
                 } else {
                     insight = "Volume is spread evenly — no muscle group is falling behind"
@@ -621,7 +622,49 @@ struct AnalyticsSnapshot {
             }
         }
 
-        return (shares, isRecent, insight)
+        return (DonutModel(segments: segments, totalSets: total), insight)
+    }
+
+    // MARK: Training calendar
+
+    /// Month grid for the calendar card. `sessionsByDay` is keyed by start-of-day.
+    static func calendarMonth(
+        containing anchor: Date,
+        sessionsByDay: [Date: [WorkoutSession]],
+        now: Date,
+        calendar: Calendar
+    ) -> CalendarMonth {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: anchor),
+              let dayRange = calendar.range(of: .day, in: .month, for: anchor) else {
+            return CalendarMonth(monthStart: anchor, leadingBlanks: 0, days: [])
+        }
+
+        let monthStart = monthInterval.start
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let leadingBlanks = (firstWeekday - calendar.firstWeekday + 7) % 7
+        let today = calendar.startOfDay(for: now)
+
+        var days: [CalendarDayCell] = []
+        for day in dayRange {
+            guard let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) else { continue }
+            let dayStart = calendar.startOfDay(for: date)
+            days.append(CalendarDayCell(
+                date: dayStart,
+                day: day,
+                sessionCount: sessionsByDay[dayStart]?.count ?? 0,
+                isToday: dayStart == today,
+                isFuture: dayStart > today
+            ))
+        }
+
+        return CalendarMonth(monthStart: monthStart, leadingBlanks: leadingBlanks, days: days)
+    }
+
+    /// Weekday header labels in calendar column order (respects firstWeekday).
+    static func weekdayHeaderLabels(calendar: Calendar) -> [String] {
+        let symbols = calendar.veryShortWeekdaySymbols
+        let first = calendar.firstWeekday - 1
+        return (0..<7).map { symbols[(first + $0) % 7] }
     }
 
     // MARK: Rep distribution
