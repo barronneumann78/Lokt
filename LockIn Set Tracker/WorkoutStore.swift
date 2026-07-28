@@ -131,7 +131,7 @@ final class WorkoutStore: ObservableObject {
             let outcome = checkIn.perExercise?[exerciseName] ?? checkIn.overall
             var state = progression[exerciseName] ?? ExerciseProgressionState()
 
-            if let lastSet = sets.last {
+            if let lastSet = sets.last(where: \.isCompleted) {
                 state.lastWeight = lastSet.weight
                 state.lastReps = lastSet.reps
             }

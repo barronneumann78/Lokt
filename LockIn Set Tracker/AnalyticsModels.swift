@@ -30,20 +30,28 @@ enum AnalyticsMath {
 
     /// A set that carries any usable signal (weight or reps parse).
     /// Placeholder rows saved with both fields empty do not count as activity.
+    /// Purely about the numbers — completion is `isCountedSet`'s job.
     static func isMeaningfulSet(_ set: WorkoutSet) -> Bool {
         parseWeight(set.weight) != nil || parseReps(set.reps) != nil
     }
 
-    /// Tonnage for one set, when both fields parse.
+    /// A set that actually happened for counting purposes: checked off in the
+    /// logger (legacy nil flag counts) AND carrying parseable numbers.
+    static func isCountedSet(_ set: WorkoutSet) -> Bool {
+        set.isCompleted && isMeaningfulSet(set)
+    }
+
+    /// Tonnage for one set, when the set is completed and both fields parse.
     static func setVolume(_ set: WorkoutSet) -> Double? {
-        guard let weight = parseWeight(set.weight), let reps = parseReps(set.reps) else { return nil }
+        guard set.isCompleted,
+              let weight = parseWeight(set.weight), let reps = parseReps(set.reps) else { return nil }
         return weight * Double(reps)
     }
 
     /// Compact "sets × reps · weight" line for a day-summary row.
     /// "3 × 8–10 · 145 lb", "3 × 12" (bodyweight), "2 sets · 145 lb" (no reps).
     static func setSummary(for sets: [WorkoutSet]) -> String {
-        let meaningful = sets.filter(isMeaningfulSet)
+        let meaningful = sets.filter(isCountedSet)
         guard !meaningful.isEmpty else { return "Logged" }
 
         let reps = meaningful.compactMap { parseReps($0.reps) }
@@ -394,7 +402,7 @@ struct AnalyticsSnapshot {
         func sessionSets(_ session: WorkoutSession) -> Int {
             session.logs.values
                 .flatMap { $0 }
-                .filter(AnalyticsMath.isMeaningfulSet)
+                .filter(AnalyticsMath.isCountedSet)
                 .count
         }
 
@@ -468,7 +476,9 @@ struct AnalyticsSnapshot {
             var perExercise: [String: [WorkoutSet]] = [:]
             for (name, sets) in session.logs {
                 let canonical = resolved(name)?.name ?? name
-                perExercise[canonical, default: []].append(contentsOf: sets)
+                // Only checked-off sets feed progression; parsing below still
+                // handles empty/free-text rows as before.
+                perExercise[canonical, default: []].append(contentsOf: sets.filter(\.isCompleted))
             }
 
             for (canonical, sets) in perExercise {
@@ -523,10 +533,10 @@ struct AnalyticsSnapshot {
             guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: session.date)?.start else { continue }
             earliestWeek = min(earliestWeek ?? weekStart, weekStart)
             for (name, sets) in session.logs {
-                let meaningful = sets.filter(AnalyticsMath.isMeaningfulSet).count
-                guard meaningful > 0 else { continue }
+                let counted = sets.filter(AnalyticsMath.isCountedSet).count
+                guard counted > 0 else { continue }
                 let group = chartGroup(for: resolved(name)?.muscleGroup)
-                counts[group, default: [:]][weekStart, default: 0] += meaningful
+                counts[group, default: [:]][weekStart, default: 0] += counted
             }
         }
 
@@ -563,10 +573,10 @@ struct AnalyticsSnapshot {
         var counts: [String: Int] = [:]
         for session in sorted where session.date >= windowStart && session.date <= now {
             for (name, sets) in session.logs {
-                let meaningful = sets.filter(AnalyticsMath.isMeaningfulSet).count
-                guard meaningful > 0 else { continue }
+                let counted = sets.filter(AnalyticsMath.isCountedSet).count
+                guard counted > 0 else { continue }
                 let group = chartGroup(for: resolved(name)?.muscleGroup)
-                counts[group, default: 0] += meaningful
+                counts[group, default: 0] += counted
             }
         }
 
@@ -680,6 +690,7 @@ struct AnalyticsSnapshot {
                 .filter { $0.date >= start }
                 .flatMap { $0.logs.values }
                 .flatMap { $0 }
+                .filter(\.isCompleted)
                 .compactMap { AnalyticsMath.parseReps($0.reps) }
         }
 

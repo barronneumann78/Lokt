@@ -32,6 +32,7 @@ struct WorkoutLoggerView: View {
     @State private var swapTarget: ExerciseSwapTarget?
     @State private var showSupplementaryBlockGenerator = false
     @State private var workoutBuilderFeedbackMessage: String?
+    @State private var showUncheckedFinishDialog = false
     @FocusState private var focusedField: WorkoutInputField?
 
     private let workoutTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -349,7 +350,7 @@ struct WorkoutLoggerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Color.clear
-                    .frame(width: 28, height: 1)
+                    .frame(width: 44, height: 1)
             }
             .padding(.bottom, 8)
 
@@ -416,8 +417,8 @@ struct WorkoutLoggerView: View {
                 )
                 .focused($focusedField, equals: .reps(exercise, set))
 
-                setStatus(isActive: isActive, isDone: isDone)
-                    .frame(width: 28)
+                setCheckButton(exercise: exercise, set: set, isActive: isActive, isDone: isDone)
+                    .frame(width: 44)
             }
 
             if let previous = getLastSet(for: exercise, at: set), !isDone {
@@ -481,24 +482,52 @@ struct WorkoutLoggerView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    @ViewBuilder
-    private func setStatus(isActive: Bool, isDone: Bool) -> some View {
-        if isDone {
-            Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(AppTheme.backgroundTop)
-                .frame(width: 26, height: 26)
-                .background(AppTheme.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        } else if isActive {
-            Circle()
-                .stroke(AppTheme.primary, lineWidth: 1.5)
-                .frame(width: 18, height: 18)
-        } else {
-            Text("—")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textTertiary)
+    /// The checkmark is the single source of truth for set completion.
+    /// Completed = volt check, incomplete = hollow circle (volt on the active row).
+    private func setCheckButton(exercise: String, set: Int, isActive: Bool, isDone: Bool) -> some View {
+        Button {
+            toggleSetCompletion(for: exercise, at: set)
+        } label: {
+            ZStack {
+                if isDone {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(AppTheme.primary)
+                        .frame(width: 26, height: 26)
+
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppTheme.backgroundTop)
+                } else {
+                    Circle()
+                        .stroke(isActive ? AppTheme.primary : AppTheme.textTertiary, lineWidth: 1.5)
+                        .frame(width: 22, height: 22)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleSetCompletion(for exercise: String, at index: Int) {
+        var sets = resize(sets: logs[exercise], to: setCount(for: exercise))
+        guard sets.indices.contains(index) else { return }
+
+        if sets[index].isCompleted {
+            sets[index].completed = false
+            logs[exercise] = sets
+            return
+        }
+
+        // A set can only be checked once it has parseable numbers.
+        guard AnalyticsMath.isMeaningfulSet(sets[index]) else {
+            focusedField = .weight(exercise, index)
+            return
+        }
+
+        sets[index].completed = true
+        logs[exercise] = sets
+        startRestTimer(for: exercise)
     }
 
     private func statChips(for exercise: String) -> some View {
@@ -546,7 +575,7 @@ struct WorkoutLoggerView: View {
     private func lastSessionSummary(for exercise: String) -> String? {
         let sessions = loadWorkoutSessions().filter(matchesRoutine)
         guard let sets = sessions.last?.logs[exercise],
-              let best = sets.first(where: isLoggedSet) else {
+              let best = sets.first(where: { $0.isCompleted && isLoggedSet($0) }) else {
             return nil
         }
         return "\(best.weight) × \(best.reps)"
@@ -557,7 +586,8 @@ struct WorkoutLoggerView: View {
         guard let sets = sessions.last?.logs[exercise] else { return nil }
 
         let estimates: [Double] = sets.compactMap { set in
-            guard let weight = parseWeight(set.weight),
+            guard set.isCompleted,
+                  let weight = parseWeight(set.weight),
                   let reps = Double(set.reps.trimmingCharacters(in: .whitespacesAndNewlines)),
                   weight > 0, reps > 0, reps < 15 else {
                 return nil
@@ -572,7 +602,8 @@ struct WorkoutLoggerView: View {
     private func sessionVolumeText(for exercise: String) -> String {
         let sets = resize(sets: logs[exercise], to: setCount(for: exercise))
         let volume = sets.reduce(0.0) { total, set in
-            guard let weight = parseWeight(set.weight),
+            guard set.isCompleted,
+                  let weight = parseWeight(set.weight),
                   let reps = Double(set.reps.trimmingCharacters(in: .whitespacesAndNewlines)) else {
                 return total
             }
@@ -625,21 +656,70 @@ struct WorkoutLoggerView: View {
                 }
 
                 Button("Finish Workout") {
-                    let session = WorkoutSession(date: Date(), routineID: activeRoutine.id, routineName: activeRoutine.name, logs: logs)
-                    saveWorkoutSession(session)
-                    currentTime = Date()
-                    skipRestTimer()
-                    completed = true
+                    if uncheckedFilledSetCount > 0 {
+                        showUncheckedFinishDialog = true
+                    } else {
+                        finishWorkout(checkingAllFilledSets: false)
+                    }
                 }
                 .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+                .confirmationDialog(
+                    uncheckedFinishTitle,
+                    isPresented: $showUncheckedFinishDialog,
+                    titleVisibility: .visible
+                ) {
+                    Button("Check All & Finish") {
+                        finishWorkout(checkingAllFilledSets: true)
+                    }
+
+                    Button("Finish Without Them") {
+                        finishWorkout(checkingAllFilledSets: false)
+                    }
+
+                    Button("Cancel", role: .cancel) { }
+                }
             }
         }
+    }
+
+    private var uncheckedFinishTitle: String {
+        let count = uncheckedFilledSetCount
+        return count == 1
+            ? "1 set isn't checked off — finish anyway?"
+            : "\(count) sets aren't checked off — finish anyway?"
+    }
+
+    /// Saves the session. Unchecked sets keep their numbers but carry
+    /// `completed == false`, so nothing downstream ever counts them.
+    private func finishWorkout(checkingAllFilledSets: Bool) {
+        if checkingAllFilledSets {
+            for exercise in activeRoutine.exercises {
+                var sets = resize(sets: logs[exercise], to: setCount(for: exercise))
+                for index in sets.indices where !sets[index].isCompleted && AnalyticsMath.isMeaningfulSet(sets[index]) {
+                    sets[index].completed = true
+                }
+                logs[exercise] = sets
+            }
+        }
+
+        let session = WorkoutSession(date: Date(), routineID: activeRoutine.id, routineName: activeRoutine.name, logs: logs)
+        saveWorkoutSession(session)
+        currentTime = Date()
+        skipRestTimer()
+        completed = true
     }
 
     @ViewBuilder
     private func historySection(for exercise: String) -> some View {
         let allSessions = loadWorkoutSessions().reversed().filter(matchesRoutine)
-        let history = Array(allSessions.compactMap { $0.logs[exercise] }.prefix(5))
+        let history = Array(
+            allSessions
+                .compactMap { session -> [WorkoutSet]? in
+                    guard let sets = session.logs[exercise]?.filter(\.isCompleted), !sets.isEmpty else { return nil }
+                    return sets
+                }
+                .prefix(5)
+        )
 
         if history.isEmpty {
             Text("No history yet for this exercise.")
@@ -695,7 +775,7 @@ struct WorkoutLoggerView: View {
 
     private func firstIncompleteSetIndex(for exercise: String) -> Int? {
         let sets = resize(sets: logs[exercise], to: setCount(for: exercise))
-        return sets.firstIndex(where: { !isLoggedSet($0) })
+        return sets.firstIndex(where: { !$0.isCompleted })
     }
 
     private func isCompletedSet(exercise: String, setIndex: Int) -> Bool {
@@ -703,7 +783,7 @@ struct WorkoutLoggerView: View {
             return false
         }
 
-        return isLoggedSet(set)
+        return set.isCompleted
     }
 
     private func isPrimaryExercise(_ exercise: String) -> Bool {
@@ -755,7 +835,11 @@ struct WorkoutLoggerView: View {
         var updatedSets = sets ?? []
 
         if updatedSets.count < count {
-            updatedSets.append(contentsOf: Array(repeating: WorkoutSet(weight: "", reps: ""), count: count - updatedSets.count))
+            // In-session sets carry an explicit flag — only the checkmark completes them.
+            updatedSets.append(contentsOf: Array(
+                repeating: WorkoutSet(weight: "", reps: "", completed: false),
+                count: count - updatedSets.count
+            ))
         } else if updatedSets.count > count {
             updatedSets = Array(updatedSets.prefix(count))
         }
@@ -869,7 +953,16 @@ struct WorkoutLoggerView: View {
 
     private var loggedSetCount: Int {
         activeRoutine.exercises.reduce(into: 0) { total, exercise in
-            total += resize(sets: logs[exercise], to: setCount(for: exercise)).filter(isLoggedSet).count
+            total += resize(sets: logs[exercise], to: setCount(for: exercise)).filter(\.isCompleted).count
+        }
+    }
+
+    /// Sets with usable numbers the user never checked off — surfaced once at Finish.
+    private var uncheckedFilledSetCount: Int {
+        activeRoutine.exercises.reduce(into: 0) { total, exercise in
+            total += resize(sets: logs[exercise], to: setCount(for: exercise))
+                .filter { !$0.isCompleted && AnalyticsMath.isMeaningfulSet($0) }
+                .count
         }
     }
 
@@ -896,7 +989,7 @@ struct WorkoutLoggerView: View {
 
     private var completedExerciseCount: Int {
         activeRoutine.exercises.filter { exercise in
-            resize(sets: logs[exercise], to: setCount(for: exercise)).contains(where: isLoggedSet)
+            resize(sets: logs[exercise], to: setCount(for: exercise)).contains(where: \.isCompleted)
         }.count
     }
 
@@ -1020,10 +1113,6 @@ struct WorkoutLoggerView: View {
         )
 
         quickLogInputs[key] = ""
-
-        if let updatedSet = logs[exercise]?[safe: set], isLoggedSet(updatedSet) {
-            focusNextTarget(afterLogging: exercise, set: set)
-        }
     }
 
     private func parseQuickLogCommand(_ input: String, exercise: String, setIndex: Int) -> QuickLogCommand? {
@@ -1081,24 +1170,13 @@ struct WorkoutLoggerView: View {
         }
 
         let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        if let latestLoggedSet = sessions.last?.logs[exercise]?.reversed().first(where: isLoggedSet) {
+        if let latestLoggedSet = sessions.last?.logs[exercise]?
+            .reversed()
+            .first(where: { $0.isCompleted && isLoggedSet($0) }) {
             return latestLoggedSet
         }
 
         return nil
-    }
-
-    private func focusNextTarget(afterLogging exercise: String, set: Int) {
-        if let nextTarget = nextLoggingTarget {
-            focusedField = .weight(nextTarget.exercise, nextTarget.setIndex)
-            return
-        }
-
-        if set + 1 < setCount(for: exercise) {
-            focusedField = .weight(exercise, set + 1)
-        } else {
-            focusedField = nil
-        }
     }
 
     private func firstMatch(in text: String, pattern: String) -> [String]? {
@@ -1127,13 +1205,9 @@ struct WorkoutLoggerView: View {
         var updatedSets = resize(sets: logs[exercise], to: setCount(for: exercise))
         guard updatedSets.indices.contains(set) else { return }
 
-        let priorValue = updatedSets[set]
-        updatedSets[set] = previousSet
+        // Copy the numbers only — the user still checks the set off themselves.
+        updatedSets[set] = WorkoutSet(weight: previousSet.weight, reps: previousSet.reps, completed: false)
         logs[exercise] = updatedSets
-
-        if !isLoggedSet(priorValue) && isLoggedSet(previousSet) {
-            startRestTimer(for: exercise)
-        }
     }
 
     private func restDuration(for exercise: String) -> Int {
@@ -1156,6 +1230,7 @@ struct WorkoutLoggerView: View {
         guard let latestWeights = sessions.last?.logs[exercise] else { return nil }
 
         return latestWeights
+            .filter(\.isCompleted)
             .compactMap { parseWeight($0.weight) }
             .first
     }
@@ -1200,13 +1275,13 @@ struct WorkoutLoggerView: View {
     ) -> [WorkoutSet] {
         var updatedSets = resize(sets: sets, to: targetCount)
         if index < updatedSets.count {
-            let previousSet = updatedSets[index]
             if let w = weight { updatedSets[index].weight = w }
             if let r = reps { updatedSets[index].reps = r }
 
-            let currentSet = updatedSets[index]
-            if !isLoggedSet(previousSet) && isLoggedSet(currentSet) {
-                startRestTimer(for: exercise)
+            // Filling numbers never completes a set — only the checkmark does.
+            // But clearing the numbers out of a checked set un-checks it.
+            if !AnalyticsMath.isMeaningfulSet(updatedSets[index]) {
+                updatedSets[index].completed = false
             }
         }
         return updatedSets
@@ -1248,7 +1323,8 @@ struct WorkoutLoggerView: View {
 
     private func getLastSet(for exercise: String, at index: Int) -> WorkoutSet? {
         let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        return sessions.last?.logs[exercise]?[safe: index]
+        guard let set = sessions.last?.logs[exercise]?[safe: index], set.isCompleted else { return nil }
+        return set
     }
 
     private func matchesRoutine(_ session: WorkoutSession) -> Bool {

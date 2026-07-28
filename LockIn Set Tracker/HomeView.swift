@@ -551,7 +551,8 @@ struct HomeView: View {
         sessions.reduce(0) { total, session in
             total + session.logs.values.reduce(0) { exerciseTotal, sets in
                 exerciseTotal + sets.reduce(0) { setTotal, set in
-                    guard let weight = Double(set.weight.replacingOccurrences(of: ",", with: "")),
+                    guard set.isCompleted,
+                          let weight = Double(set.weight.replacingOccurrences(of: ",", with: "")),
                           let reps = Double(set.reps) else { return setTotal }
                     return setTotal + weight * reps
                 }

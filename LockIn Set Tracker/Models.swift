@@ -77,6 +77,14 @@ struct Routine: Identifiable, Codable {
 struct WorkoutSet: Codable {
     var weight: String
     var reps: String
+    /// Whether the user checked this set off in the logger. Optional so sessions
+    /// saved before completion tracking still decode; those sets were logged by
+    /// filling in numbers, so a missing flag counts as completed.
+    var completed: Bool? = nil
+
+    /// Single source of truth for "this set happened". Legacy sets (nil flag)
+    /// count as completed; only an explicit `false` excludes a set.
+    var isCompleted: Bool { completed ?? true }
 }
 
 struct WorkoutSession: Codable, Identifiable {
