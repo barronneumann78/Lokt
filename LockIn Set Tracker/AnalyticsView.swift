@@ -10,15 +10,14 @@ struct AnalyticsView: View {
     @StateObject private var exerciseStore = ExerciseStore()
     @State private var snapshot: AnalyticsSnapshot = .empty
 
-    private let secondaryText = Color.white.opacity(0.84)
-    private let mutedText = Color.white.opacity(0.62)
-
     var body: some View {
         ZStack {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
+                    header
+
                     if snapshot.totalSessions == 0 {
                         emptyState
                     } else {
@@ -39,7 +38,7 @@ struct AnalyticsView: View {
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle("Analytics")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             // Pick up sessions written directly by screens not yet on the store.
@@ -48,6 +47,20 @@ struct AnalyticsView: View {
         .onReceive(store.$sessions) { sessions in
             rebuild(with: sessions)
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Last \(AnalyticsSnapshot.heatmapWeekCount) weeks")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(AppTheme.textSecondary)
+
+            Text("Progress")
+                .font(.system(size: 34, weight: .bold))
+                .tracking(-0.5)
+                .foregroundStyle(AppTheme.textPrimary)
+        }
+        .padding(.bottom, 4)
     }
 
     private func rebuild(with sessions: [WorkoutSession]) {
@@ -72,7 +85,7 @@ struct AnalyticsView: View {
 
             Text("Log a workout and Lokt will map your consistency, strength gains and muscle balance here.")
                 .font(.subheadline)
-                .foregroundStyle(secondaryText)
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -122,14 +135,14 @@ struct AnalyticsView: View {
         detail: String,
         delta: (text: String, isPositive: Bool)? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(0.7)
-                .foregroundStyle(mutedText)
+                .microLabel()
 
             Text(value)
-                .font(.title3.weight(.bold))
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -137,20 +150,21 @@ struct AnalyticsView: View {
             if let delta {
                 Text(delta.text)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(delta.isPositive ? AppTheme.success : AppTheme.secondary)
+                    .monospacedDigit()
+                    .foregroundStyle(delta.isPositive ? AppTheme.success : AppTheme.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             } else {
                 Text(detail)
                     .font(.caption2)
-                    .foregroundStyle(mutedText)
+                    .foregroundStyle(AppTheme.textTertiary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+        .padding(14)
+        .glassCard()
     }
 
     // MARK: - Consistency heatmap
@@ -180,7 +194,7 @@ struct AnalyticsView: View {
         HStack(spacing: 3) {
             Text("Less")
                 .font(.system(size: 9))
-                .foregroundStyle(mutedText)
+                .foregroundStyle(AppTheme.textTertiary)
             ForEach(0..<5) { level in
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
                     .fill(AnalyticsPalette.heatLevel(level))
@@ -188,7 +202,7 @@ struct AnalyticsView: View {
             }
             Text("More")
                 .font(.system(size: 9))
-                .foregroundStyle(mutedText)
+                .foregroundStyle(AppTheme.textTertiary)
         }
     }
 
@@ -198,13 +212,13 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeader(
                 title: "Strength trend",
-                caption: "Estimated 1RM from your best set — orange dots mark new PRs"
+                caption: "Estimated 1RM from your best set — bright dots mark new PRs"
             )
 
             if snapshot.trends.isEmpty {
                 Text("Log an exercise three or more times with weight and reps to unlock strength trends.")
                     .font(.footnote)
-                    .foregroundStyle(mutedText)
+                    .foregroundStyle(AppTheme.textTertiary)
                     .padding(.vertical, 16)
             } else {
                 VStack(alignment: .leading, spacing: 18) {
@@ -223,29 +237,37 @@ struct AnalyticsView: View {
     }
 
     private func trendPanel(_ trend: AnalyticsSnapshot.ExerciseTrend) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 ExerciseTextNavigationLink(exerciseName: trend.name, exercises: exerciseStore.exercises) {
                     HStack(spacing: 4) {
-                        Text(trend.name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
+                        Text("\(trend.name.uppercased()) · EST 1RM")
+                            .microLabel(AppTheme.textSecondary)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(mutedText)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                 }
 
                 Spacer(minLength: 8)
 
-                Text("\(Int(trend.currentE1RM.rounded())) lbs")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
                 if let delta = trend.windowDeltaPercent {
                     deltaBadge(delta)
                 }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(Int(trend.currentE1RM.rounded()))")
+                    .font(.system(size: 36, weight: .bold))
+                    .monospacedDigit()
+                    .tracking(-1)
+                    .foregroundStyle(AppTheme.textPrimary)
+
+                Text("lb")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
 
             trendChart(trend)
@@ -257,7 +279,7 @@ struct AnalyticsView: View {
                     Text(shortDate(last.date))
                 }
                 .font(.system(size: 9))
-                .foregroundStyle(mutedText)
+                .foregroundStyle(AppTheme.textTertiary)
             }
         }
     }
@@ -269,25 +291,12 @@ struct AnalyticsView: View {
         let pad = max((high - low) * 0.18, 2)
 
         return Chart(trend.points) { point in
-            AreaMark(
-                x: .value("Date", point.date),
-                y: .value("e1RM", point.e1RM)
-            )
-            .interpolationMethod(.monotone)
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [AppTheme.primary.opacity(0.16), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-
             LineMark(
                 x: .value("Date", point.date),
                 y: .value("e1RM", point.e1RM)
             )
             .interpolationMethod(.monotone)
-            .foregroundStyle(AppTheme.primary)
+            .foregroundStyle(AppTheme.textTertiary)
             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
             if point.isPR {
@@ -304,7 +313,7 @@ struct AnalyticsView: View {
                     y: .value("e1RM", point.e1RM)
                 )
                 .symbolSize(42)
-                .foregroundStyle(AppTheme.secondary)
+                .foregroundStyle(AppTheme.primary)
             }
         }
         .chartYScale(domain: (low - pad)...(high + pad))
@@ -318,7 +327,7 @@ struct AnalyticsView: View {
         if delta > 1.5 {
             direction = ("arrow.up.right", AppTheme.success)
         } else if delta < -1.5 {
-            direction = ("arrow.down.right", AppTheme.secondary)
+            direction = ("arrow.down.right", AppTheme.danger)
         } else {
             direction = ("minus", AppTheme.textSecondary)
         }
@@ -328,6 +337,7 @@ struct AnalyticsView: View {
                 .font(.system(size: 8, weight: .bold))
             Text(signedPercent(delta))
                 .font(.caption2.weight(.semibold))
+                .monospacedDigit()
         }
         .foregroundStyle(direction.color)
         .padding(.horizontal, 7)
@@ -403,7 +413,7 @@ struct AnalyticsView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.white.opacity(0.05))
+                        .fill(AppTheme.mutedFill)
 
                     UnevenRoundedRectangle(
                         cornerRadii: RectangleCornerRadii(
@@ -414,7 +424,7 @@ struct AnalyticsView: View {
                         ),
                         style: .continuous
                     )
-                    .fill(AppTheme.primary)
+                    .fill(AppTheme.textSecondary)
                     .frame(width: max(3, geo.size.width * share.share))
                 }
             }
@@ -443,7 +453,7 @@ struct AnalyticsView: View {
                     .font(.caption2)
                     .monospacedDigit()
             }
-            .foregroundStyle(mutedText)
+            .foregroundStyle(AppTheme.textTertiary)
         } else {
             Text("")
         }
@@ -489,7 +499,7 @@ struct AnalyticsView: View {
                     if let reps = value.as(Double.self) {
                         Text(reps >= 20 ? "20+" : "\(Int(reps))")
                             .font(.caption2)
-                            .foregroundStyle(mutedText)
+                            .foregroundStyle(AppTheme.textTertiary)
                             .fixedSize()
                     }
                 }
@@ -498,10 +508,10 @@ struct AnalyticsView: View {
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
-                    .foregroundStyle(Color.white.opacity(0.08))
+                    .foregroundStyle(AppTheme.cardBorder)
                 AxisValueLabel()
                     .font(.caption2)
-                    .foregroundStyle(mutedText)
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
         .frame(height: 130)
@@ -522,7 +532,7 @@ struct AnalyticsView: View {
                             .foregroundStyle(AppTheme.textPrimary)
                         Text("\(zone.rangeText) · \(zonePercent(zone))")
                             .font(.caption2)
-                            .foregroundStyle(mutedText)
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                 }
             }
@@ -543,7 +553,7 @@ struct AnalyticsView: View {
                 .foregroundStyle(AppTheme.textPrimary)
             Text(caption)
                 .font(.caption)
-                .foregroundStyle(mutedText)
+                .foregroundStyle(AppTheme.textTertiary)
         }
     }
 
@@ -551,10 +561,10 @@ struct AnalyticsView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: "sparkles")
                 .font(.caption2)
-                .foregroundStyle(AppTheme.accent)
+                .foregroundStyle(AppTheme.textTertiary)
             Text(text)
                 .font(.footnote)
-                .foregroundStyle(secondaryText)
+                .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -598,7 +608,9 @@ private struct ConsistencyHeatmapGrid: View {
     var body: some View {
         let columns = max(model.weeks.count, 1)
         let rawCell = (availableWidth - gutter - gap * CGFloat(columns - 1)) / CGFloat(columns)
-        let cell = max(6, min(18, rawCell.isFinite ? rawCell : 6))
+        // Cap low enough that the grid can never out-grow the card: a larger cap
+        // lets an early over-wide measurement feed back into a stuck wide layout.
+        let cell = max(6, min(14, rawCell.isFinite ? rawCell : 6))
 
         VStack(alignment: .leading, spacing: 4) {
             monthLabelRow(cell: cell)
@@ -633,7 +645,7 @@ private struct ConsistencyHeatmapGrid: View {
             ForEach(model.monthLabels, id: \.weekIndex) { item in
                 Text(item.label)
                     .font(.system(size: 9))
-                    .foregroundStyle(Color.white.opacity(0.62))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .fixedSize()
                     .offset(x: gutter + gap + CGFloat(item.weekIndex) * (cell + gap))
             }
@@ -645,7 +657,7 @@ private struct ConsistencyHeatmapGrid: View {
             ForEach(0..<7, id: \.self) { row in
                 Text(row % 2 == 1 ? weekdayLabel(row) : "")
                     .font(.system(size: 8))
-                    .foregroundStyle(Color.white.opacity(0.62))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .frame(width: gutter, height: cell, alignment: .leading)
             }
         }
@@ -659,30 +671,28 @@ private struct ConsistencyHeatmapGrid: View {
 
 // MARK: - Palette
 //
-// Validated with the dataviz six-checks validator against the card surface
-// (#171A1C, dark mode): both ramps pass monotone lightness, step gaps and
-// light-end contrast. Single hue (the app's primary blue) — magnitude is
-// carried by lightness, never by extra hues.
+// Dark-athletic ramps built only from theme tokens: dim neutral steps that
+// resolve into volt at the top intensity. Magnitude is carried by lightness.
 private enum AnalyticsPalette {
     // Sequential heat ramp, low -> high activity.
     private static let heatRamp: [Color] = [
-        Color.white.opacity(0.05),                       // rest day
-        Color(red: 0.165, green: 0.322, blue: 0.522),    // #2A5285
-        Color(red: 0.208, green: 0.420, blue: 0.690),    // #356BB0
-        Color(red: 0.251, green: 0.522, blue: 0.847),    // #4085D8
-        AppTheme.primary                                 // #4A9EFF
+        AppTheme.mutedFill,                    // rest day
+        AppTheme.textTertiary.opacity(0.35),
+        AppTheme.textTertiary.opacity(0.75),
+        AppTheme.primary.opacity(0.5),
+        AppTheme.primary                       // top intensity = volt
     ]
 
     static func heatLevel(_ level: Int) -> Color {
         heatRamp[max(0, min(heatRamp.count - 1, level))]
     }
 
-    // Ordinal ramp across the ordered rep zones (strength -> endurance).
+    // Ordinal neutral ramp across the ordered rep zones (strength -> endurance).
     static func zoneColor(_ zone: RepZone) -> Color {
         switch zone {
-        case .strength: return Color(red: 0.165, green: 0.353, blue: 0.561)     // #2A5A8F
-        case .hypertrophy: return Color(red: 0.227, green: 0.486, blue: 0.769)  // #3A7CC4
-        case .endurance: return AppTheme.primary                                // #4A9EFF
+        case .strength: return AppTheme.textTertiary
+        case .hypertrophy: return AppTheme.textSecondary
+        case .endurance: return AppTheme.textPrimary
         }
     }
 }

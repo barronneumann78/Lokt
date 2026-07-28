@@ -79,15 +79,15 @@ struct AIWorkoutGeneratorView: View {
 
     private var headerSection: some View {
         Text("Describe the workout you want.")
-            .font(.system(size: 30, weight: .black, design: .rounded))
+            .font(.system(size: 30, weight: .bold))
+            .tracking(-0.5)
             .foregroundStyle(AppTheme.textPrimary)
     }
 
     private var promptSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Your Prompt")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("YOUR PROMPT")
+                .microLabel()
 
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -113,9 +113,8 @@ struct AIWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Quick Ideas")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("QUICK IDEAS")
+                    .microLabel()
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -144,7 +143,8 @@ struct AIWorkoutGeneratorView: View {
     private var generatingContent: some View {
         VStack(spacing: 18) {
             Text("Building your routine...")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
 
@@ -183,15 +183,15 @@ struct AIWorkoutGeneratorView: View {
     private func reviewHeader(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Review your workout")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             reviewSummaryBanner(for: generatedRoutine)
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Routine Title")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("ROUTINE TITLE")
+                    .microLabel()
 
                 TextField("Workout Title", text: titleBinding)
                     .textFieldStyle(TrackerTextFieldStyle())
@@ -205,9 +205,8 @@ struct AIWorkoutGeneratorView: View {
 
             if !generatedRoutine.routineNotes.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Routine Notes")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("ROUTINE NOTES")
+                        .microLabel()
 
                     ForEach(generatedRoutine.routineNotes, id: \.self) { note in
                         Text(note)
@@ -227,15 +226,14 @@ struct AIWorkoutGeneratorView: View {
     private func revisionSection(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Coach Chat")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("COACH CHAT")
+                    .microLabel()
 
                 Spacer()
 
                 if isApplyingRevision {
                     ProgressView()
-                        .tint(AppTheme.primary)
+                        .tint(AppTheme.textSecondary)
                 }
             }
 
@@ -274,9 +272,8 @@ struct AIWorkoutGeneratorView: View {
 
     private func exerciseSection(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Routine Preview")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("ROUTINE PREVIEW")
+                .microLabel()
 
             ForEach(Array(generatedRoutine.exercises.enumerated()), id: \.element.id) { item in
                 exerciseCard(index: item.offset, exercise: item.element)
@@ -289,9 +286,9 @@ struct AIWorkoutGeneratorView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Exercise \(index + 1)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("EXERCISE \(index + 1)")
+                    .microLabel()
+                    .monospacedDigit()
 
                 Spacer()
 
@@ -310,9 +307,8 @@ struct AIWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Exercise Name")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("EXERCISE NAME")
+                    .microLabel()
 
                 TextField("Exercise name", text: nameBinding(for: index))
                     .textFieldStyle(TrackerTextFieldStyle())
@@ -320,9 +316,8 @@ struct AIWorkoutGeneratorView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Sets")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("SETS")
+                        .microLabel()
 
                     TrackerStepper(
                         value: setBinding(for: index),
@@ -332,9 +327,8 @@ struct AIWorkoutGeneratorView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Reps")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("REPS")
+                        .microLabel()
 
                     TextField("Reps", text: repsBinding(for: index))
                         .textFieldStyle(TrackerTextFieldStyle())
@@ -342,9 +336,8 @@ struct AIWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Optional Note")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("NOTE")
+                    .microLabel()
 
                 TextField("Optional note", text: notesBinding(for: index), axis: .vertical)
                     .textFieldStyle(TrackerTextFieldStyle())
@@ -374,7 +367,7 @@ struct AIWorkoutGeneratorView: View {
             Button("Save Routine") {
                 saveGeneratedRoutine()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(isApplyingRevision || !canSave(generatedRoutine))
             .opacity(!isApplyingRevision && canSave(generatedRoutine) ? 1 : 0.6)
 
@@ -576,7 +569,7 @@ struct AIWorkoutGeneratorView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "wand.and.stars")
                 .font(.headline)
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.textSecondary)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Draft updated")
@@ -592,7 +585,7 @@ struct AIWorkoutGeneratorView: View {
             Spacer()
         }
         .padding(14)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.primary.opacity(0.35))
+        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
     }
 
     private func nonEmptyText(_ value: String?) -> String? {
@@ -603,13 +596,12 @@ struct AIWorkoutGeneratorView: View {
     private func statPill(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.title3.weight(.heavy))
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text(subtitle.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1)
-                .foregroundStyle(AppTheme.textSecondary)
+                .microLabel()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -641,9 +633,8 @@ struct AIWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(isUser ? "You" : "Lokt Coach")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(isUser ? AppTheme.primary : AppTheme.textSecondary)
+                Text(isUser ? "YOU" : "LOKT COACH")
+                    .microLabel()
 
                 Text(message.text)
                     .font(.subheadline)
@@ -652,11 +643,11 @@ struct AIWorkoutGeneratorView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isUser ? AppTheme.primary.opacity(0.12) : AppTheme.surfaceElevated)
+            .background(isUser ? AppTheme.mutedFill : AppTheme.surfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isUser ? AppTheme.primary.opacity(0.18) : AppTheme.cardBorder.opacity(0.7), lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
 
             if !isUser {

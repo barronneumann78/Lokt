@@ -58,9 +58,8 @@ struct SettingsView: View {
 
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("AI Backend")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("AI BACKEND")
+                .microLabel()
 
             TextField("Backend URL", text: $aiBackendBaseURL)
                 .textFieldStyle(TrackerTextFieldStyle())
@@ -79,9 +78,8 @@ struct SettingsView: View {
 
     private var aiPreferencesSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("AI Workout Preferences")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("AI WORKOUT PREFERENCES")
+                .microLabel()
 
             preferenceField(
                 title: "Preferred Equipment",
@@ -138,9 +136,8 @@ struct SettingsView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Workout History")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("WORKOUT HISTORY")
+                .microLabel()
 
             Button {
                 pendingAction = .deleteAll
@@ -148,12 +145,12 @@ struct SettingsView: View {
                 HStack {
                     Text("Delete All History")
                         .font(.headline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppTheme.danger)
 
                     Spacer()
 
                     Image(systemName: "trash")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppTheme.danger)
                 }
                 .padding(14)
                 .background(AppTheme.mutedFill)
@@ -162,9 +159,8 @@ struct SettingsView: View {
             .buttonStyle(.plain)
 
             if !exerciseNames.isEmpty {
-                Text("Delete One Exercise")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("DELETE ONE EXERCISE")
+                    .microLabel()
                     .padding(.top, 6)
 
                 ForEach(exerciseNames, id: \.self) { exercise in
@@ -268,8 +264,8 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
 
             TextField(placeholder, text: text)
                 .textFieldStyle(TrackerTextFieldStyle())
@@ -284,8 +280,8 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
 
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)

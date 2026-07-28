@@ -14,20 +14,12 @@ struct ExerciseMediaView: View {
 
     var body: some View {
         ZStack {
+            // Flat near-white plate so white-background exercise GIFs blend in.
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            AppTheme.primary.opacity(0.12),
-                            Color.white.opacity(0.96)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .fill(Color.white.opacity(0.96))
 
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
+                .strokeBorder(AppTheme.cardBorder, lineWidth: 1)
 
             mediaContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -57,7 +49,7 @@ struct ExerciseMediaView: View {
         case .placeholder:
             Image(systemName: placeholderSystemImageName)
                 .font(.system(size: iconSize))
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }

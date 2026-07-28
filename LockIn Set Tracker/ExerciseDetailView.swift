@@ -53,9 +53,8 @@ struct ExerciseDetailView: View {
             .frame(maxWidth: 280)
             .frame(maxWidth: .infinity)
 
-            Text(exercise.imageName == nil ? "Image placeholder" : "Exercise demo")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+            Text(exercise.imageName == nil ? "NO DEMO" : "DEMO")
+                .microLabel()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 18)
@@ -65,7 +64,8 @@ struct ExerciseDetailView: View {
     private var detailSection: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(exercise.name)
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             cueSection
@@ -118,7 +118,7 @@ struct ExerciseDetailView: View {
                 Button(primaryAddAction.title) {
                     addFeedbackMessage = primaryAddAction.perform(exercise).message
                 }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+                .buttonStyle(PrimaryButtonStyle())
 
                 Button("Add Somewhere Else") {
                     showAddSheet = true
@@ -128,7 +128,7 @@ struct ExerciseDetailView: View {
                 Button("Add to Routine") {
                     showAddSheet = true
                 }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+                .buttonStyle(PrimaryButtonStyle())
             }
 
             if let addFeedbackMessage {
@@ -162,7 +162,7 @@ struct ExerciseDetailView: View {
         } else if isLoadingCues {
             HStack(spacing: 10) {
                 ProgressView()
-                    .tint(AppTheme.primary)
+                    .tint(AppTheme.textSecondary)
 
                 Text("Loading form cues...")
                     .font(.subheadline)
@@ -178,7 +178,7 @@ struct ExerciseDetailView: View {
                     loadCuesIfNeeded(forceRefetch: true)
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.textPrimary)
             }
         }
     }
@@ -191,9 +191,8 @@ struct ExerciseDetailView: View {
 
             if showSimpleExplanation, let simpleExplanation {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("In Plain Words")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("IN PLAIN WORDS")
+                        .microLabel()
 
                     Text(simpleExplanation)
                         .font(.body)
@@ -289,13 +288,8 @@ struct ExerciseDetailView: View {
 
     private var coachSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Ask Lokt")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Get a quick coach take on why this lift is useful, what it trains, or what to swap to.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
+            Text("ASK LOKT")
+                .microLabel()
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], alignment: .leading, spacing: 10) {
                 ForEach(ExerciseCoachQuickAction.allCases) { action in
@@ -305,7 +299,7 @@ struct ExerciseDetailView: View {
                         HStack(spacing: 10) {
                             Image(systemName: action.systemImage)
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(action.color)
+                                .foregroundStyle(AppTheme.textSecondary)
 
                             Text(action.title)
                                 .font(.subheadline.weight(.semibold))
@@ -337,7 +331,7 @@ struct ExerciseDetailView: View {
             if isRequestingCoach {
                 HStack(spacing: 10) {
                     ProgressView()
-                        .tint(AppTheme.primary)
+                        .tint(AppTheme.textSecondary)
 
                     Text("Lokt is looking at the lift.")
                         .font(.subheadline.weight(.medium))
@@ -365,9 +359,8 @@ struct ExerciseDetailView: View {
 
     private func textSection(title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text(title.uppercased())
+                .microLabel()
 
             Text(text)
                 .font(.body)
@@ -378,14 +371,13 @@ struct ExerciseDetailView: View {
 
     private func bulletSection(title: String, items: [String]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text(title.uppercased())
+                .microLabel()
 
             ForEach(items, id: \.self) { item in
                 HStack(alignment: .top, spacing: 10) {
                     Circle()
-                        .fill(AppTheme.primary.opacity(0.8))
+                        .fill(AppTheme.textTertiary)
                         .frame(width: 6, height: 6)
                         .padding(.top, 6)
 
@@ -400,9 +392,8 @@ struct ExerciseDetailView: View {
 
     private func chipSection(title: String, values: [String], color: Color) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text(title.uppercased())
+                .microLabel()
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], alignment: .leading, spacing: 8) {
                 ForEach(values, id: \.self) { value in
@@ -414,9 +405,8 @@ struct ExerciseDetailView: View {
 
     private func coachReplyCard(_ reply: ExerciseCoachReply) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Coach Take")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("COACH TAKE")
+                .microLabel()
 
             Text(reply.answer)
                 .font(.body)
@@ -425,9 +415,8 @@ struct ExerciseDetailView: View {
 
             if !reply.suggestions.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Good Alternatives")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("GOOD ALTERNATIVES")
+                        .microLabel()
 
                     ForEach(reply.suggestions) { suggestion in
                         ExerciseTextNavigationLink(
@@ -438,7 +427,7 @@ struct ExerciseDetailView: View {
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: "arrow.triangle.swap")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(AppTheme.primary)
+                                    .foregroundStyle(AppTheme.textSecondary)
                                     .padding(.top, 2)
 
                                 VStack(alignment: .leading, spacing: 5) {
@@ -538,20 +527,6 @@ private enum ExerciseCoachQuickAction: String, CaseIterable, Identifiable {
         }
     }
 
-    var color: Color {
-        switch self {
-        case .why:
-            return AppTheme.primary
-        case .muscles:
-            return AppTheme.success
-        case .easier:
-            return AppTheme.secondary
-        case .shoulder:
-            return AppTheme.accent
-        case .substitute:
-            return AppTheme.primary
-        }
-    }
 }
 
 struct ExerciseTextNavigationLink<Label: View>: View {
@@ -614,10 +589,6 @@ private struct ExerciseAddSheet: View {
             Text(exercise.name)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Add this exercise to an existing routine or start a new one from it.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
         }
         .padding(20)
         .glassCard()
@@ -626,9 +597,8 @@ private struct ExerciseAddSheet: View {
     @ViewBuilder
     private var existingRoutineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Existing Routines")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("EXISTING ROUTINES")
+                .microLabel()
 
             if routines.isEmpty {
                 Text("You don’t have any saved routines yet.")
@@ -650,6 +620,7 @@ private struct ExerciseAddSheet: View {
 
                                 Text("\(routine.exercises.count) exercises")
                                     .font(.caption)
+                                    .monospacedDigit()
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
 
@@ -657,7 +628,7 @@ private struct ExerciseAddSheet: View {
 
                             Image(systemName: "plus.circle.fill")
                                 .font(.title3)
-                                .foregroundStyle(AppTheme.success)
+                                .foregroundStyle(AppTheme.textPrimary)
                         }
                         .padding(16)
                         .background(AppTheme.surface)
@@ -673,9 +644,8 @@ private struct ExerciseAddSheet: View {
 
     private var createRoutineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("New Routine")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("NEW ROUTINE")
+                .microLabel()
 
             Button {
                 let routine = RoutineLibrary.createRoutine(from: exercise.name)
@@ -691,10 +661,6 @@ private struct ExerciseAddSheet: View {
                         Text("Create a New Routine")
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(AppTheme.textPrimary)
-
-                        Text("Start a saved routine with just this exercise.")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
                     }
 
                     Spacer()

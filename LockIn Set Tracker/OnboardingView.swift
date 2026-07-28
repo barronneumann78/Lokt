@@ -186,12 +186,11 @@ struct OnboardingView: View {
     private func stepHeader(eyebrow: String, title: String, subtitle: String?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(eyebrow.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1.6)
-                .foregroundStyle(AppTheme.primary)
+                .microLabel()
 
             Text(title)
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -216,6 +215,7 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(option.title)
                         .font(.headline.weight(.semibold))
+                        .monospacedDigit()
                         .foregroundStyle(AppTheme.textPrimary)
 
                     Text(option.subtitle)

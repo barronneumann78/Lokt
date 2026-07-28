@@ -89,15 +89,15 @@ struct SupplementaryWorkoutGeneratorView: View {
 
     private var headerSection: some View {
         Text("Build a small extra block.")
-            .font(.system(size: 30, weight: .black, design: .rounded))
+            .font(.system(size: 30, weight: .bold))
+            .tracking(-0.5)
             .foregroundStyle(AppTheme.textPrimary)
     }
 
     private var promptSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Your Request")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("YOUR REQUEST")
+                .microLabel()
 
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -123,9 +123,8 @@ struct SupplementaryWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Quick Ideas")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("QUICK IDEAS")
+                    .microLabel()
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -143,7 +142,7 @@ struct SupplementaryWorkoutGeneratorView: View {
             Button("Generate Add-On") {
                 generateBlock()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
             .opacity(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
         }
@@ -154,7 +153,8 @@ struct SupplementaryWorkoutGeneratorView: View {
     private var generatingContent: some View {
         VStack(spacing: 18) {
             Text("Building your add-on...")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
 
@@ -196,7 +196,8 @@ struct SupplementaryWorkoutGeneratorView: View {
     private func reviewHeader(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Review your add-on block")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             HStack(spacing: 10) {
@@ -208,9 +209,8 @@ struct SupplementaryWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Block Title")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("BLOCK TITLE")
+                    .microLabel()
 
                 TextField("Block title", text: titleBinding)
                     .textFieldStyle(TrackerTextFieldStyle())
@@ -218,9 +218,8 @@ struct SupplementaryWorkoutGeneratorView: View {
 
             if !generatedBlock.summary.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Summary")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("SUMMARY")
+                        .microLabel()
 
                     Text(generatedBlock.summary)
                         .font(.subheadline)
@@ -232,9 +231,8 @@ struct SupplementaryWorkoutGeneratorView: View {
 
             if !generatedBlock.rationale.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Why This Fits")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("WHY THIS FITS")
+                        .microLabel()
 
                     Text(generatedBlock.rationale)
                         .font(.subheadline)
@@ -251,9 +249,8 @@ struct SupplementaryWorkoutGeneratorView: View {
 
     private func exerciseSection(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Block Preview")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("BLOCK PREVIEW")
+                .microLabel()
 
             ForEach(Array(generatedBlock.exercises.enumerated()), id: \.element.id) { item in
                 exerciseCard(index: item.offset, exercise: item.element)
@@ -266,9 +263,9 @@ struct SupplementaryWorkoutGeneratorView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Exercise \(index + 1)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("EXERCISE \(index + 1)")
+                    .microLabel()
+                    .monospacedDigit()
 
                 Spacer()
 
@@ -283,9 +280,8 @@ struct SupplementaryWorkoutGeneratorView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Exercise Name")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                Text("EXERCISE NAME")
+                    .microLabel()
 
                 TextField("Exercise name", text: nameBinding(for: index))
                     .textFieldStyle(TrackerTextFieldStyle())
@@ -293,9 +289,8 @@ struct SupplementaryWorkoutGeneratorView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Sets")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("SETS")
+                        .microLabel()
 
                     TrackerStepper(
                         value: setBinding(for: index),
@@ -305,9 +300,8 @@ struct SupplementaryWorkoutGeneratorView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Reps / Time")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("REPS / TIME")
+                        .microLabel()
 
                     TextField("Reps or time", text: repsBinding(for: index))
                         .textFieldStyle(TrackerTextFieldStyle())
@@ -337,7 +331,7 @@ struct SupplementaryWorkoutGeneratorView: View {
             Button("Add This Block") {
                 showDestinationSheet = true
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(!canSave(generatedBlock))
             .opacity(canSave(generatedBlock) ? 1 : 0.6)
 
@@ -455,13 +449,12 @@ struct SupplementaryWorkoutGeneratorView: View {
     private func statPill(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.title3.weight(.heavy))
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text(subtitle.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1)
-                .foregroundStyle(AppTheme.textSecondary)
+                .microLabel()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -540,6 +533,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
 
             Text("\(draft.exercises.count) exercises • \(draft.totalSets) sets")
                 .font(.subheadline)
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textSecondary)
         }
         .padding(20)
@@ -548,9 +542,8 @@ private struct SupplementaryWorkoutDestinationSheet: View {
 
     private func currentWorkoutSection(addToCurrentWorkout: @escaping (AIGeneratedRoutineDraft) -> AddExerciseResult, currentWorkoutTitle: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Current Workout")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("CURRENT WORKOUT")
+                .microLabel()
 
             Button {
                 let result = addToCurrentWorkout(draft)
@@ -562,7 +555,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                 HStack(spacing: 12) {
                     Image(systemName: "bolt.horizontal.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(AppTheme.success)
+                        .foregroundStyle(AppTheme.primary)
 
                     Text("Add to \(currentWorkoutTitle)")
                         .font(.headline.weight(.semibold))
@@ -583,9 +576,8 @@ private struct SupplementaryWorkoutDestinationSheet: View {
     @ViewBuilder
     private var existingRoutineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Existing Routines")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("EXISTING ROUTINES")
+                .microLabel()
 
             if routines.isEmpty {
                 Text("You don’t have any saved routines yet.")
@@ -609,6 +601,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
 
                                 Text("\(routine.exercises.count) exercises")
                                     .font(.caption)
+                                    .monospacedDigit()
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
 
@@ -616,7 +609,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
 
                             Image(systemName: "plus.circle.fill")
                                 .font(.title3)
-                                .foregroundStyle(AppTheme.success)
+                                .foregroundStyle(AppTheme.textPrimary)
                         }
                         .padding(16)
                         .background(AppTheme.surface)
@@ -632,9 +625,8 @@ private struct SupplementaryWorkoutDestinationSheet: View {
 
     private var createRoutineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("New Routine")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("NEW ROUTINE")
+                .microLabel()
 
             Button {
                 if let routine = RoutineLibrary.createRoutine(from: draft) {
@@ -645,7 +637,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                 HStack(spacing: 12) {
                     Image(systemName: "plus.square.on.square")
                         .font(.title3)
-                        .foregroundStyle(AppTheme.primary)
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Text("Create a New Routine")
                         .font(.headline.weight(.semibold))

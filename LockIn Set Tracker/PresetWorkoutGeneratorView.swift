@@ -77,15 +77,15 @@ struct PresetWorkoutGeneratorView: View {
 
     private var headerSection: some View {
         Text("Start with a split and keep it easy.")
-            .font(.system(size: 30, weight: .black, design: .rounded))
+            .font(.system(size: 30, weight: .bold))
+            .tracking(-0.5)
             .foregroundStyle(AppTheme.textPrimary)
     }
 
     private func recommendedSection(_ split: WorkoutPresetSplit) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Recommended")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("RECOMMENDED")
+                .microLabel()
 
             Text(split.title)
                 .font(.title3.weight(.bold))
@@ -99,7 +99,7 @@ struct PresetWorkoutGeneratorView: View {
                 selectedSplitKind = split.kind
                 saveSelectedSplit(split)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(exerciseStore.exercises.isEmpty)
             .opacity(exerciseStore.exercises.isEmpty ? 0.6 : 1)
         }
@@ -109,9 +109,8 @@ struct PresetWorkoutGeneratorView: View {
 
     private var splitSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Choose Another Split")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("CHOOSE ANOTHER SPLIT")
+                .microLabel()
 
             ForEach(WorkoutPresetSplitKind.allCases) { kind in
                 if let split = PresetWorkoutLibrary.split(for: kind) {
@@ -126,6 +125,7 @@ struct PresetWorkoutGeneratorView: View {
 
                                 Text("\(split.templates.count) day\(split.templates.count == 1 ? "" : "s")")
                                     .font(.caption)
+                                    .monospacedDigit()
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
 
@@ -133,11 +133,15 @@ struct PresetWorkoutGeneratorView: View {
 
                             Image(systemName: selectedSplitKind == kind ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
-                        .foregroundStyle(selectedSplitKind == kind ? AppTheme.success : AppTheme.textSecondary.opacity(0.45))
+                                .foregroundStyle(selectedSplitKind == kind ? AppTheme.textPrimary : AppTheme.textTertiary)
                         }
                         .padding(16)
-                        .background(selectedSplitKind == kind ? AppTheme.primary.opacity(0.18) : AppTheme.surface)
+                        .background(selectedSplitKind == kind ? AppTheme.surfaceElevated : AppTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(selectedSplitKind == kind ? AppTheme.textTertiary : AppTheme.cardBorder, lineWidth: 1)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -149,9 +153,8 @@ struct PresetWorkoutGeneratorView: View {
 
     private func selectedSplitSection(_ split: WorkoutPresetSplit) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Selected Split")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("SELECTED SPLIT")
+                .microLabel()
 
             Text(split.title)
                 .font(.title3.weight(.bold))
@@ -161,9 +164,8 @@ struct PresetWorkoutGeneratorView: View {
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
 
-            Text("Included routines")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
+            Text("INCLUDED ROUTINES")
+                .microLabel()
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -174,10 +176,10 @@ struct PresetWorkoutGeneratorView: View {
                         } label: {
                             Text(template.routineName)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(selectedTemplateID == template.id ? .white : AppTheme.textSecondary)
+                                .foregroundStyle(selectedTemplateID == template.id ? AppTheme.backgroundTop : AppTheme.textSecondary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(selectedTemplateID == template.id ? AppTheme.primary : AppTheme.mutedFill)
+                                .background(selectedTemplateID == template.id ? AppTheme.textPrimary : AppTheme.mutedFill)
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -193,7 +195,7 @@ struct PresetWorkoutGeneratorView: View {
             Button("Create \(split.templates.count)-Day Split") {
                 saveSelectedSplit(split)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(exerciseStore.exercises.isEmpty)
             .opacity(exerciseStore.exercises.isEmpty ? 0.6 : 1)
 
@@ -210,9 +212,8 @@ struct PresetWorkoutGeneratorView: View {
 
     private var equipmentSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Equipment")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("EQUIPMENT")
+                .microLabel()
 
             LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(EquipmentType.selectionOptions, id: \.self) { equipment in
@@ -221,11 +222,15 @@ struct PresetWorkoutGeneratorView: View {
                     } label: {
                         Text(equipment.rawValue)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(selectedEquipment.contains(equipment) ? .white : AppTheme.textPrimary)
+                            .foregroundStyle(selectedEquipment.contains(equipment) ? AppTheme.backgroundTop : AppTheme.textSecondary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(selectedEquipment.contains(equipment) ? AppTheme.secondary : AppTheme.surface)
+                            .background(selectedEquipment.contains(equipment) ? AppTheme.textPrimary : AppTheme.surface)
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(AppTheme.cardBorder, lineWidth: selectedEquipment.contains(equipment) ? 0 : 1)
+                            }
                     }
                     .buttonStyle(.plain)
                 }
@@ -239,23 +244,23 @@ struct PresetWorkoutGeneratorView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Day Preview")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("DAY PREVIEW")
+                        .microLabel()
 
                     Text(preview.template.routineName)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppTheme.textPrimary)
                 }
 
                 Spacer()
 
                 Text("\(preview.matches.count) exercises")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.accent)
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(AppTheme.accent.opacity(0.16))
+                    .background(AppTheme.mutedFill)
                     .clipShape(Capsule())
             }
 
@@ -287,7 +292,7 @@ struct PresetWorkoutGeneratorView: View {
                 onSave()
                 dismiss()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(preview.matches.isEmpty)
             .opacity(preview.matches.isEmpty ? 0.6 : 1)
         }

@@ -147,11 +147,11 @@ struct CoachView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.06))
+                    .background(AppTheme.mutedFill)
                     .clipShape(Capsule())
                     .overlay {
                         Capsule()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
                     }
                 }
             }
@@ -187,7 +187,7 @@ struct CoachView: View {
                     } label: {
                         Image(systemName: currentDraft == nil ? "arrow.up.circle.fill" : "waveform.circle.fill")
                             .font(.system(size: 34))
-                            .foregroundStyle(messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4 ? AppTheme.textPrimary : AppTheme.textSecondary.opacity(0.55))
+                            .foregroundStyle(messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4 ? AppTheme.primary : AppTheme.textSecondary.opacity(0.55))
                     }
                     .buttonStyle(.plain)
                     .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).count < 4)
@@ -195,28 +195,24 @@ struct CoachView: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
-            .background(Color.white.opacity(0.08))
+            .background(AppTheme.surfaceElevated)
             .clipShape(Capsule())
             .overlay {
                 Capsule()
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
             .padding(.horizontal, 24)
 
             Text("Lokt can make mistakes.")
                 .font(.caption2)
-                .foregroundStyle(AppTheme.textSecondary.opacity(0.9))
+                .foregroundStyle(AppTheme.textTertiary)
                 .multilineTextAlignment(.center)
         }
         .padding(.top, 10)
         .padding(.bottom, 10)
         .background(
-            LinearGradient(
-                colors: [Color.clear, AppTheme.backgroundBottom.opacity(0.92), AppTheme.backgroundBottom],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            AppTheme.backgroundTop
+                .ignoresSafeArea()
         )
     }
 
@@ -267,10 +263,10 @@ struct CoachView: View {
                     Text(message.text)
                         .font(.title3.weight(.medium))
                         .italic()
-                        .foregroundStyle(Color.white.opacity(0.82))
+                        .foregroundStyle(AppTheme.textPrimary.opacity(0.85))
                         .padding(.horizontal, 24)
                         .padding(.vertical, 16)
-                        .background(Color.white.opacity(0.07))
+                        .background(AppTheme.surfaceElevated)
                         .clipShape(Capsule())
                 }
             } else {
@@ -305,9 +301,8 @@ struct CoachView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Workout Draft")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("WORKOUT DRAFT")
+                        .microLabel()
 
                     Text(draft.title)
                         .font(.title3.weight(.bold))
@@ -315,6 +310,7 @@ struct CoachView: View {
 
                     Text("\(draft.exercises.count) exercises • \(draft.totalSets) sets")
                         .font(.caption)
+                        .monospacedDigit()
                         .foregroundStyle(AppTheme.textSecondary)
                 }
 
@@ -329,8 +325,8 @@ struct CoachView: View {
 
             if let latestChangeSummary = nonEmptyText(latestChangeSummary) {
                 Text(latestChangeSummary)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.primary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -338,7 +334,8 @@ struct CoachView: View {
                     HStack(alignment: .top, spacing: 10) {
                         Text("\(item.offset + 1).")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.textTertiary)
 
                         VStack(alignment: .leading, spacing: 3) {
                             ExerciseTextNavigationLink(
@@ -352,6 +349,7 @@ struct CoachView: View {
 
                             Text("\(item.element.sets) sets • \(item.element.reps)")
                                 .font(.caption)
+                                .monospacedDigit()
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
@@ -359,12 +357,7 @@ struct CoachView: View {
             }
         }
         .padding(18)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        }
+        .glassCard()
     }
 
     private var contextKind: CoachContextKind {

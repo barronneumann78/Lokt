@@ -40,16 +40,13 @@ struct CreateWorkoutOptionsView: View {
 
     private var manualSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Start Here")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("START HERE")
+                .microLabel()
 
             NavigationLink(destination: CreateRoutineView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Create Manually",
-                    icon: "square.and.pencil",
-                    accent: AppTheme.primary,
-                    isPrimary: true
+                    icon: "square.and.pencil"
                 )
             }
             .buttonStyle(.plain)
@@ -58,15 +55,14 @@ struct CreateWorkoutOptionsView: View {
 
     private var smartToolsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(entryMode == .aiTools ? "Ask Lokt" : "Smart Tools")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text(entryMode == .aiTools ? "ASK LOKT" : "SMART TOOLS")
+                .microLabel()
 
             NavigationLink(destination: AIWorkoutGeneratorView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Generate with AI",
                     icon: "sparkles",
-                    accent: AppTheme.accent
+                    isHero: true
                 )
             }
             .buttonStyle(.plain)
@@ -74,8 +70,7 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: SupplementaryWorkoutGeneratorView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Add-On Block",
-                    icon: "plus.rectangle.on.folder.fill",
-                    accent: AppTheme.primary
+                    icon: "plus.rectangle.on.folder.fill"
                 )
             }
             .buttonStyle(.plain)
@@ -83,8 +78,7 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: VoiceWorkoutImportView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Import by Voice",
-                    icon: "waveform.badge.mic",
-                    accent: AppTheme.success
+                    icon: "waveform.badge.mic"
                 )
             }
             .buttonStyle(.plain)
@@ -92,8 +86,7 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: WorkoutPhotoImportView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Import from Photo",
-                    icon: "sparkles.rectangle.stack.fill",
-                    accent: AppTheme.secondary
+                    icon: "sparkles.rectangle.stack.fill"
                 )
             }
             .buttonStyle(.plain)
@@ -102,43 +95,41 @@ struct CreateWorkoutOptionsView: View {
 
     private var optionalManualFooter: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Prefer to build it yourself?")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("BUILD IT YOURSELF")
+                .microLabel()
 
             NavigationLink(destination: CreateRoutineView(onSave: handleChildSave)) {
                 optionCard(
                     title: "Create Manually",
-                    icon: "square.and.pencil",
-                    accent: AppTheme.primary,
-                    isPrimary: true
+                    icon: "square.and.pencil"
                 )
             }
             .buttonStyle(.plain)
         }
     }
 
-    private func optionCard(title: String, icon: String, accent: Color, isPrimary: Bool = false) -> some View {
+    // The one hero card carries the volt plate; every other row stays neutral.
+    private func optionCard(title: String, icon: String, isHero: Bool = false) -> some View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(isPrimary ? AppTheme.textPrimary : accent)
-                .padding(14)
-                .background(isPrimary ? AppTheme.surfaceElevated : AppTheme.mutedFill)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .font(isHero ? .title2.weight(.bold) : .headline.weight(.semibold))
+                .foregroundStyle(isHero ? AppTheme.backgroundTop : AppTheme.textSecondary)
+                .padding(isHero ? 14 : 12)
+                .background(isHero ? AppTheme.primary : AppTheme.mutedFill)
+                .clipShape(RoundedRectangle(cornerRadius: isHero ? 18 : 14, style: .continuous))
 
             Text(title)
-                .font(.headline.weight(.bold))
+                .font(isHero ? .title3.weight(.bold) : .headline.weight(.semibold))
                 .foregroundStyle(AppTheme.textPrimary)
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(AppTheme.textTertiary)
         }
-        .padding(16)
-        .surfaceCard(cornerRadius: 20, border: isPrimary ? AppTheme.primary.opacity(0.45) : AppTheme.cardBorder)
+        .padding(isHero ? 18 : 14)
+        .surfaceCard(cornerRadius: 20)
     }
 
     private func handleChildSave() {

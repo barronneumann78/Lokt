@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
+    @EnvironmentObject private var store: WorkoutStore
     @StateObject private var exerciseStore = ExerciseStore()
     @State private var routines: [Routine] = []
     @State private var navigateToCreate = false
@@ -21,13 +22,18 @@ struct HomeView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
-                        heroSection
+                        headerSection
+
+                        if !store.sessions.isEmpty {
+                            weekSection
+                        }
+
                         primaryActionSection
                         coreFlowsSection
 
                         if routines.isEmpty {
                             emptyState
-                        } else {
+                        } else if routines.count > 1 {
                             routineSection
                         }
 
@@ -65,13 +71,16 @@ struct HomeView: View {
                             EmptyView()
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 32)
                 }
             }
             .navigationBarHidden(true)
-            .onAppear(perform: loadRoutines)
+            .onAppear {
+                loadRoutines()
+                store.reload()
+            }
             .alert("Delete routine?", isPresented: deleteAlertBinding) {
                 Button("Cancel", role: .cancel) {
                     routinePendingDelete = nil
@@ -87,83 +96,197 @@ struct HomeView: View {
                 Text("This removes the routine, but your saved workout history stays intact.")
             }
         }
+        .tint(AppTheme.textPrimary)
     }
 
-    private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                Text("Lokt")
-                    .font(.system(size: 38, weight: .black, design: .rounded))
+    // MARK: - Header
+
+    private var headerSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(dateLine)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+
+                Text("Ready to lift")
+                    .font(.system(size: 34, weight: .bold))
+                    .tracking(-0.5)
                     .foregroundStyle(AppTheme.textPrimary)
-
-                Spacer()
-
-                HStack(spacing: 10) {
-                    Button {
-                        navigateToAnalytics = true
-                    } label: {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .padding(14)
-                            .background(AppTheme.surfaceElevated)
-                            .clipShape(Circle())
-                    }
-
-                    Button {
-                        navigateToSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .padding(14)
-                            .background(AppTheme.surfaceElevated)
-                            .clipShape(Circle())
-                    }
-                }
             }
 
-            HStack(spacing: 12) {
-                statPill(title: "\(routines.count)", subtitle: "Routines")
-                statPill(title: "\(totalExercises)", subtitle: "Exercises")
+            Spacer()
+
+            HStack(spacing: 10) {
+                Button {
+                    navigateToAnalytics = true
+                } label: {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .frame(width: 42, height: 42)
+                        .background(AppTheme.surfaceElevated)
+                        .clipShape(Circle())
+                }
+
+                Button {
+                    navigateToSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .frame(width: 42, height: 42)
+                        .background(AppTheme.surfaceElevated)
+                        .clipShape(Circle())
+                }
             }
         }
     }
 
+    // MARK: - This week hero
+
+    private var weekSection: some View {
+        VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("VOLUME THIS WEEK")
+                    .microLabel()
+
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(weekVolumeParts.value)
+                        .font(.system(size: 56, weight: .bold))
+                        .monospacedDigit()
+                        .tracking(-1.5)
+                        .foregroundStyle(AppTheme.textPrimary)
+
+                    Text(weekVolumeParts.unit)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+
+                if let delta = weekVolumeDeltaPercent {
+                    Text("\(delta >= 0 ? "↑" : "↓") \(abs(Int(delta.rounded())))% vs last week")
+                        .font(.footnote.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(delta >= 0 ? AppTheme.success : AppTheme.textSecondary)
+                } else {
+                    Text("Across \(sessionsThisWeek) session\(sessionsThisWeek == 1 ? "" : "s")")
+                        .font(.footnote.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(AppTheme.cardPadding)
+            .glassCard()
+
+            HStack(spacing: 12) {
+                metricTile(label: "SESSIONS", value: "\(sessionsThisWeek)", unit: "this wk")
+                metricTile(label: "STREAK", value: streakWeeks == 0 ? "—" : "\(streakWeeks)", unit: streakWeeks == 0 ? "" : "wks")
+            }
+        }
+    }
+
+    private func metricTile(label: String, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .microLabel()
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(value)
+                    .font(.system(size: 30, weight: .bold))
+                    .monospacedDigit()
+                    .tracking(-0.5)
+                    .foregroundStyle(AppTheme.textPrimary)
+
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppTheme.rowPadding)
+        .glassCard()
+    }
+
+    // MARK: - Primary action
+
     private var primaryActionSection: some View {
         Group {
             if let quickStartRoutine {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Start Workout")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("UP NEXT · \(quickStartRoutine.name.uppercased())")
+                            .microLabel(AppTheme.textSecondary)
+                            .lineLimit(1)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(quickStartRoutine.name)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(AppTheme.textPrimary)
+                        Spacer()
 
                         Text("\(quickStartRoutine.exercises.count) exercises")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                    .padding(.bottom, 14)
+
+                    hairline
+
+                    VStack(spacing: 0) {
+                        ForEach(quickStartRoutine.exercises, id: \.self) { exercise in
+                            ExerciseTextNavigationLink(exerciseName: exercise, exercises: exerciseStore.exercises) {
+                                HStack {
+                                    Text(exercise)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                        .lineLimit(1)
+
+                                    Spacer()
+
+                                    Text("× \(quickStartRoutine.preferredSetCount(for: exercise))")
+                                        .font(.subheadline)
+                                        .monospacedDigit()
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                }
+                                .padding(.vertical, 11)
+                            }
+
+                            if exercise != quickStartRoutine.exercises.last {
+                                hairline
+                            }
+                        }
                     }
 
-                    Button("Start Routine") {
+                    Button("Start Workout") {
                         selectedRoutine = quickStartRoutine
                         navigateToLogger = true
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                    .padding(.top, 14)
 
-                    Button("Ask Lokt for Something Different") {
-                        navigateToCreate = true
+                    HStack {
+                        Button("Edit") {
+                            routineToEdit = quickStartRoutine
+                            navigateToEdit = true
+                        }
+                        .buttonStyle(TertiaryButtonStyle())
+
+                        Button("Delete") {
+                            routinePendingDelete = quickStartRoutine
+                        }
+                        .buttonStyle(TertiaryButtonStyle())
+
+                        Spacer()
                     }
-                    .buttonStyle(TertiaryButtonStyle())
+                    .padding(.top, 10)
                 }
-                .padding(20)
+                .padding(AppTheme.cardPadding)
                 .glassCard()
             } else {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Start with Lokt")
+                    Text("START")
+                        .microLabel()
+
+                    Text("Build your first routine")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(AppTheme.textPrimary)
 
@@ -177,125 +300,123 @@ struct HomeView: View {
                     }
                     .buttonStyle(SecondaryButtonStyle())
                 }
-                .padding(20)
+                .padding(AppTheme.cardPadding)
                 .glassCard()
             }
         }
     }
 
+    // MARK: - Plan flows
+
     private var coreFlowsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Plan with Lokt")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("PLAN")
+                .microLabel()
+                .padding(.bottom, 12)
 
             Button {
                 navigateToCreate = true
             } label: {
-                HStack(spacing: 14) {
+                HStack(spacing: 12) {
                     Image(systemName: "sparkles")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(AppTheme.accent)
-                        .padding(12)
-                        .background(AppTheme.accent.opacity(0.14))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Text("Ask Lokt for a Workout")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-                .padding(18)
-                .surfaceCard(cornerRadius: 20, border: AppTheme.accent.opacity(0.28))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                navigateToEdit = true
-            } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "square.and.pencil")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(AppTheme.textPrimary)
-                        .padding(12)
-                        .background(AppTheme.mutedFill)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                    Text("Create Manually")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
-                .padding(18)
-                .surfaceCard(cornerRadius: 20)
+                .padding(.vertical, 16)
             }
             .buttonStyle(.plain)
 
-            HStack(spacing: 12) {
-                compactFlowButton(
-                    title: "Explore Exercises",
-                    icon: "books.vertical.fill"
-                ) {
-                    navigateToExerciseLibrary = true
-                }
-
-                compactFlowButton(
-                    title: "Review Progress",
-                    icon: "chart.line.uptrend.xyaxis"
-                ) {
-                    navigateToAnalytics = true
-                }
+            compactFlowRow(title: "Create Manually", icon: "square.and.pencil") {
+                navigateToEdit = true
             }
 
-            Button("Start with a Preset Plan") {
+            compactFlowRow(title: "Start with a Preset Plan", icon: "list.bullet.rectangle") {
                 navigateToPresetGenerator = true
             }
-            .buttonStyle(TertiaryButtonStyle())
+
+            compactFlowRow(title: "Explore Exercises", icon: "books.vertical") {
+                navigateToExerciseLibrary = true
+            }
+
+            compactFlowRow(title: "Review Progress", icon: "chart.line.uptrend.xyaxis", isLast: true) {
+                navigateToAnalytics = true
+            }
         }
-        .padding(20)
+        .padding(.horizontal, AppTheme.cardPadding)
+        .padding(.vertical, AppTheme.rowPadding)
         .glassCard()
     }
 
-    private var routineSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Saved Routines")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+    private func compactFlowRow(title: String, icon: String, isLast: Bool = false, action: @escaping () -> Void) -> some View {
+        VStack(spacing: 0) {
+            hairline
 
-            ForEach(routines) { routine in
-                VStack(alignment: .leading, spacing: 16) {
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .frame(width: 22)
+
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Saved routines (beyond the quick-start one)
+
+    private var routineSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SAVED ROUTINES")
+                .microLabel()
+
+            ForEach(routines.dropFirst()) { routine in
+                VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(routine.name)
-                                .font(.title3.weight(.bold))
+                                .font(.headline.weight(.bold))
                                 .foregroundStyle(AppTheme.textPrimary)
 
                             Text("\(routine.exercises.count) exercises")
-                                .font(.subheadline)
+                                .font(.caption)
+                                .monospacedDigit()
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
 
                         Spacer()
 
-                        HStack(spacing: 10) {
+                        HStack(spacing: 8) {
                             Button {
                                 routineToEdit = routine
                                 navigateToEdit = true
                             } label: {
                                 Image(systemName: "pencil")
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                    .padding(10)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .frame(width: 34, height: 34)
                                     .background(AppTheme.surfaceElevated)
                                     .clipShape(Circle())
                             }
@@ -304,9 +425,9 @@ struct HomeView: View {
                                 routinePendingDelete = routine
                             } label: {
                                 Image(systemName: "trash")
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(.red.opacity(0.8))
-                                    .padding(10)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppTheme.danger.opacity(0.85))
+                                    .frame(width: 34, height: 34)
                                     .background(AppTheme.surfaceElevated)
                                     .clipShape(Circle())
                             }
@@ -333,94 +454,109 @@ struct HomeView: View {
                         selectedRoutine = routine
                         navigateToLogger = true
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
                 }
-                .padding(18)
+                .padding(AppTheme.rowPadding)
                 .glassCard()
             }
         }
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 30))
-                .foregroundStyle(AppTheme.secondary)
-
-            Text("Build your first routine")
-                .font(.title3.weight(.bold))
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Nothing saved yet")
+                .font(.headline.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("Ask Lokt for a workout or create one manually so your next session is ready to go.")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(height: 1)
+    }
+
+    // MARK: - Derived data
 
     private var quickStartRoutine: Routine? {
         routines.first
     }
 
-    private func statPill(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.title3.weight(.heavy))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text(subtitle.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .surfaceCard()
+    private var dateLine: String {
+        Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 
-    private func tertiaryActionButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.subheadline.weight(.bold))
+    private var calendar: Calendar { Calendar.current }
 
-            Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+    private var sessionsThisWeek: Int {
+        sessions(inWeekOffset: 0).count
+    }
+
+    private var weekVolumeParts: (value: String, unit: String) {
+        let volume = totalVolume(for: sessions(inWeekOffset: 0))
+        if volume >= 1000 {
+            return (String(format: "%.1f", volume / 1000), "k lb")
+        }
+        return ("\(Int(volume))", "lb")
+    }
+
+    private var weekVolumeDeltaPercent: Double? {
+        let current = totalVolume(for: sessions(inWeekOffset: 0))
+        let previous = totalVolume(for: sessions(inWeekOffset: -1))
+        guard previous > 0, current > 0 else { return nil }
+        return (current - previous) / previous * 100
+    }
+
+    private var streakWeeks: Int {
+        let weeks = Set(store.sessions.compactMap { session in
+            calendar.dateInterval(of: .weekOfYear, for: session.date)?.start
+        })
+        guard !weeks.isEmpty,
+              var cursor = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else {
+            return 0
+        }
+
+        // The streak may still be alive if this week has no session yet.
+        if !weeks.contains(cursor) {
+            guard let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: cursor) else { return 0 }
+            cursor = previous
+        }
+
+        var streak = 0
+        while weeks.contains(cursor) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return streak
+    }
+
+    private func sessions(inWeekOffset offset: Int) -> [WorkoutSession] {
+        guard let currentWeek = calendar.dateInterval(of: .weekOfYear, for: Date()),
+              let weekStart = calendar.date(byAdding: .weekOfYear, value: offset, to: currentWeek.start),
+              let week = calendar.dateInterval(of: .weekOfYear, for: weekStart) else {
+            return []
+        }
+        return store.sessions.filter { week.contains($0.date) }
+    }
+
+    private func totalVolume(for sessions: [WorkoutSession]) -> Double {
+        sessions.reduce(0) { total, session in
+            total + session.logs.values.reduce(0) { exerciseTotal, sets in
+                exerciseTotal + sets.reduce(0) { setTotal, set in
+                    guard let weight = Double(set.weight.replacingOccurrences(of: ",", with: "")),
+                          let reps = Double(set.reps) else { return setTotal }
+                    return setTotal + weight * reps
+                }
             }
-            .foregroundStyle(AppTheme.textPrimary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .surfaceCard()
         }
-        .buttonStyle(.plain)
-    }
-
-    private func compactFlowButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                Image(systemName: icon)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .padding(12)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                Text(title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(16)
-            .surfaceCard(cornerRadius: 20)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var totalExercises: Int {
-        routines.reduce(0) { $0 + $1.exercises.count }
     }
 
     private var deleteAlertBinding: Binding<Bool> {

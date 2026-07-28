@@ -182,9 +182,8 @@ struct CreateRoutineView: View {
     private var routineSetupSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Routine Name")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("ROUTINE NAME")
+                    .microLabel()
 
                 TextField("Push Day, Pull Day, Legs...", text: $routineName)
                     .textFieldStyle(TrackerTextFieldStyle())
@@ -198,7 +197,7 @@ struct CreateRoutineView: View {
             Button(saveButtonTitle) {
                 saveRoutine()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(!canSaveRoutine)
             .opacity(canSaveRoutine ? 1 : 0.6)
 
@@ -220,14 +219,14 @@ struct CreateRoutineView: View {
     private var selectedExercisesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Selected Exercises")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("SELECTED EXERCISES")
+                    .microLabel()
 
                 Spacer()
 
                 Text("\(selectedExercises.count) total")
                     .font(.caption.weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -256,6 +255,7 @@ struct CreateRoutineView: View {
                                     ) {
                                         Text("\(index + 1). \(exercise)")
                                             .font(.headline)
+                                            .monospacedDigit()
                                             .foregroundStyle(AppTheme.textPrimary)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -320,14 +320,14 @@ struct CreateRoutineView: View {
     private var filterSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Filters")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("FILTERS")
+                    .microLabel()
 
                 Spacer()
 
                 Text("\(filteredExercises.count) matches")
                     .font(.caption.weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -348,21 +348,15 @@ struct CreateRoutineView: View {
 
     private var suggestionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: "lightbulb.fill")
-                    .foregroundStyle(AppTheme.secondary)
-
-                Text("Builder Feedback")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-            }
+            Text("BUILDER FEEDBACK")
+                .microLabel()
 
             ForEach(workoutSuggestions) { suggestion in
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "sparkles")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.primary)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .padding(.top, 3)
 
                         Text(suggestion.message)
@@ -391,14 +385,14 @@ struct CreateRoutineView: View {
     private var exerciseLibrarySection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Exercises")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("EXERCISES")
+                    .microLabel()
 
                 Spacer()
 
                 Text("\(selectedExercises.count) selected")
                     .font(.caption.weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -443,7 +437,8 @@ struct CreateRoutineView: View {
                                     Text(selectedExercises.contains(exercise.name) ? "Added" : "Add")
                                         .font(.subheadline.weight(.semibold))
                                 }
-                                .foregroundStyle(selectedExercises.contains(exercise.name) ? AppTheme.success : AppTheme.primary)
+                                .foregroundStyle(selectedExercises.contains(exercise.name) ? AppTheme.success : AppTheme.textPrimary)
+                                .monospacedDigit()
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 10)
                                 .background(selectedExercises.contains(exercise.name) ? AppTheme.success.opacity(0.12) : AppTheme.mutedFill)
@@ -452,11 +447,11 @@ struct CreateRoutineView: View {
                             .buttonStyle(.plain)
                         }
                         .padding(16)
-                        .background(selectedExercises.contains(exercise.name) ? AppTheme.primary.opacity(0.18) : AppTheme.surface)
+                        .background(selectedExercises.contains(exercise.name) ? AppTheme.surfaceElevated : AppTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
-                                .stroke(selectedExercises.contains(exercise.name) ? AppTheme.primary.opacity(0.35) : AppTheme.cardBorder, lineWidth: 1)
+                                .stroke(selectedExercises.contains(exercise.name) ? AppTheme.success.opacity(0.3) : AppTheme.cardBorder, lineWidth: 1)
                         }
                     }
                 }
@@ -472,9 +467,8 @@ struct CreateRoutineView: View {
 
     private func filterPicker(title: String, selection: Binding<String>, options: [String]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
+            Text(title.uppercased())
+                .microLabel()
 
             Picker(title, selection: selection) {
                 ForEach(options, id: \.self) { option in
@@ -482,6 +476,7 @@ struct CreateRoutineView: View {
                 }
             }
             .pickerStyle(.menu)
+            .tint(AppTheme.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -494,6 +489,7 @@ struct CreateRoutineView: View {
     private func exerciseTag(_ title: String) -> some View {
         Text(title)
             .font(.caption2.weight(.medium))
+            .monospacedDigit()
             .foregroundStyle(AppTheme.textSecondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -513,7 +509,7 @@ struct CreateRoutineView: View {
     private func reorderButton(systemImage: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .foregroundStyle(disabled ? AppTheme.textSecondary.opacity(0.45) : AppTheme.primary)
+                .foregroundStyle(disabled ? AppTheme.textTertiary : AppTheme.textPrimary)
                 .padding(10)
                 .background(AppTheme.surfaceElevated)
                 .clipShape(Circle())
@@ -529,6 +525,7 @@ struct CreateRoutineView: View {
 
             Text(title)
                 .font(.caption.weight(.semibold))
+                .monospacedDigit()
         }
         .foregroundStyle(AppTheme.textSecondary)
         .padding(.horizontal, 12)
@@ -540,6 +537,7 @@ struct CreateRoutineView: View {
     private func compactMetaChip(title: String) -> some View {
         Text(title)
             .font(.caption2.weight(.semibold))
+            .monospacedDigit()
             .foregroundStyle(AppTheme.textSecondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)

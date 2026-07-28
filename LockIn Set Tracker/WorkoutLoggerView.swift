@@ -48,234 +48,21 @@ struct WorkoutLoggerView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     headerSection
 
+                    if isRestTimerActive {
+                        restCard
+                    }
+
                     ForEach(activeRoutine.exercises, id: \.self) { exercise in
-                        let isPrimaryExercise = isPrimaryExercise(exercise)
-
-                        VStack(alignment: .leading, spacing: 14) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    if isPrimaryExercise {
-                                        Text("Up Next")
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(AppTheme.primary)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 5)
-                                            .background(AppTheme.primary.opacity(0.16))
-                                            .clipShape(Capsule())
-                                    }
-
-                                    ExerciseTextNavigationLink(
-                                        exerciseName: exercise,
-                                        exercises: exerciseStore.exercises,
-                                        primaryAddAction: ExerciseDetailPrimaryAddAction(title: "Add to This Workout") { detailExercise in
-                                            addExerciseToCurrentWorkout(detailExercise)
-                                        }
-                                    ) {
-                                        Text(exercise)
-                                            .font(.title3.weight(.bold))
-                                            .foregroundStyle(AppTheme.textPrimary)
-                                    }
-
-                                    Text("\(setCount(for: exercise)) working sets")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-
-                                    if let suggestion = fatigueAdjustedSuggestedWeight(for: exercise) {
-                                        Text("Suggested: \(formatWeight(suggestion.suggestedWeight))")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(AppTheme.secondary)
-                                    }
-                                }
-
-                                HStack(spacing: 8) {
-                                    ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
-
-                                    Button("Smart Swap") {
-                                        swapTarget = ExerciseSwapTarget(
-                                            exerciseName: exercise,
-                                            sourceNote: "Swap this exercise without losing the workout’s overall purpose."
-                                        )
-                                    }
-                                    .buttonStyle(SecondaryButtonStyle())
-
-                                    Button(expandedExercises.contains(exercise) ? "Hide History" : "History") {
-                                        toggleHistory(exercise)
-                                    }
-                                    .buttonStyle(SecondaryButtonStyle())
-                                }
-                            }
-
-                            HStack(spacing: 10) {
-                                Button {
-                                    removeSet(from: exercise)
-                                } label: {
-                                    Label("Delete Set", systemImage: "minus")
-                                }
-                                .buttonStyle(SecondaryButtonStyle())
-                                .disabled(setCount(for: exercise) <= 1)
-                                .opacity(setCount(for: exercise) <= 1 ? 0.55 : 1)
-
-                                Button {
-                                    addSet(to: exercise)
-                                } label: {
-                                    Label("Add Set", systemImage: "plus")
-                                }
-                                .buttonStyle(SecondaryButtonStyle())
-                            }
-
-                            ForEach(0..<setCount(for: exercise), id: \.self) { set in
-                                let isPrimarySet = isPrimarySet(exercise: exercise, setIndex: set)
-                                let isCompletedSet = isCompletedSet(exercise: exercise, setIndex: set)
-
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        HStack(spacing: 8) {
-                                            Text("Set \(set + 1)")
-                                                .font(.headline)
-                                                .foregroundStyle(AppTheme.textPrimary)
-
-                                            if isPrimarySet {
-                                                Text("Next Set")
-                                                    .font(.caption2.weight(.bold))
-                                                    .foregroundStyle(AppTheme.primary)
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(AppTheme.primary.opacity(0.16))
-                                                    .clipShape(Capsule())
-                                            }
-
-                                            if isCompletedSet {
-                                                Label("Logged", systemImage: "checkmark.circle.fill")
-                                                    .font(.caption2.weight(.bold))
-                                                    .foregroundStyle(AppTheme.success)
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(AppTheme.success.opacity(0.14))
-                                                    .clipShape(Capsule())
-                                            }
-                                        }
-
-                                        Spacer()
-
-                                    if let previous = getLastSet(for: exercise, at: set) {
-                                        Button {
-                                            applyPreviousSet(previous, to: exercise, at: set)
-                                        } label: {
-                                                Text("Use Last: \(previous.weight) x \(previous.reps)")
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundStyle(isCompletedSet ? AppTheme.textSecondary : AppTheme.secondary)
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-
-                                    if isPrimarySet {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text("Quick Log")
-                                                .font(.caption.weight(.bold))
-                                                .foregroundStyle(AppTheme.textSecondary)
-
-                                            HStack(spacing: 10) {
-                                                TextField(
-                                                    "135 x 8  •  same weight 7 reps  •  drop to 120",
-                                                    text: quickLogBinding(for: exercise, set: set)
-                                                )
-                                                .textFieldStyle(TrackerTextFieldStyle())
-                                                .textInputAutocapitalization(.never)
-                                                .autocorrectionDisabled()
-                                                .submitLabel(.done)
-                                                .onSubmit {
-                                                    applyQuickLogInput(for: exercise, at: set)
-                                                }
-
-                                                Button("Apply") {
-                                                    applyQuickLogInput(for: exercise, at: set)
-                                                }
-                                                .buttonStyle(SecondaryButtonStyle())
-                                                .disabled(quickLogInputs[quickLogKey(for: exercise, set: set), default: ""]
-                                                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                                                    .isEmpty)
-                                                .opacity(quickLogInputs[quickLogKey(for: exercise, set: set), default: ""]
-                                                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                                                    .isEmpty ? 0.6 : 1)
-                                            }
-                                        }
-                                    }
-
-                                    HStack(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text("Weight")
-                                                .font(.caption.weight(.bold))
-                                                .foregroundStyle(AppTheme.textSecondary)
-
-                                            TextField("0", text: Binding(
-                                                get: { logs[exercise]?[safe: set]?.weight ?? "" },
-                                                set: { newValue in
-                                                    logs[exercise, default: []] = update(
-                                                        logs[exercise],
-                                                        exercise: exercise,
-                                                        at: set,
-                                                        weight: newValue,
-                                                        targetCount: setCount(for: exercise)
-                                                    )
-                                                }
-                                            ))
-                                            .keyboardType(.decimalPad)
-                                            .textFieldStyle(TrackerTextFieldStyle())
-                                            .focused($focusedField, equals: .weight(exercise, set))
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text("Reps")
-                                                .font(.caption.weight(.bold))
-                                                .foregroundStyle(AppTheme.textSecondary)
-
-                                            TextField("0", text: Binding(
-                                                get: { logs[exercise]?[safe: set]?.reps ?? "" },
-                                                set: { newValue in
-                                                    logs[exercise, default: []] = update(
-                                                        logs[exercise],
-                                                        exercise: exercise,
-                                                        at: set,
-                                                        reps: newValue,
-                                                        targetCount: setCount(for: exercise)
-                                                    )
-                                                }
-                                            ))
-                                            .keyboardType(.numberPad)
-                                            .textFieldStyle(TrackerTextFieldStyle())
-                                            .focused($focusedField, equals: .reps(exercise, set))
-                                        }
-                                    }
-                                }
-                                .padding(16)
-                                .background(setCardBackground(isPrimarySet: isPrimarySet, isCompletedSet: isCompletedSet))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .stroke(setCardBorder(isPrimarySet: isPrimarySet, isCompletedSet: isCompletedSet), lineWidth: 1)
+                        exerciseCard(for: exercise)
+                            .onDrop(
+                                of: [.plainText],
+                                delegate: ExerciseReorderDropDelegate(
+                                    targetExercise: exercise,
+                                    exercises: $activeRoutine.exercises,
+                                    draggedExercise: $draggedExercise,
+                                    didReorder: saveActiveRoutine
                                 )
-                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            }
-
-                            if expandedExercises.contains(exercise) {
-                                historySection(for: exercise)
-                            }
-                        }
-                        .padding(20)
-                        .glassCard()
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .stroke(isPrimaryExercise ? AppTheme.primary.opacity(0.22) : Color.clear, lineWidth: 1)
-                        )
-                        .onDrop(
-                            of: [.plainText],
-                            delegate: ExerciseReorderDropDelegate(
-                                targetExercise: exercise,
-                                exercises: $activeRoutine.exercises,
-                                draggedExercise: $draggedExercise,
-                                didReorder: saveActiveRoutine
                             )
-                        )
                     }
 
                     finishSection
@@ -286,7 +73,7 @@ struct WorkoutLoggerView: View {
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle(activeRoutine.name)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             configureInitialSetCounts()
@@ -338,34 +125,33 @@ struct WorkoutLoggerView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(activeRoutine.name)
-                .font(.system(size: 32, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.textPrimary)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(AppTheme.primary)
+                        .frame(width: 7, height: 7)
 
-            if let nextTarget = nextLoggingTarget {
-                HStack(spacing: 10) {
-                    Image(systemName: "scope")
-                        .font(.caption.weight(.bold))
+                    Text("RECORDING")
+                        .microLabel(AppTheme.primary)
+
+                    Text("· \(workoutDurationText)")
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
                         .foregroundStyle(AppTheme.primary)
-
-                    Text("Next up: \(nextTarget.exercise) • Set \(nextTarget.setIndex + 1)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                Text(activeRoutine.name)
+                    .font(.system(size: 30, weight: .bold))
+                    .tracking(-0.5)
+                    .foregroundStyle(AppTheme.textPrimary)
             }
 
-            HStack(spacing: 12) {
-                timerPill(title: "Workout", value: workoutDurationText, tint: AppTheme.primary)
-
-                if isRestTimerActive {
-                    timerPill(title: "Rest", value: restCountdownText, tint: AppTheme.secondary)
-                }
+            if let nextTarget = nextLoggingTarget {
+                Text("NEXT · \(nextTarget.exercise.uppercased()) · SET \(nextTarget.setIndex + 1)")
+                    .microLabel(AppTheme.textSecondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
 
             HStack(spacing: 10) {
@@ -391,36 +177,409 @@ struct WorkoutLoggerView: View {
                         .lineLimit(2)
                 }
             }
+            .padding(.top, 2)
 
             if isCoachModeEnabled, let coachContext = currentCoachContext {
                 coachModeCard(for: coachContext)
             }
+        }
+    }
 
-            if isRestTimerActive {
-                HStack(spacing: 10) {
-                    if let activeRestExercise {
-                        Text("Resting after \(activeRestExercise)")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+    private var restCard: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("REST")
+                    .microLabel()
 
-                    Spacer()
+                Text(restCountdownText)
+                    .font(.system(size: 44, weight: .bold))
+                    .monospacedDigit()
+                    .tracking(-1)
+                    .foregroundStyle(AppTheme.primary)
 
+                if let activeRestExercise {
+                    Text("after \(activeRestExercise)")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    restAdjustChip("−15") { adjustRestTimer(by: -15) }
+                    restAdjustChip("+15") { adjustRestTimer(by: 15) }
+                }
+
+                HStack(spacing: 8) {
                     Button("Reset") {
                         resetRestTimer()
                     }
-                    .buttonStyle(SecondaryButtonStyle())
+                    .buttonStyle(TertiaryButtonStyle())
 
                     Button("Skip") {
                         skipRestTimer()
                     }
+                    .buttonStyle(TertiaryButtonStyle())
+                }
+            }
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private func restAdjustChip(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textPrimary)
+                .frame(width: 52, height: 40)
+                .background(AppTheme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func adjustRestTimer(by seconds: TimeInterval) {
+        guard let endDate = restTimerEndDate else { return }
+        let adjusted = endDate.addingTimeInterval(seconds)
+        restTimerEndDate = max(adjusted, Date().addingTimeInterval(1))
+    }
+
+    // MARK: - Exercise card
+
+    private func exerciseCard(for exercise: String) -> some View {
+        let isActiveExercise = isPrimaryExercise(exercise)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        if isActiveExercise {
+                            Text("ACTIVE")
+                                .microLabel(AppTheme.primary)
+                        }
+
+                        ExerciseTextNavigationLink(
+                            exerciseName: exercise,
+                            exercises: exerciseStore.exercises,
+                            primaryAddAction: ExerciseDetailPrimaryAddAction(title: "Add to This Workout") { detailExercise in
+                                addExerciseToCurrentWorkout(detailExercise)
+                            }
+                        ) {
+                            Text(exercise)
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                        }
+                    }
+
+                    Spacer()
+
+                    ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
+                }
+
+                HStack(spacing: 8) {
+                    Button("Smart Swap") {
+                        swapTarget = ExerciseSwapTarget(
+                            exerciseName: exercise,
+                            sourceNote: "Swap this exercise without losing the workout’s overall purpose."
+                        )
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+
+                    Button(expandedExercises.contains(exercise) ? "Hide History" : "History") {
+                        toggleHistory(exercise)
+                    }
                     .buttonStyle(SecondaryButtonStyle())
                 }
-                .padding(.top, 4)
+            }
+
+            setTable(for: exercise)
+
+            HStack(spacing: 10) {
+                Button {
+                    addSet(to: exercise)
+                } label: {
+                    Label("Add Set", systemImage: "plus")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+
+                Button {
+                    removeSet(from: exercise)
+                } label: {
+                    Label("Delete Set", systemImage: "minus")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(setCount(for: exercise) <= 1)
+                .opacity(setCount(for: exercise) <= 1 ? 0.55 : 1)
+
+                Spacer()
+            }
+
+            statChips(for: exercise)
+
+            if expandedExercises.contains(exercise) {
+                historySection(for: exercise)
             }
         }
         .padding(20)
         .glassCard()
+    }
+
+    private func setTable(for exercise: String) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Text("SET")
+                    .microLabel()
+                    .frame(width: 30, alignment: .leading)
+
+                Text("WEIGHT")
+                    .microLabel()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("REPS")
+                    .microLabel()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Color.clear
+                    .frame(width: 28, height: 1)
+            }
+            .padding(.bottom, 8)
+
+            hairline
+
+            ForEach(0..<setCount(for: exercise), id: \.self) { set in
+                setRow(exercise: exercise, set: set)
+
+                if set < setCount(for: exercise) - 1 {
+                    hairline
+                }
+            }
+        }
+    }
+
+    private func setRow(exercise: String, set: Int) -> some View {
+        let isActive = isPrimarySet(exercise: exercise, setIndex: set)
+        let isDone = isCompletedSet(exercise: exercise, setIndex: set)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Text("\(set + 1)")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(isActive ? AppTheme.backgroundTop : AppTheme.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(isActive ? AppTheme.primary : AppTheme.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: 30, alignment: .leading)
+
+                setField(
+                    text: Binding(
+                        get: { logs[exercise]?[safe: set]?.weight ?? "" },
+                        set: { newValue in
+                            logs[exercise, default: []] = update(
+                                logs[exercise],
+                                exercise: exercise,
+                                at: set,
+                                weight: newValue,
+                                targetCount: setCount(for: exercise)
+                            )
+                        }
+                    ),
+                    keyboard: .decimalPad,
+                    isActive: isActive
+                )
+                .focused($focusedField, equals: .weight(exercise, set))
+
+                setField(
+                    text: Binding(
+                        get: { logs[exercise]?[safe: set]?.reps ?? "" },
+                        set: { newValue in
+                            logs[exercise, default: []] = update(
+                                logs[exercise],
+                                exercise: exercise,
+                                at: set,
+                                reps: newValue,
+                                targetCount: setCount(for: exercise)
+                            )
+                        }
+                    ),
+                    keyboard: .numberPad,
+                    isActive: isActive
+                )
+                .focused($focusedField, equals: .reps(exercise, set))
+
+                setStatus(isActive: isActive, isDone: isDone)
+                    .frame(width: 28)
+            }
+
+            if let previous = getLastSet(for: exercise, at: set), !isDone {
+                Button {
+                    applyPreviousSet(previous, to: exercise, at: set)
+                } label: {
+                    Text("Use last · \(previous.weight) × \(previous.reps)")
+                        .font(.caption.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 42)
+            }
+
+            if isActive {
+                HStack(spacing: 10) {
+                    TextField(
+                        "Quick log: 135 x 8 · drop to 120",
+                        text: quickLogBinding(for: exercise, set: set)
+                    )
+                    .font(.footnote)
+                    .textFieldStyle(TrackerTextFieldStyle())
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .onSubmit {
+                        applyQuickLogInput(for: exercise, at: set)
+                    }
+
+                    Button("Apply") {
+                        applyQuickLogInput(for: exercise, at: set)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(quickLogInputs[quickLogKey(for: exercise, set: set), default: ""]
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty)
+                    .opacity(quickLogInputs[quickLogKey(for: exercise, set: set), default: ""]
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty ? 0.6 : 1)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, isActive ? 8 : 0)
+        .background(isActive ? AppTheme.surfaceElevated : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func setField(text: Binding<String>, keyboard: UIKeyboardType, isActive: Bool) -> some View {
+        TextField("0", text: text)
+            .keyboardType(keyboard)
+            .font(.system(size: 20, weight: .semibold))
+            .monospacedDigit()
+            .foregroundStyle(isActive ? AppTheme.primary : AppTheme.textPrimary)
+            .tint(AppTheme.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity)
+            .background(isActive ? AppTheme.backgroundTop.opacity(0.45) : AppTheme.mutedFill)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func setStatus(isActive: Bool, isDone: Bool) -> some View {
+        if isDone {
+            Image(systemName: "checkmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(AppTheme.backgroundTop)
+                .frame(width: 26, height: 26)
+                .background(AppTheme.primary)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else if isActive {
+            Circle()
+                .stroke(AppTheme.primary, lineWidth: 1.5)
+                .frame(width: 18, height: 18)
+        } else {
+            Text("—")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textTertiary)
+        }
+    }
+
+    private func statChips(for exercise: String) -> some View {
+        HStack(spacing: 10) {
+            statChip(label: "LAST", value: lastSessionSummary(for: exercise) ?? "—")
+
+            if let suggestion = fatigueAdjustedSuggestedWeight(for: exercise) {
+                statChip(label: "TARGET", value: "\(formatWeight(suggestion.suggestedWeight)) lb")
+            }
+
+            if let oneRM = estimatedOneRM(for: exercise) {
+                statChip(label: "1RM", value: "\(oneRM) lb")
+            }
+
+            statChip(label: "VOL", value: sessionVolumeText(for: exercise))
+        }
+    }
+
+    private func statChip(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .microLabel()
+                .lineLimit(1)
+
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(AppTheme.mutedFill)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(height: 1)
+    }
+
+    private func lastSessionSummary(for exercise: String) -> String? {
+        let sessions = loadWorkoutSessions().filter(matchesRoutine)
+        guard let sets = sessions.last?.logs[exercise],
+              let best = sets.first(where: isLoggedSet) else {
+            return nil
+        }
+        return "\(best.weight) × \(best.reps)"
+    }
+
+    private func estimatedOneRM(for exercise: String) -> Int? {
+        let sessions = loadWorkoutSessions().filter(matchesRoutine)
+        guard let sets = sessions.last?.logs[exercise] else { return nil }
+
+        let estimates: [Double] = sets.compactMap { set in
+            guard let weight = parseWeight(set.weight),
+                  let reps = Double(set.reps.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  weight > 0, reps > 0, reps < 15 else {
+                return nil
+            }
+            return weight * (1 + reps / 30)
+        }
+
+        guard let best = estimates.max() else { return nil }
+        return Int(best.rounded())
+    }
+
+    private func sessionVolumeText(for exercise: String) -> String {
+        let sets = resize(sets: logs[exercise], to: setCount(for: exercise))
+        let volume = sets.reduce(0.0) { total, set in
+            guard let weight = parseWeight(set.weight),
+                  let reps = Double(set.reps.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                return total
+            }
+            return total + weight * reps
+        }
+        guard volume > 0 else { return "—" }
+        return Int(volume).formatted(.number.grouping(.automatic))
     }
 
     @ViewBuilder
@@ -488,26 +647,27 @@ struct WorkoutLoggerView: View {
                 .foregroundStyle(AppTheme.textSecondary)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Recent History")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("RECENT HISTORY")
+                    .microLabel()
 
                 ForEach(Array(history.enumerated()), id: \.offset) { item in
                     let sets = item.element
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 5) {
                         Text("Workout \(item.offset + 1)")
-                            .font(.caption.weight(.bold))
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
                             .foregroundStyle(AppTheme.textSecondary)
 
                         Text(historySummary(for: sets))
                             .font(.caption)
+                            .monospacedDigit()
                             .foregroundStyle(AppTheme.textSecondary)
                     }
-                    .padding(14)
+                    .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(AppTheme.mutedFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
             .padding(.top, 6)
@@ -544,22 +704,6 @@ struct WorkoutLoggerView: View {
         }
 
         return isLoggedSet(set)
-    }
-
-    private func setCardBackground(isPrimarySet: Bool, isCompletedSet: Bool) -> some ShapeStyle {
-        if isCompletedSet {
-            return AppTheme.success.opacity(isPrimarySet ? 0.2 : 0.14)
-        }
-
-        return isPrimarySet ? AppTheme.surfaceElevated : AppTheme.surface
-    }
-
-    private func setCardBorder(isPrimarySet: Bool, isCompletedSet: Bool) -> Color {
-        if isCompletedSet {
-            return AppTheme.success.opacity(isPrimarySet ? 0.55 : 0.38)
-        }
-
-        return isPrimarySet ? AppTheme.primary.opacity(0.45) : AppTheme.cardBorder.opacity(0.55)
     }
 
     private func isPrimaryExercise(_ exercise: String) -> Bool {
@@ -647,46 +791,29 @@ struct WorkoutLoggerView: View {
         return formatDuration(TimeInterval(remaining))
     }
 
-    private func timerPill(title: String, value: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
-
-            Text(value)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(tint.opacity(0.14))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
     private func completionStat(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
+            Text(title.uppercased())
+                .microLabel()
 
             Text(value)
-                .font(.headline.weight(.bold))
+                .font(.title3.weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .background(AppTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppTheme.mutedFill)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func coachModeCard(for context: WorkoutCoachContext) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Coach Mode")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.primary)
+                    Text("COACH")
+                        .microLabel()
 
                     Text(context.title)
                         .font(.headline.weight(.semibold))
@@ -697,54 +824,47 @@ struct WorkoutLoggerView: View {
 
                 if let afterExercise = context.afterExercise {
                     Text("Then \(afterExercise)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                 }
             }
 
             HStack(spacing: 10) {
-                coachPill(title: "Next", value: context.nextLabel, tint: AppTheme.primary)
-                coachPill(title: "Rest", value: context.restLabel, tint: AppTheme.secondary)
+                coachPill(title: "NEXT", value: context.nextLabel)
+                coachPill(title: "REST", value: context.restLabel)
 
                 if let suggestedWeight = context.suggestedWeight {
-                    coachPill(title: "Weight", value: suggestedWeight, tint: AppTheme.success)
+                    coachPill(title: "WEIGHT", value: suggestedWeight)
                 }
             }
 
             if let cue = context.cue {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "text.quote")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.top, 2)
-
-                    Text(cue)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(cue)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(16)
-        .surfaceCard(cornerRadius: 18, border: AppTheme.primary.opacity(0.18))
+        .surfaceCard(cornerRadius: AppTheme.rowCornerRadius)
     }
 
-    private func coachPill(title: String, value: String, tint: Color) -> some View {
+    private func coachPill(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
+                .microLabel()
 
             Text(value)
                 .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(tint.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(AppTheme.mutedFill)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var loggedSetCount: Int {

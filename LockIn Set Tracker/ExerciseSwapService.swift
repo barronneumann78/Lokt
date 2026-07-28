@@ -323,9 +323,8 @@ struct ExerciseSwapSheet: View {
 
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Why do you want to swap it?")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("WHY SWAP IT?")
+                .microLabel()
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], alignment: .leading, spacing: 10) {
                 ForEach(quickReasons, id: \.self) { quickReason in
@@ -354,9 +353,8 @@ struct ExerciseSwapSheet: View {
 
     private var suggestionsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Suggested Replacements")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("SUGGESTED REPLACEMENTS")
+                .microLabel()
 
             ForEach(suggestions) { suggestion in
                 VStack(alignment: .leading, spacing: 10) {
@@ -402,7 +400,7 @@ struct ExerciseSwapSheet: View {
                         onApply(suggestion)
                         dismiss()
                     }
-                    .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+                    .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
                 }
                 .padding(16)
                 .surfaceCard()

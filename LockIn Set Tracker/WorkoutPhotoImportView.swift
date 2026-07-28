@@ -99,7 +99,8 @@ struct WorkoutPhotoImportView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Turn a photo into a routine.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("Import a screenshot, typed plan, split sheet, or clear handwritten workout. You’ll review the routine before saving.")
@@ -112,9 +113,8 @@ struct WorkoutPhotoImportView: View {
 
     private var imageSelectionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Pick a Photo")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("PICK A PHOTO")
+                .microLabel()
 
             ZStack {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -131,7 +131,7 @@ struct WorkoutPhotoImportView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 34))
-                            .foregroundStyle(AppTheme.secondary)
+                            .foregroundStyle(AppTheme.textTertiary)
 
                         Text("Use the clearest crop you can")
                             .font(.headline)
@@ -155,7 +155,7 @@ struct WorkoutPhotoImportView: View {
                 Button("Take Photo") {
                     showCamera = true
                 }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.secondary))
+                .buttonStyle(PrimaryButtonStyle())
 
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Text("Upload Image")
@@ -171,7 +171,8 @@ struct WorkoutPhotoImportView: View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Importing your workout...")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .bold))
+                    .tracking(-0.5)
                     .foregroundStyle(AppTheme.textPrimary)
 
                 Text("Lokt is reading the image, matching exercises, and flagging anything unclear.")
@@ -228,7 +229,8 @@ struct WorkoutPhotoImportView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             Text("Review the imported routine")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("Nothing saves until you confirm. Review the matches, fix anything unclear, and keep custom exercises only when they really belong.")
@@ -259,21 +261,14 @@ struct WorkoutPhotoImportView: View {
     private func revisionSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Coach Chat")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Keep refining the imported plan with follow-up requests before you save it.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+                Text("COACH CHAT")
+                    .microLabel()
 
                 Spacer()
 
                 if isApplyingRevision {
                     ProgressView()
-                        .tint(AppTheme.primary)
+                        .tint(AppTheme.textSecondary)
                 }
             }
 
@@ -312,9 +307,8 @@ struct WorkoutPhotoImportView: View {
 
     private func recognizedTextSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Extracted Text")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("EXTRACTED TEXT")
+                .microLabel()
 
             Text(importedWorkout.sourceText)
                 .font(.caption)
@@ -329,9 +323,8 @@ struct WorkoutPhotoImportView: View {
 
     private func reviewDaysSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Routine Preview")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("ROUTINE PREVIEW")
+                .microLabel()
 
             ForEach(importedWorkout.days.indices, id: \.self) { dayIndex in
                 reviewDayCard(dayIndex: dayIndex)
@@ -446,7 +439,7 @@ struct WorkoutPhotoImportView: View {
             Button("Save \(importedWorkout.days.count) Routine\(importedWorkout.days.count == 1 ? "" : "s")") {
                 saveImportedWorkout()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(isApplyingRevision || importedWorkout.totalExercises == 0)
             .opacity(!isApplyingRevision && importedWorkout.totalExercises > 0 ? 1 : 0.6)
 
@@ -459,9 +452,8 @@ struct WorkoutPhotoImportView: View {
 
     private var trustSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("What the importer handles")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("WHAT THE IMPORTER HANDLES")
+                .microLabel()
 
             Text("Works with typed routines, shorthand like DB Bench 3x10, split names like Push/Pull/Legs, and clear handwritten notes. Nothing saves until you review it.")
                 .font(.subheadline)
@@ -660,7 +652,7 @@ struct WorkoutPhotoImportView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "wand.and.stars")
                 .font(.headline)
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.textSecondary)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Draft updated")
@@ -676,19 +668,18 @@ struct WorkoutPhotoImportView: View {
             Spacer()
         }
         .padding(14)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.primary.opacity(0.35))
+        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
     }
 
     private func importStat(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.title3.weight(.heavy))
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text(subtitle.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1)
-                .foregroundStyle(AppTheme.textSecondary)
+                .microLabel()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -723,7 +714,7 @@ struct WorkoutPhotoImportView: View {
         case .medium:
             return AppTheme.secondary
         case .low:
-            return AppTheme.accent
+            return AppTheme.danger
         }
     }
 
@@ -777,7 +768,7 @@ struct WorkoutPhotoImportView: View {
             case .medium:
                 return AppTheme.secondary
             case .low:
-                return AppTheme.accent
+                return AppTheme.danger
             }
         }()
 
@@ -813,9 +804,8 @@ struct WorkoutPhotoImportView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(isUser ? "You" : "Lokt Coach")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(isUser ? AppTheme.primary : AppTheme.textSecondary)
+                Text(isUser ? "YOU" : "LOKT COACH")
+                    .microLabel()
 
                 Text(message.text)
                     .font(.subheadline)
@@ -824,11 +814,11 @@ struct WorkoutPhotoImportView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isUser ? AppTheme.primary.opacity(0.12) : AppTheme.surfaceElevated)
+            .background(isUser ? AppTheme.mutedFill : AppTheme.surfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isUser ? AppTheme.primary.opacity(0.18) : AppTheme.cardBorder.opacity(0.7), lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
 
             if !isUser {
@@ -918,9 +908,8 @@ private struct ImportedExerciseEditorSheet: View {
 
     private var sourceCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Source Text")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("SOURCE TEXT")
+                .microLabel()
 
             Text(draft.sourceText)
                 .font(.body)
@@ -933,9 +922,8 @@ private struct ImportedExerciseEditorSheet: View {
 
     private var exerciseChoiceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(draft.isCustomExercise ? "Custom Imported Exercise" : "Matched Exercise")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text(draft.isCustomExercise ? "CUSTOM IMPORTED EXERCISE" : "MATCHED EXERCISE")
+                .microLabel()
 
             if draft.isCustomExercise {
                 TextField("Custom exercise name", text: $customName)
@@ -973,7 +961,7 @@ private struct ImportedExerciseEditorSheet: View {
                             Spacer()
 
                             Image(systemName: selectedExerciseName == exercise.name ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(selectedExerciseName == exercise.name ? AppTheme.success : AppTheme.textSecondary.opacity(0.4))
+                                .foregroundStyle(selectedExerciseName == exercise.name ? AppTheme.textPrimary : AppTheme.textTertiary)
                         }
                         .padding(14)
                         .background(AppTheme.surface)
@@ -989,9 +977,8 @@ private struct ImportedExerciseEditorSheet: View {
 
     private var programmingCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Programming Details")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("PROGRAMMING DETAILS")
+                .microLabel()
 
             HStack(spacing: 12) {
                 TextField("Sets", text: $setCountText)

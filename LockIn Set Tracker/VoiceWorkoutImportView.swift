@@ -18,8 +18,8 @@ struct VoiceWorkoutImportView: View {
     @State private var latestCoachChangeSummary: String?
     @State private var isApplyingRevision = false
 
-    private let reviewSecondaryText = Color.white.opacity(0.78)
-    private let reviewMutedText = Color.white.opacity(0.68)
+    private let reviewSecondaryText = AppTheme.textSecondary
+    private let reviewMutedText = AppTheme.textSecondary
 
     private let pipeline = VoiceWorkoutImportPipeline()
     private let revisionService = ImportedWorkoutRevisionService()
@@ -86,7 +86,8 @@ struct VoiceWorkoutImportView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Talk through the workout you want.")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("List exercises or describe the workout you want. You’ll review the matched routine before saving.")
@@ -99,9 +100,8 @@ struct VoiceWorkoutImportView: View {
 
     private var recorderSection: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Record a Voice Note")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("RECORD A VOICE NOTE")
+                .microLabel()
 
             VStack(spacing: 16) {
                 Button {
@@ -110,11 +110,10 @@ struct VoiceWorkoutImportView: View {
                     VStack(spacing: 12) {
                         Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
                             .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppTheme.backgroundTop)
                             .frame(width: 84, height: 84)
                             .background(recorder.isRecording ? AppTheme.secondary : AppTheme.primary)
                             .clipShape(Circle())
-                            .shadow(color: (recorder.isRecording ? AppTheme.secondary : AppTheme.primary).opacity(0.28), radius: 16, x: 0, y: 10)
 
                         Text(recorder.isRecording ? "Stop Recording" : "Start Recording")
                             .font(.headline.weight(.bold))
@@ -139,9 +138,8 @@ struct VoiceWorkoutImportView: View {
                         .foregroundStyle(AppTheme.secondary)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Live Transcript")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.textSecondary)
+                        Text("LIVE TRANSCRIPT")
+                            .microLabel()
 
                         Text(
                             recorder.liveTranscript.isEmpty
@@ -167,7 +165,8 @@ struct VoiceWorkoutImportView: View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Turning your voice note into a workout...")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .font(.system(size: 30, weight: .bold))
+                    .tracking(-0.5)
                     .foregroundStyle(AppTheme.textPrimary)
 
                 Text("Lokt is transcribing, matching exercises, and preparing a review draft.")
@@ -222,7 +221,8 @@ struct VoiceWorkoutImportView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             Text("Review the voice workout")
-                .font(.system(size: 30, weight: .black, design: .rounded))
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.5)
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("Quickly check names and any missing details, then save the routine.")
@@ -251,21 +251,14 @@ struct VoiceWorkoutImportView: View {
     private func revisionSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Coach Chat")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Keep talking through changes and Lokt will keep updating this same draft.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+                Text("COACH CHAT")
+                    .microLabel()
 
                 Spacer()
 
                 if isApplyingRevision {
                     ProgressView()
-                        .tint(AppTheme.primary)
+                        .tint(AppTheme.textSecondary)
                 }
             }
 
@@ -304,9 +297,8 @@ struct VoiceWorkoutImportView: View {
 
     private func transcriptSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Transcript")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("TRANSCRIPT")
+                .microLabel()
 
             Text(importedWorkout.sourceText)
                 .font(.body)
@@ -321,9 +313,8 @@ struct VoiceWorkoutImportView: View {
 
     private func daySection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Routine Preview")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("ROUTINE PREVIEW")
+                .microLabel()
 
             ForEach(importedWorkout.days.indices, id: \.self) { dayIndex in
                 dayCard(dayIndex: dayIndex)
@@ -441,7 +432,7 @@ struct VoiceWorkoutImportView: View {
             Button("Save Routine") {
                 saveImportedWorkout()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(isApplyingRevision || importedWorkout.totalExercises == 0)
             .opacity(!isApplyingRevision && importedWorkout.totalExercises > 0 ? 1 : 0.6)
 
@@ -454,9 +445,8 @@ struct VoiceWorkoutImportView: View {
 
     private var trustSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("What voice import handles")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("WHAT VOICE IMPORT HANDLES")
+                .microLabel()
 
             Text("Works with exercise lists like Bench press, incline dumbbell press, lateral raises, or requests like Make me a dumbbell-only pull day. Nothing saves until you review it.")
                 .font(.subheadline)
@@ -679,7 +669,7 @@ struct VoiceWorkoutImportView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "wand.and.stars")
                 .font(.headline)
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.textSecondary)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Draft updated")
@@ -695,7 +685,7 @@ struct VoiceWorkoutImportView: View {
             Spacer()
         }
         .padding(14)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.primary.opacity(0.35))
+        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
     }
 
     private func voiceWarningText(for exercise: ImportedExerciseDraft) -> String? {
@@ -740,20 +730,19 @@ struct VoiceWorkoutImportView: View {
         case .medium:
             return AppTheme.secondary
         case .low:
-            return AppTheme.accent
+            return AppTheme.danger
         }
     }
 
     private func importStat(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.title3.weight(.heavy))
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text(subtitle.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1)
-                .foregroundStyle(AppTheme.textSecondary)
+                .microLabel()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -810,7 +799,7 @@ struct VoiceWorkoutImportView: View {
             case .medium:
                 return AppTheme.secondary
             case .low:
-                return AppTheme.accent
+                return AppTheme.danger
             }
         }()
 
@@ -865,9 +854,8 @@ struct VoiceWorkoutImportView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(isUser ? "You" : "Lokt Coach")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(isUser ? AppTheme.primary : AppTheme.textSecondary)
+                Text(isUser ? "YOU" : "LOKT COACH")
+                    .microLabel()
 
                 Text(message.text)
                     .font(.subheadline)
@@ -876,11 +864,11 @@ struct VoiceWorkoutImportView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isUser ? AppTheme.primary.opacity(0.12) : AppTheme.surfaceElevated)
+            .background(isUser ? AppTheme.mutedFill : AppTheme.surfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isUser ? AppTheme.primary.opacity(0.18) : AppTheme.cardBorder.opacity(0.7), lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
 
             if !isUser {
@@ -963,9 +951,8 @@ private struct VoiceExerciseEditorSheet: View {
 
     private var sourceCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Voice Phrase")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("VOICE PHRASE")
+                .microLabel()
 
             Text(draft.sourceText)
                 .font(.body)
@@ -978,9 +965,8 @@ private struct VoiceExerciseEditorSheet: View {
 
     private var exerciseChoiceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(draft.isCustomExercise ? "Unmatched Phrase" : "Matched Exercise")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text(draft.isCustomExercise ? "UNMATCHED PHRASE" : "MATCHED EXERCISE")
+                .microLabel()
 
             if draft.isCustomExercise {
                 TextField("Exercise name", text: $customName)
@@ -1018,7 +1004,7 @@ private struct VoiceExerciseEditorSheet: View {
                             Spacer()
 
                             Image(systemName: selectedExerciseName == exercise.name ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(selectedExerciseName == exercise.name ? AppTheme.success : AppTheme.textSecondary.opacity(0.4))
+                                .foregroundStyle(selectedExerciseName == exercise.name ? AppTheme.textPrimary : AppTheme.textTertiary)
                         }
                         .padding(14)
                         .background(AppTheme.surface)
@@ -1034,9 +1020,8 @@ private struct VoiceExerciseEditorSheet: View {
 
     private var programmingCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Routine Details")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("ROUTINE DETAILS")
+                .microLabel()
 
             HStack(spacing: 12) {
                 TextField("Sets", text: $setCountText)

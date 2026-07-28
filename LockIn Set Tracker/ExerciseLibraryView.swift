@@ -53,9 +53,8 @@ struct ExerciseLibraryView: View {
 
     private var filterSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Filters")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            Text("FILTERS")
+                .microLabel()
 
             HStack(spacing: 12) {
                 filterPicker(title: "Muscle", selection: $selectedMuscleGroup, options: muscleGroupOptions)
@@ -70,9 +69,17 @@ struct ExerciseLibraryView: View {
 
     private var librarySection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Exercises")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            HStack(alignment: .firstTextBaseline) {
+                Text("EXERCISES")
+                    .microLabel()
+
+                Spacer()
+
+                Text("\(filteredExercises.count)")
+                    .font(.subheadline.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
 
             if filteredExercises.isEmpty {
                 Text("No exercises match those filters.")
@@ -126,15 +133,12 @@ struct ExerciseLibraryView: View {
                 }
             }
         }
-        .padding(20)
-        .glassCard()
     }
 
     private func filterPicker(title: String, selection: Binding<String>, options: [String]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
+            Text(title.uppercased())
+                .microLabel()
 
             Picker(title, selection: selection) {
                 ForEach(options, id: \.self) { option in
@@ -142,6 +146,7 @@ struct ExerciseLibraryView: View {
                 }
             }
             .pickerStyle(.menu)
+            .tint(AppTheme.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
