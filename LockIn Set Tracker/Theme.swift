@@ -1,62 +1,46 @@
 import SwiftUI
 
+// Dark athletic minimal: near-black canvas, one volt accent, hairline-separated
+// flat surfaces, oversized tabular numbers. No gradients, no glows, no shadows.
 enum AppTheme {
     static let screenPadding: CGFloat = 20
     static let cardPadding: CGFloat = 20
     static let rowPadding: CGFloat = 16
-    static let cardCornerRadius: CGFloat = 24
-    static let rowCornerRadius: CGFloat = 18
-    static let controlCornerRadius: CGFloat = 16
+    static let cardCornerRadius: CGFloat = 22
+    static let rowCornerRadius: CGFloat = 14
+    static let controlCornerRadius: CGFloat = 14
 
-    static let backgroundTop = Color(red: 0.04, green: 0.04, blue: 0.05)
-    static let backgroundBottom = Color(red: 0.01, green: 0.01, blue: 0.02)
-    static let card = Color(red: 0.09, green: 0.10, blue: 0.11).opacity(0.98)
-    static let surface = Color(red: 0.12, green: 0.13, blue: 0.15).opacity(0.98)
-    static let surfaceElevated = Color(red: 0.16, green: 0.17, blue: 0.19).opacity(0.98)
-    static let fieldBackground = Color(red: 0.11, green: 0.12, blue: 0.14).opacity(0.98)
+    // Surfaces — near-black, flat.
+    static let backgroundTop = Color(red: 0.043, green: 0.043, blue: 0.047)    // #0B0B0C
+    static let backgroundBottom = Color(red: 0.043, green: 0.043, blue: 0.047) // same → flat
+    static let card = Color(red: 0.078, green: 0.078, blue: 0.086)             // #141416
+    static let surface = Color(red: 0.078, green: 0.078, blue: 0.086)
+    static let surfaceElevated = Color(red: 0.110, green: 0.110, blue: 0.122)  // #1C1C1F
+    static let fieldBackground = Color(red: 0.110, green: 0.110, blue: 0.122)
     static let mutedFill = Color.white.opacity(0.06)
-    static let cardBorder = Color.white.opacity(0.08)
-    static let primary = Color(red: 0.29, green: 0.62, blue: 1.00)
-    static let secondary = Color(red: 0.90, green: 0.55, blue: 0.25)
-    static let accent = Color(red: 0.56, green: 0.53, blue: 0.96)
-    static let success = Color(red: 0.20, green: 0.61, blue: 0.34)
-    static let textPrimary = Color.white
-    static let textSecondary = Color(red: 0.70, green: 0.72, blue: 0.76)
+    static let cardBorder = Color(red: 0.149, green: 0.149, blue: 0.165)       // #26262A hairline
+
+    // THE accent — volt lime. Primary action + live/active state only.
+    static let primary = Color(red: 0.839, green: 1.0, blue: 0.247)    // #D6FF3F volt
+    static let secondary = Color(red: 1.0, green: 0.722, blue: 0.302)  // #FFB84D warn/amber
+    static let accent = Color(red: 0.839, green: 1.0, blue: 0.247)     // = primary
+    static let success = Color(red: 0.247, green: 0.878, blue: 0.541)  // #3FE08A good
+    static let danger = Color(red: 1.0, green: 0.361, blue: 0.361)     // #FF5C5C
+
+    static let textPrimary = Color(red: 0.957, green: 0.957, blue: 0.961)   // #F4F4F5
+    static let textSecondary = Color(red: 0.604, green: 0.604, blue: 0.635) // #9A9AA2
+    static let textTertiary = Color(red: 0.369, green: 0.369, blue: 0.400)  // #5E5E66
 }
 
 struct AppBackground: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [AppTheme.backgroundTop, AppTheme.backgroundBottom],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            LinearGradient(
-                colors: [Color.white.opacity(0.03), .clear, Color.white.opacity(0.02)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(Color.white.opacity(0.05))
-                .frame(width: 180, height: 180)
-                .blur(radius: 20)
-                .offset(x: 60, y: -40)
-        }
-        .overlay(alignment: .bottomLeading) {
-            Circle()
-                .fill(AppTheme.primary.opacity(0.10))
-                .frame(width: 220, height: 220)
-                .blur(radius: 24)
-                .offset(x: -60, y: 80)
-        }
-        .ignoresSafeArea()
+        AppTheme.backgroundTop
+            .ignoresSafeArea()
     }
 }
 
+// Flat card one shade lighter than the canvas, separated by a 1px hairline.
+// Keeps the `glassCard()` name so call sites don't change — no longer glassy.
 struct GlassCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -66,7 +50,6 @@ struct GlassCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
-            .shadow(color: Color.black.opacity(0.28), radius: 18, x: 0, y: 10)
     }
 }
 
@@ -76,7 +59,7 @@ struct SurfaceCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background(AppTheme.surface)
+            .background(AppTheme.surfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -96,9 +79,17 @@ extension View {
 
     func trackerTextEditorStyle() -> some View {
         self
-            .foregroundColor(.white)
+            .foregroundColor(AppTheme.textPrimary)
             .tint(AppTheme.primary)
             .background(Color.clear)
+    }
+
+    /// Uppercase tracked micro-label for card headers and stat captions.
+    func microLabel(_ color: Color = AppTheme.textTertiary) -> some View {
+        self
+            .font(.caption2.weight(.semibold))
+            .tracking(1.2)
+            .foregroundStyle(color)
     }
 }
 
@@ -107,15 +98,31 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline.weight(.semibold))
-            .foregroundStyle(.white)
+            .font(.headline.weight(.bold))
+            .foregroundStyle(labelColor)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(fill.opacity(configuration.isPressed ? 0.82 : 1))
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
-            .shadow(color: fill.opacity(0.22), radius: 14, x: 0, y: 8)
+            .overlay {
+                if isDarkFill {
+                    RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+            }
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
             .animation(.easeOut(duration: 0.18), value: configuration.isPressed)
+    }
+
+    // Vivid fills (volt / green / amber) demand a near-black label; dark surface
+    // fills keep the light label.
+    private var isDarkFill: Bool {
+        fill == AppTheme.surfaceElevated || fill == AppTheme.surface ||
+        fill == AppTheme.card || fill == AppTheme.fieldBackground
+    }
+
+    private var labelColor: Color {
+        isDarkFill ? AppTheme.textPrimary : AppTheme.backgroundTop
     }
 }
 
@@ -148,7 +155,7 @@ struct TertiaryButtonStyle: ButtonStyle {
             .clipShape(Capsule())
             .overlay {
                 Capsule()
-                    .stroke(AppTheme.cardBorder.opacity(0.7), lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
@@ -159,6 +166,7 @@ struct TrackerTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<_Label>) -> some View {
         configuration
             .foregroundStyle(AppTheme.textPrimary)
+            .monospacedDigit()
             .tint(AppTheme.primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -184,6 +192,7 @@ struct TrackerStepper: View {
 
             Text(valueText)
                 .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
                 .frame(minWidth: 72, alignment: .center)
 
@@ -205,9 +214,9 @@ struct TrackerStepper: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(disabled ? AppTheme.textSecondary.opacity(0.45) : AppTheme.textPrimary)
+                .foregroundStyle(disabled ? AppTheme.textTertiary : AppTheme.textPrimary)
                 .frame(width: 34, height: 34)
-                .background(disabled ? AppTheme.surface.opacity(0.6) : AppTheme.surfaceElevated)
+                .background(disabled ? AppTheme.surface : AppTheme.surfaceElevated)
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
@@ -229,7 +238,7 @@ struct TagChip: View {
             .clipShape(Capsule())
             .overlay {
                 Capsule()
-                    .stroke(AppTheme.cardBorder.opacity(0.7), lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
     }
 }

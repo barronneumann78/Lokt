@@ -10,22 +10,22 @@ struct LockInSetTrackerApp: App {
     init() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(red: 0.06, green: 0.07, blue: 0.09, alpha: 0.98)
+        appearance.backgroundColor = UIColor(AppTheme.backgroundTop)
         appearance.shadowColor = .clear
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        appearance.titleTextAttributes = [.foregroundColor: UIColor(AppTheme.textPrimary)]
+        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(AppTheme.textPrimary)]
 
         let navigationBar = UINavigationBar.appearance()
         navigationBar.standardAppearance = appearance
         navigationBar.scrollEdgeAppearance = appearance
         navigationBar.compactAppearance = appearance
         navigationBar.compactScrollEdgeAppearance = appearance
-        navigationBar.tintColor = .white
+        navigationBar.tintColor = UIColor(AppTheme.textPrimary)
 
         let tabBarAppearance = UITabBarAppearance()
         tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor = UIColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 0.98)
-        tabBarAppearance.shadowColor = UIColor.white.withAlphaComponent(0.06)
+        tabBarAppearance.backgroundColor = UIColor(AppTheme.backgroundTop)
+        tabBarAppearance.shadowColor = UIColor(AppTheme.cardBorder)
 
         let normalColor = UIColor(AppTheme.textSecondary)
         let selectedColor = UIColor(AppTheme.primary)
@@ -45,12 +45,12 @@ struct LockInSetTrackerApp: App {
         tabBar.tintColor = selectedColor
         tabBar.unselectedItemTintColor = normalColor
 
-        UITextField.appearance().textColor = .white
+        UITextField.appearance().textColor = UIColor(AppTheme.textPrimary)
         UITextField.appearance().tintColor = UIColor(AppTheme.primary)
-        UITextView.appearance().textColor = .white
+        UITextView.appearance().textColor = UIColor(AppTheme.textPrimary)
         UITextView.appearance().tintColor = UIColor(AppTheme.primary)
         UITextView.appearance().backgroundColor = .clear
-        UIStepper.appearance().tintColor = .white
+        UIStepper.appearance().tintColor = UIColor(AppTheme.textPrimary)
     }
 
     var body: some Scene {
