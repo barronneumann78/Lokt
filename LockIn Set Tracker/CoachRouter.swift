@@ -7,11 +7,15 @@ enum AppRootTab: Hashable {
 }
 
 struct CoachWorkoutSnapshot: Hashable {
+    /// Identity of the routine being logged, so the backend can resolve
+    /// "edit this workout" during a session to the actual saved routine.
+    var routineID: UUID
     var routineName: String
     var exercises: [String]
     var nextExercise: String?
 
     init(routine: Routine, nextExercise: String? = nil) {
+        self.routineID = routine.id
         self.routineName = routine.name
         self.exercises = routine.exercises
         self.nextExercise = nextExercise

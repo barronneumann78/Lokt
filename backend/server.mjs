@@ -14,7 +14,7 @@ const workoutSchema = {
     title: { type: "string" },
     summary: {
       type: "string",
-      description: "Plain-English overview of the workout in at most two short sentences a beginner can read at a glance."
+      description: "One concrete sentence saying what this workout is — split, equipment, focus, or constraint. Add a second sentence ONLY if it carries genuinely distinct information. Never restate the goal in different words and never add generic benefit-speak like maximizing volume, efficiently, or keeps things effective."
     },
     rationale: { type: "string" },
     routineNotes: {
@@ -255,7 +255,7 @@ const photoWorkoutRevisionSchema = {
 const coachChatSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["reply", "action", "changeSummary", "routine"],
+  required: ["reply", "action", "changeSummary", "routine", "editedRoutineID"],
   properties: {
     reply: { type: "string" },
     action: {
@@ -273,6 +273,13 @@ const coachChatSchema = {
         workoutSchema,
         { type: "null" }
       ]
+    },
+    editedRoutineID: {
+      anyOf: [
+        { type: "string" },
+        { type: "null" }
+      ],
+      description: "The exact id of the saved routine this draft modifies, copied verbatim from the saved routine list or the active workout context. null when the draft is brand-new or when no routine is returned."
     }
   }
 };
@@ -295,7 +302,8 @@ const preferenceInstructions = [
 ].join(" ");
 
 const routineFieldGuidelines = [
-  "Keep the summary to at most two short sentences a beginner can read at a glance.",
+  "Write the summary as one concrete sentence a beginner can read at a glance. Add a second sentence only when it carries genuinely distinct information, such as a constraint, equipment note, or scheduling detail.",
+  "Never pad the summary with filler that restates the goal or with generic benefit-speak such as maximizing volume, efficiently, keeps things effective, or optimized. If the second sentence only rephrases the first, drop it.",
   "For each exercise, fill reasoning with one short sentence, at most 15 words, naming its role in this plan, such as main press for chest, balancing pull for the back, or easy-recovery finisher.",
   "reasoning must be specific to this plan, never generic filler like great exercise or builds muscle.",
   "For each exercise, fill tip with one practical how-to line for this workout, at most 12 words, covering form, setup, tempo, or rest, such as Warm up your shoulders before going heavy or Rest about 2 minutes between sets.",
@@ -401,10 +409,16 @@ const coachChatInstructions = [
   "The user may be planning a new workout, editing a current draft, or asking for help during an active workout.",
   "Act like a real coach texting back: concise, practical, specific, and useful.",
   "Do not force every message into a workout change.",
+  "You also receive the user's saved routine library: each entry has an id, a name, and its exercise list.",
+  "When the user references an existing workout by name or description, match it against the saved routine library. Tolerate partial and fuzzy references: my push day matches a longer push-day title, legs matches a leg day routine.",
+  "If exactly one saved routine plausibly matches, work with that one. If several plausibly match, ask which one they mean instead of guessing, using action reply_only.",
+  "Never tell the user a workout does not exist while the saved routine list is non-empty. If nothing matches what they described, say which routines you do see and ask which they mean.",
+  "When you edit a saved routine, base the draft on that routine's ACTUAL exercises: apply only the requested change and preserve every other exercise, its order, and its sets and reps.",
   "Choose action reply_only when the user mainly wants an answer, reassurance, or explanation.",
   "Choose action suggestion when you want to recommend a change but should not edit the draft yet.",
-  "Choose action created_draft when the user clearly wants a new structured workout and there is no current routine yet.",
-  "Choose action updated_draft when there is a current routine and the user clearly wants it changed right now.",
+  "Choose action created_draft when the user clearly wants a brand-new structured workout that is not based on a saved routine or the current draft.",
+  "Choose action updated_draft when the user clearly wants the current routine or a specific saved routine changed right now.",
+  "Set editedRoutineID to the exact id of the saved routine your draft modifies, copied verbatim from the list, or the active workout's routine id when you are modifying that. Set editedRoutineID to null whenever the draft is brand-new or you return no routine.",
   "If the user is in active workout context, prefer practical coaching help unless they clearly ask for the rest of the workout to be rebuilt.",
   "When action is created_draft or updated_draft, return a complete routine in the schema and write a short changeSummary.",
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
@@ -747,6 +761,7 @@ const server = http.createServer(async (request, response) => {
       const conversation = normalizeConversation(body?.conversation);
       const currentRoutine = body?.currentRoutine ?? null;
       const context = normalizeCoachContext(body?.context);
+      const savedRoutines = normalizeSavedRoutines(body?.savedRoutines);
       const preferences = normalizePreferences(body?.preferences);
 
       if (message.length < 4) {
@@ -761,6 +776,7 @@ const server = http.createServer(async (request, response) => {
         conversation,
         currentRoutine,
         context,
+        savedRoutines,
         preferences
       });
 
@@ -769,6 +785,7 @@ const server = http.createServer(async (request, response) => {
         action: coachResult.action,
         changeSummary: coachResult.changeSummary,
         routine: coachResult.routine,
+        editedRoutineID: coachResult.editedRoutineID,
         requestId: coachResult.requestId,
         model: workoutGeneratorModel
       });
@@ -1269,7 +1286,7 @@ async function reviseImportedWorkout({ editPrompt, currentDraft, conversation, p
   };
 }
 
-async function chatWithCoach({ message, conversation, currentRoutine, context, preferences }) {
+async function chatWithCoach({ message, conversation, currentRoutine, context, savedRoutines, preferences }) {
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -1292,6 +1309,9 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, p
                 "",
                 "Current routine JSON:",
                 currentRoutine ? JSON.stringify(currentRoutine, null, 2) : "None.",
+                "",
+                "Saved routine library:",
+                formatSavedRoutines(savedRoutines),
                 "",
                 "Saved user preferences:",
                 formatPreferences(preferences),
@@ -1336,12 +1356,17 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, p
     throw new Error("OpenAI returned malformed coach JSON.");
   }
 
+  const sanitizedRoutine = sanitizeOptionalRoutine(coachResponse?.routine, coachResponse?.action);
+
   return {
     requestId: payload.id ?? null,
     action: sanitizeCoachAction(coachResponse?.action),
     reply: sanitizeReply(coachResponse?.reply),
     changeSummary: sanitizeChangeSummary(coachResponse?.changeSummary, coachResponse?.action),
-    routine: sanitizeOptionalRoutine(coachResponse?.routine, coachResponse?.action)
+    routine: sanitizedRoutine,
+    editedRoutineID: sanitizedRoutine
+      ? sanitizeEditedRoutineID(coachResponse?.editedRoutineID, savedRoutines, context)
+      : null
   };
 }
 
@@ -1732,6 +1757,7 @@ function normalizeCoachContext(value) {
     kind: kind === "draft_editing" || kind === "active_workout" ? kind : "planning",
     activeWorkout: activeWorkout && typeof activeWorkout === "object"
       ? {
+          routineID: typeof activeWorkout.routineID === "string" ? activeWorkout.routineID.trim().slice(0, 64) : "",
           routineName: typeof activeWorkout.routineName === "string" ? activeWorkout.routineName.trim() : "",
           exercises: Array.isArray(activeWorkout.exercises)
             ? activeWorkout.exercises.map((item) => String(item).trim()).filter(Boolean).slice(0, 20)
@@ -1740,6 +1766,80 @@ function normalizeCoachContext(value) {
         }
       : null
   };
+}
+
+function normalizeSavedRoutines(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .slice(0, 20)
+    .map((routine) => {
+      const id = typeof routine?.id === "string" ? routine.id.trim().slice(0, 64) : "";
+      const name = typeof routine?.name === "string" ? routine.name.trim().slice(0, 120) : "";
+      if (!id || !name) {
+        return null;
+      }
+
+      const exercises = (Array.isArray(routine?.exercises) ? routine.exercises : [])
+        .slice(0, 20)
+        .map((exercise) => {
+          const exerciseName = typeof exercise?.name === "string" ? exercise.name.trim().slice(0, 80) : "";
+          if (!exerciseName) {
+            return null;
+          }
+
+          const sets = Number.isInteger(exercise?.sets) && exercise.sets >= 1 && exercise.sets <= 10
+            ? exercise.sets
+            : null;
+          const reps = typeof exercise?.reps === "string" && exercise.reps.trim()
+            ? exercise.reps.trim().slice(0, 24)
+            : null;
+
+          return { name: exerciseName, sets, reps };
+        })
+        .filter(Boolean);
+
+      return { id, name, exercises };
+    })
+    .filter(Boolean);
+}
+
+function formatSavedRoutines(savedRoutines) {
+  if (!Array.isArray(savedRoutines) || savedRoutines.length === 0) {
+    return "None.";
+  }
+
+  return savedRoutines
+    .map((routine) => {
+      const exercises = routine.exercises
+        .map((exercise) => {
+          const prescription = [
+            exercise.sets ? `${exercise.sets} sets` : null,
+            exercise.reps ? `${exercise.reps} reps` : null
+          ].filter(Boolean).join(" x ");
+          return prescription ? `${exercise.name} (${prescription})` : exercise.name;
+        })
+        .join(", ");
+      return `- id ${routine.id} | "${routine.name}": ${exercises || "no exercises listed"}`;
+    })
+    .join("\n");
+}
+
+function sanitizeEditedRoutineID(editedRoutineID, savedRoutines, context) {
+  const cleaned = typeof editedRoutineID === "string" ? editedRoutineID.trim() : "";
+  if (!cleaned) {
+    return null;
+  }
+
+  const knownIDs = (Array.isArray(savedRoutines) ? savedRoutines : []).map((routine) => routine.id);
+  if (context?.activeWorkout?.routineID) {
+    knownIDs.push(context.activeWorkout.routineID);
+  }
+
+  const match = knownIDs.find((id) => id.toLowerCase() === cleaned.toLowerCase());
+  return match ?? null;
 }
 
 function normalizePreferences(value) {
@@ -1832,6 +1932,10 @@ function formatCoachContext(context) {
     `Routine: ${context.activeWorkout.routineName || "Current workout"}`,
     `Exercises: ${(context.activeWorkout.exercises || []).join(", ") || "None listed"}`
   ];
+
+  if (context.activeWorkout.routineID) {
+    lines.push(`Routine id: ${context.activeWorkout.routineID}`);
+  }
 
   if (context.activeWorkout.nextExercise) {
     lines.push(`Next exercise: ${context.activeWorkout.nextExercise}`);

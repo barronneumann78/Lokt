@@ -704,6 +704,12 @@ struct CoachView: View {
 
         scheduleTypingIndicator()
 
+        // The coach always sees the full routine library. Unmigrated screens
+        // still write the "routines" key directly (M1b), so re-read from
+        // UserDefaults first — the snapshot must never be stale.
+        store.reload()
+        let savedRoutines = store.routines
+
         Task { @MainActor in
             do {
                 let result = try await coachService.sendMessage(
@@ -711,6 +717,7 @@ struct CoachView: View {
                     contextKind: contextKind,
                     currentDraft: currentDraft,
                     activeWorkout: activeWorkoutSnapshot,
+                    savedRoutines: savedRoutines,
                     conversation: conversationMessages
                 )
 
@@ -725,6 +732,14 @@ struct CoachView: View {
                            let previousDraftID = currentDraft?.id,
                            let lineageRoutineID = savedRoutineIDsByDraft[previousDraftID] {
                             savedRoutineIDsByDraft[newDraft.id] = lineageRoutineID
+                        } else if let newDraft = result.routine,
+                                  let editedRoutineID = result.editedRoutineID,
+                                  store.routine(withID: editedRoutineID) != nil {
+                            // The backend built this draft as an edit of a saved
+                            // routine — seed the lineage so the button reads
+                            // "Update Workout" and saving upserts in place. The
+                            // user still has to tap; nothing is written here.
+                            savedRoutineIDsByDraft[newDraft.id] = editedRoutineID
                         }
                         currentDraft = result.routine
                     }
