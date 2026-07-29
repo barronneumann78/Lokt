@@ -3,8 +3,8 @@ import Charts
 import Combine
 
 /// The definitive analytics page: interactive exercise progression, training
-/// calendar, weekly sets per muscle group, 30-day muscle distribution and rep
-/// ranges — all derived once per data change in `AnalyticsSnapshot`.
+/// calendar, muscle-distribution radar, 30-day muscle split and rep ranges —
+/// all derived once per data change in `AnalyticsSnapshot`.
 struct AnalyticsView: View {
     @EnvironmentObject private var store: WorkoutStore
     @StateObject private var exerciseStore = ExerciseStore()
@@ -26,7 +26,7 @@ struct AnalyticsView: View {
                         }
                         ProgressionCard(snapshot: snapshot)
                         CalendarCard(snapshot: snapshot, exercises: exerciseStore.exercises)
-                        WeeklyMuscleCard(series: snapshot.weeklyMuscle)
+                        MuscleDistributionCard(sessions: store.sessions, exercises: exerciseStore.exercises)
                         MuscleDonutCard(donut: snapshot.donut, insight: snapshot.donutInsight)
                         if !snapshot.repBins.isEmpty {
                             repRangeCard
@@ -258,9 +258,9 @@ struct AnalyticsView: View {
 
 // MARK: - Muscle palette
 //
-// Fixed muscle -> series color mapping shared by the weekly lines and the donut
-// (color follows the entity — filtering never repaints survivors). Slots come
-// from `AppTheme.chartCategorical`; anything outside the six core groups is
+// Fixed muscle -> series color mapping for the donut (color follows the
+// entity — filtering never repaints survivors). Slots come from
+// `AppTheme.chartCategorical`; anything outside the six core groups is
 // neutral gray.
 enum MusclePalette {
     static func color(for group: String) -> Color {
@@ -1028,148 +1028,389 @@ private struct DaySummarySheet: View {
     }
 }
 
-// MARK: - Chart 2 · Weekly sets per muscle group
+// MARK: - Chart 2 · Muscle distribution radar
 
-private struct WeeklyMuscleCard: View {
-    let series: [AnalyticsSnapshot.MuscleSeries]
+private struct MuscleDistributionCard: View {
+    let sessions: [WorkoutSession]
+    let exercises: [Exercise]
 
-    @State private var active: Set<String> = []
-    @State private var hasInitialized = false
-
-    private var activeSeries: [AnalyticsSnapshot.MuscleSeries] {
-        series.filter { active.contains($0.group) }
-    }
+    @State private var timeframe: DistributionTimeframe = .month
 
     var body: some View {
+        let distribution = AnalyticsSnapshot.muscleDistribution(
+            sessions: sessions,
+            resolve: { exercises.resolvedExercise(named: $0) },
+            days: timeframe.days
+        )
+
         VStack(alignment: .leading, spacing: 14) {
-            Text("WEEKLY SETS · MUSCLE")
+            Text("MUSCLE DISTRIBUTION")
                 .microLabel()
 
-            if series.isEmpty {
-                Text("Log a few workouts to compare weekly volume across muscle groups.")
+            timeframeMenu
+
+            if distribution.currentGroupCount >= 2 {
+                RadarChart(
+                    labels: distribution.axes.map(\.group),
+                    current: distribution.currentFractions,
+                    previous: distribution.previousFractions
+                )
+                .frame(height: 240)
+
+                legend
+            } else {
+                Text("Not enough training in this window.")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textTertiary)
-                    .padding(.vertical, 24)
-            } else {
-                chart
-                chipGrid
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 44)
             }
+
+            tileGrid(distribution)
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
-        .onAppear { initializeIfNeeded() }
-        .onChange(of: series.map(\.group)) { _, _ in initializeIfNeeded() }
     }
 
-    private func initializeIfNeeded() {
-        let groups = Set(series.map(\.group))
-        if !hasInitialized {
-            active = groups
-            hasInitialized = true
-        } else {
-            // Keep selections valid when the underlying data changes.
-            active.formIntersection(groups)
-            if active.isEmpty { active = groups }
-        }
-    }
+    // MARK: Timeframe
 
-    @ChartContentBuilder
-    private func seriesMarks(_ muscle: AnalyticsSnapshot.MuscleSeries) -> some ChartContent {
-        ForEach(muscle.points) { (point: AnalyticsSnapshot.WeekPoint) in
-            LineMark(
-                x: .value("Week", point.weekStart),
-                y: .value("Sets", point.sets),
-                series: .value("Muscle", muscle.group)
-            )
-            .foregroundStyle(MusclePalette.color(for: muscle.group))
-            .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-        }
-    }
-
-    private var chart: some View {
-        Chart {
-            ForEach(activeSeries) { (muscle: AnalyticsSnapshot.MuscleSeries) in
-                seriesMarks(muscle)
-            }
-        }
-        .chartYScale(domain: 0...maxSets)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
-                    .foregroundStyle(AppTheme.cardBorder.opacity(0.7))
-                AxisValueLabel()
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-        }
-        .overlay {
-            if activeSeries.isEmpty {
-                Text("Tap a muscle to show its line")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-        }
-        .frame(height: 180)
-        .animation(.easeInOut(duration: 0.3), value: active)
-    }
-
-    private var maxSets: Int {
-        let peak = series
-            .filter { active.contains($0.group) }
-            .flatMap(\.points)
-            .map(\.sets)
-            .max() ?? 0
-        return max(peak + 1, 5)
-    }
-
-    private var chipGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
-            ForEach(series) { muscle in
-                chip(for: muscle)
-            }
-        }
-    }
-
-    private func chip(for muscle: AnalyticsSnapshot.MuscleSeries) -> some View {
-        let isActive = active.contains(muscle.group)
-        return Button {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                if isActive {
-                    active.remove(muscle.group)
-                } else {
-                    active.insert(muscle.group)
+    private var timeframeMenu: some View {
+        Menu {
+            ForEach(DistributionTimeframe.allCases) { option in
+                Button {
+                    select(option)
+                } label: {
+                    if option == timeframe {
+                        Label(option.rawValue, systemImage: "checkmark")
+                    } else {
+                        Text(option.rawValue)
+                    }
                 }
             }
         } label: {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(isActive ? MusclePalette.color(for: muscle.group) : AppTheme.textTertiary.opacity(0.5))
-                    .frame(width: 7, height: 7)
-                Text(muscle.group)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(isActive ? AppTheme.textPrimary : AppTheme.textTertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+            HStack {
+                Text(timeframe.rawValue)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(isActive ? AppTheme.surfaceElevated : Color.clear)
-            .clipShape(Capsule())
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(AppTheme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
             .overlay {
-                Capsule().stroke(
-                    isActive ? AppTheme.cardBorder : AppTheme.cardBorder.opacity(0.6),
-                    lineWidth: 1
-                )
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func select(_ option: DistributionTimeframe) {
+        guard option != timeframe else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            timeframe = option
+        }
+    }
+
+    // MARK: Legend
+
+    private var legend: some View {
+        HStack(spacing: 14) {
+            Spacer()
+            legendItem(color: AppTheme.primary, label: "Current")
+            legendItem(color: AppTheme.textTertiary, label: "Previous")
+        }
+    }
+
+    private func legendItem(color: Color, label: String) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text(label)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+    }
+
+    // MARK: Stat tiles
+
+    private struct TileDelta {
+        var text: String
+        /// +1 up (green), 0 flat (no arrow), -1 down (neutral — not an error).
+        var direction: Int
+    }
+
+    private func tileGrid(_ distribution: AnalyticsSnapshot.MuscleDistribution) -> some View {
+        let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+        return LazyVGrid(columns: columns, spacing: 10) {
+            tile(
+                label: "Workouts",
+                value: "\(distribution.currentWorkouts)",
+                delta: countDelta(distribution.currentWorkouts - distribution.previousWorkouts)
+            )
+            tile(
+                label: "Duration",
+                value: distribution.currentDurationSeconds.map { AnalyticsMath.durationText(seconds: $0) } ?? "—",
+                delta: durationDelta(distribution)
+            )
+            tile(
+                label: "Volume",
+                value: AnalyticsMath.compactVolume(distribution.currentVolume) + " lbs",
+                delta: volumeDelta(distribution)
+            )
+            tile(
+                label: "Sets",
+                value: "\(distribution.currentSets)",
+                delta: countDelta(distribution.currentSets - distribution.previousSets)
+            )
+        }
+    }
+
+    private func countDelta(_ diff: Int) -> TileDelta {
+        TileDelta(text: "\(abs(diff))", direction: diff.signum())
+    }
+
+    private func volumeDelta(_ distribution: AnalyticsSnapshot.MuscleDistribution) -> TileDelta {
+        let diff = distribution.currentVolume - distribution.previousVolume
+        return TileDelta(
+            text: AnalyticsMath.compactVolume(abs(diff)) + " lbs",
+            direction: diff > 0 ? 1 : (diff < 0 ? -1 : 0)
+        )
+    }
+
+    /// Comparable only when both windows recorded time; legacy sessions carry none.
+    private func durationDelta(_ distribution: AnalyticsSnapshot.MuscleDistribution) -> TileDelta? {
+        guard let current = distribution.currentDurationSeconds,
+              let previous = distribution.previousDurationSeconds else { return nil }
+        let diff = current - previous
+        return TileDelta(
+            text: AnalyticsMath.durationText(seconds: abs(diff)),
+            direction: diff.signum()
+        )
+    }
+
+    private func tile(label: String, value: String, delta: TileDelta?) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                Text(label.uppercased())
+                    .microLabel()
+                Spacer(minLength: 6)
+                if let delta {
+                    deltaView(delta)
+                }
+            }
+
+            Text(value)
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
+                .tracking(-0.5)
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .surfaceCard()
+    }
+
+    private func deltaView(_ delta: TileDelta) -> some View {
+        HStack(spacing: 3) {
+            if delta.direction != 0 {
+                Image(systemName: delta.direction > 0 ? "arrow.up" : "arrow.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            Text(delta.text)
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+        }
+        .foregroundStyle(delta.direction > 0 ? AppTheme.success : AppTheme.textSecondary)
+    }
+}
+
+// MARK: Radar chart (custom — Swift Charts has no radar mark)
+
+/// Fixed 6-axis spider chart. Axis order is `AnalyticsSnapshot.radarMuscleOrder`,
+/// clockwise from top-right; both polygons share one normalization ceiling so
+/// current vs previous is a like-for-like comparison.
+private struct RadarChart: View {
+    let labels: [String]
+    let current: [Double]
+    let previous: [Double]
+
+    @State private var labelSizes: [Int: CGSize] = [:]
+
+    /// Space reserved beyond the spoke ends for the axis labels.
+    private let labelClearance: CGFloat = 26
+
+    var body: some View {
+        GeometryReader { geo in
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            let radius = max(0, min(geo.size.width, geo.size.height) / 2 - labelClearance)
+
+            ZStack {
+                RadarGridShape(inset: labelClearance)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+
+                // Previous period — dim, behind.
+                RadarPolygonShape(fractions: RadarVector(previous), inset: labelClearance)
+                    .fill(AppTheme.textTertiary.opacity(0.14))
+                RadarPolygonShape(fractions: RadarVector(previous), inset: labelClearance)
+                    .stroke(AppTheme.textTertiary, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+
+                // Current period — volt, on top.
+                RadarPolygonShape(fractions: RadarVector(current), inset: labelClearance)
+                    .fill(AppTheme.primary.opacity(0.22))
+                RadarPolygonShape(fractions: RadarVector(current), inset: labelClearance)
+                    .stroke(AppTheme.primary, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+
+                Circle()
+                    .fill(AppTheme.textTertiary)
+                    .frame(width: 4, height: 4)
+                    .position(center)
+
+                ForEach(Array(labels.enumerated()), id: \.offset) { index, label in
+                    Text(label)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize()
+                        .onGeometryChange(for: CGSize.self) { proxy in
+                            proxy.size
+                        } action: { size in
+                            labelSizes[index] = size
+                        }
+                        .position(labelPosition(index, center: center, radius: radius))
+                }
+            }
+        }
+    }
+
+    /// Centers each label just past its spoke end, pushed outward along the
+    /// axis by half its own size so the near edge keeps a constant gap.
+    private func labelPosition(_ index: Int, center: CGPoint, radius: CGFloat) -> CGPoint {
+        let angle = RadarGeometry.angle(forAxis: index)
+        let unit = CGPoint(x: cos(angle), y: sin(angle))
+        let size = labelSizes[index] ?? .zero
+        let base = radius + 8
+        return CGPoint(
+            x: center.x + unit.x * base + unit.x * size.width / 2,
+            y: center.y + unit.y * base + unit.y * size.height / 2
+        )
+    }
+}
+
+private enum RadarGeometry {
+    static let axisCount = 6
+
+    /// Screen-space angle (y down) for each axis, clockwise from top-right:
+    /// -60° Chest, 0° Core, 60° Shoulders, 120° Arms, 180° Legs, 240° Back.
+    static func angle(forAxis index: Int) -> CGFloat {
+        CGFloat(Double(index) * 60 - 60) * .pi / 180
+    }
+
+    static func point(center: CGPoint, radius: CGFloat, axis: Int, fraction: Double) -> CGPoint {
+        let angle = angle(forAxis: axis)
+        return CGPoint(
+            x: center.x + radius * CGFloat(fraction) * cos(angle),
+            y: center.y + radius * CGFloat(fraction) * sin(angle)
+        )
+    }
+}
+
+/// Hairline spokes plus the outer boundary hexagon.
+private struct RadarGridShape: Shape {
+    var inset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = max(0, min(rect.width, rect.height) / 2 - inset)
+        var path = Path()
+
+        for axis in 0..<RadarGeometry.axisCount {
+            path.move(to: center)
+            path.addLine(to: RadarGeometry.point(center: center, radius: radius, axis: axis, fraction: 1))
+        }
+
+        for axis in 0..<RadarGeometry.axisCount {
+            let point = RadarGeometry.point(center: center, radius: radius, axis: axis, fraction: 1)
+            if axis == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+
+        return path
+    }
+}
+
+/// One period's polygon. Animatable so timeframe switches morph the shape.
+private struct RadarPolygonShape: Shape {
+    var fractions: RadarVector
+    var inset: CGFloat
+
+    var animatableData: RadarVector {
+        get { fractions }
+        set { fractions = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = max(0, min(rect.width, rect.height) / 2 - inset)
+        var path = Path()
+        let values = fractions.values
+        guard values.count == RadarGeometry.axisCount else { return path }
+
+        for (axis, fraction) in values.enumerated() {
+            let point = RadarGeometry.point(center: center, radius: radius, axis: axis, fraction: fraction)
+            if axis == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Fixed-length value vector so a radar polygon can interpolate per-axis.
+private struct RadarVector: VectorArithmetic {
+    var values: [Double]
+
+    init(_ values: [Double]) {
+        self.values = values
+    }
+
+    static var zero: RadarVector {
+        RadarVector(Array(repeating: 0, count: RadarGeometry.axisCount))
+    }
+
+    static func + (lhs: RadarVector, rhs: RadarVector) -> RadarVector {
+        RadarVector(zip(lhs.padded, rhs.padded).map(+))
+    }
+
+    static func - (lhs: RadarVector, rhs: RadarVector) -> RadarVector {
+        RadarVector(zip(lhs.padded, rhs.padded).map(-))
+    }
+
+    mutating func scale(by rhs: Double) {
+        values = values.map { $0 * rhs }
+    }
+
+    var magnitudeSquared: Double {
+        values.reduce(0) { $0 + $1 * $1 }
+    }
+
+    private var padded: [Double] {
+        values.count >= RadarGeometry.axisCount
+            ? values
+            : values + Array(repeating: 0, count: RadarGeometry.axisCount - values.count)
     }
 }
 

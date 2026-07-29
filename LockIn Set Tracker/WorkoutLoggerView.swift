@@ -702,7 +702,15 @@ struct WorkoutLoggerView: View {
             }
         }
 
-        let session = WorkoutSession(date: Date(), routineID: activeRoutine.id, routineName: activeRoutine.name, logs: logs)
+        let session = WorkoutSession(
+            date: Date(),
+            routineID: activeRoutine.id,
+            routineName: activeRoutine.name,
+            logs: logs,
+            durationSeconds: hasStartedWorkoutTimer
+                ? max(0, Int(Date().timeIntervalSince(workoutStartDate)))
+                : nil
+        )
         saveWorkoutSession(session)
         currentTime = Date()
         skipRestTimer()

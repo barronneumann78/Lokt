@@ -96,19 +96,24 @@ struct WorkoutSession: Codable, Identifiable {
     /// Post-session check-in answer that drives the adaptation loop.
     /// Optional so sessions saved before the loop still decode. See M4.
     var checkIn: SessionCheckIn? = nil
+    /// Elapsed workout time captured from the logger timer at finish.
+    /// Optional so sessions saved before duration tracking still decode.
+    var durationSeconds: Int? = nil
 
     init(
         id: UUID = UUID(),
         date: Date,
         routineID: UUID? = nil,
         routineName: String,
-        logs: [String: [WorkoutSet]]
+        logs: [String: [WorkoutSet]],
+        durationSeconds: Int? = nil
     ) {
         self.id = id
         self.date = date
         self.routineID = routineID
         self.routineName = routineName
         self.logs = logs
+        self.durationSeconds = durationSeconds
     }
 }
 

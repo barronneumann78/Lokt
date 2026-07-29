@@ -76,6 +76,34 @@ enum AnalyticsMath {
             : String(format: "%.1f", weight)
     }
 
+    /// k/M-abbreviated tonnage for the distribution stat tiles ("489k", "1.2M").
+    static func compactVolume(_ value: Double) -> String {
+        if value >= 10_000_000 {
+            return String(format: "%.0fM", value / 1_000_000)
+        }
+        if value >= 1_000_000 {
+            let compact = value / 1_000_000
+            return compact == compact.rounded()
+                ? String(format: "%.0fM", compact)
+                : String(format: "%.1fM", compact)
+        }
+        if value >= 100_000 {
+            return String(format: "%.0fk", value / 1000)
+        }
+        if value >= 10_000 {
+            return String(format: "%.1fk", value / 1000)
+        }
+        return value.formatted(.number.precision(.fractionLength(0)))
+    }
+
+    /// "20h 46min" / "46min", rounded to whole minutes.
+    static func durationText(seconds: Int) -> String {
+        let totalMinutes = Int((Double(max(0, seconds)) / 60).rounded())
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        return hours > 0 ? "\(hours)h \(minutes)min" : "\(minutes)min"
+    }
+
     private static func firstNumber(in raw: String) -> Double? {
         let scanner = Scanner(string: raw)
         scanner.charactersToBeSkipped = CharacterSet(charactersIn: "0123456789.").inverted
@@ -167,6 +195,26 @@ enum AnalyticsTimeframe: String, CaseIterable, Identifiable {
     }
 }
 
+/// Rolling window for the muscle-distribution radar. The comparison period is
+/// always the equal-length window immediately before the current one.
+enum DistributionTimeframe: String, CaseIterable, Identifiable {
+    case week = "Last 7 days"
+    case month = "Last 30 days"
+    case quarter = "Last 90 days"
+    case year = "Last year"
+
+    var id: String { rawValue }
+
+    var days: Int {
+        switch self {
+        case .week: return 7
+        case .month: return 30
+        case .quarter: return 90
+        case .year: return 365
+        }
+    }
+}
+
 // MARK: - Snapshot
 
 /// All derived analytics, computed once per data change (never per chart mark).
@@ -215,21 +263,47 @@ struct AnalyticsSnapshot {
         }
     }
 
-    // MARK: Weekly sets per muscle (chart 2)
+    // MARK: Muscle distribution radar (chart 2)
 
-    struct WeekPoint: Identifiable {
-        var id: Date { weekStart }
-        var weekStart: Date
-        var sets: Int
-    }
+    struct MuscleDistribution {
+        struct Axis: Identifiable {
+            var id: String { group }
+            /// Display muscle group ("Chest" ... "Back") — the six named groups only.
+            var group: String
+            var currentSets: Int
+            var previousSets: Int
+        }
 
-    struct MuscleSeries: Identifiable {
-        var id: String { group }
-        /// Display muscle group ("Chest", ..., "Other").
-        var group: String
-        /// Zero-filled weekly set counts, oldest first, through the current week.
-        var points: [WeekPoint]
-        var totalSets: Int
+        /// Fixed radar order, clockwise from top-right:
+        /// Chest, Core, Shoulders, Arms, Legs, Back.
+        var axes: [Axis]
+        /// Max set count on any axis across BOTH periods — the shared
+        /// normalization ceiling, so the two polygons are directly comparable.
+        var maxAxisSets: Int
+
+        var currentWorkouts: Int
+        var previousWorkouts: Int
+        var currentSets: Int
+        var previousSets: Int
+        var currentVolume: Double
+        var previousVolume: Double
+        /// Summed over sessions that recorded a duration; nil when none did.
+        var currentDurationSeconds: Int?
+        var previousDurationSeconds: Int?
+
+        /// 0...1 polygon radii in axis order; zero-set axes sit at center.
+        var currentFractions: [Double] {
+            axes.map { maxAxisSets > 0 ? Double($0.currentSets) / Double(maxAxisSets) : 0 }
+        }
+
+        var previousFractions: [Double] {
+            axes.map { maxAxisSets > 0 ? Double($0.previousSets) / Double(maxAxisSets) : 0 }
+        }
+
+        /// Radar needs at least two current-window groups to draw a real shape.
+        var currentGroupCount: Int {
+            axes.filter { $0.currentSets > 0 }.count
+        }
     }
 
     // MARK: Muscle distribution donut (chart 3)
@@ -284,7 +358,6 @@ struct AnalyticsSnapshot {
     var exerciseOptions: [ExerciseOption]
     /// Canonical exercise name -> per-session progression points, oldest first.
     var progression: [String: [ProgressionPoint]]
-    var weeklyMuscle: [MuscleSeries]
     var donut: DonutModel?
     var donutInsight: String?
     /// Start-of-day -> that day's sessions (for the calendar + day sheet).
@@ -300,7 +373,6 @@ struct AnalyticsSnapshot {
         headline: nil,
         exerciseOptions: [],
         progression: [:],
-        weeklyMuscle: [],
         donut: nil,
         donutInsight: nil,
         sessionsByDay: [:],
@@ -313,8 +385,6 @@ struct AnalyticsSnapshot {
 
     // MARK: - Build
 
-    /// Weeks of history shown by the weekly-sets chart (including the current week).
-    static let weeklyMuscleWeekCount = 13
     /// Days covered by the muscle-distribution donut.
     static let donutWindowDays = 30
 
@@ -354,12 +424,6 @@ struct AnalyticsSnapshot {
 
         let headline = buildHeadline(sorted: sorted, currentWeek: currentWeek, calendar: calendar)
         let (options, progression) = buildProgression(sorted: sorted, resolved: resolved)
-        let weeklyMuscle = buildWeeklyMuscle(
-            sorted: sorted,
-            resolved: resolved,
-            currentWeek: currentWeek,
-            calendar: calendar
-        )
         let (donut, donutInsight) = buildDonut(sorted: sorted, resolved: resolved, now: now)
         let (repBins, zoneShares, repRecent, repInsight) = buildRepDistribution(sorted: sorted, now: now)
 
@@ -373,7 +437,6 @@ struct AnalyticsSnapshot {
             headline: headline,
             exerciseOptions: options,
             progression: progression,
-            weeklyMuscle: weeklyMuscle,
             donut: donut,
             donutInsight: donutInsight,
             sessionsByDay: sessionsByDay,
@@ -512,53 +575,89 @@ struct AnalyticsSnapshot {
         return (options, series)
     }
 
-    // MARK: Weekly sets per muscle
+    // MARK: Muscle distribution radar
 
-    private static func buildWeeklyMuscle(
-        sorted: [WorkoutSession],
-        resolved: (String) -> Exercise?,
-        currentWeek: DateInterval,
-        calendar: Calendar
-    ) -> [MuscleSeries] {
-        guard let windowStart = calendar.date(
-            byAdding: .weekOfYear,
-            value: -(weeklyMuscleWeekCount - 1),
-            to: currentWeek.start
-        ) else { return [] }
+    /// Radar axis order, clockwise from top-right (matches the drawn layout:
+    /// Chest top-right, Core right, Shoulders bottom-right, Arms bottom-left,
+    /// Legs left, Back top-left).
+    static let radarMuscleOrder: [MuscleGroup] = [.chest, .core, .shoulders, .arms, .legs, .back]
 
-        // group -> weekStart -> sets
-        var counts: [String: [Date: Int]] = [:]
-        var earliestWeek: Date?
-        for session in sorted where session.date >= windowStart {
-            guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: session.date)?.start else { continue }
-            earliestWeek = min(earliestWeek ?? weekStart, weekStart)
-            for (name, sets) in session.logs {
-                let counted = sets.filter(AnalyticsMath.isCountedSet).count
-                guard counted > 0 else { continue }
-                let group = chartGroup(for: resolved(name)?.muscleGroup)
-                counts[group, default: [:]][weekStart, default: 0] += counted
+    /// Distribution for the radar + stat tiles. Current window is the trailing
+    /// `days` ending at `now`; previous is the equal-length window immediately
+    /// before it. Pure — inject the resolver so the math stays testable.
+    static func muscleDistribution(
+        sessions: [WorkoutSession],
+        resolve: (String) -> Exercise?,
+        days: Int,
+        now: Date = Date()
+    ) -> MuscleDistribution {
+        let day: TimeInterval = 86_400
+        let currentStart = now.addingTimeInterval(-Double(days) * day)
+        let previousStart = now.addingTimeInterval(-2 * Double(days) * day)
+
+        var resolutionCache: [String: Exercise?] = [:]
+        func resolved(_ name: String) -> Exercise? {
+            if let cached = resolutionCache[name] { return cached }
+            let match = resolve(name)
+            resolutionCache[name] = match
+            return match
+        }
+
+        struct WindowTotals {
+            var workouts = 0
+            var sets = 0
+            var volume = 0.0
+            var durationSeconds: Int?
+            var setsByGroup: [MuscleGroup: Int] = [:]
+        }
+
+        func totals(from start: Date, to end: Date) -> WindowTotals {
+            var totals = WindowTotals()
+            for session in sessions where session.date >= start && session.date < end {
+                totals.workouts += 1
+                if let duration = session.durationSeconds {
+                    totals.durationSeconds = (totals.durationSeconds ?? 0) + duration
+                }
+                for (name, sets) in session.logs {
+                    let counted = sets.filter(AnalyticsMath.isCountedSet).count
+                    totals.volume += sets.compactMap(AnalyticsMath.setVolume).reduce(0, +)
+                    guard counted > 0 else { continue }
+                    totals.sets += counted
+                    // Radar axes carry the six named groups only — everything
+                    // else (cardio, full body, unresolved, ...) is excluded.
+                    if let group = resolved(name)?.muscleGroup, chartMuscleGroups.contains(group) {
+                        totals.setsByGroup[group, default: 0] += counted
+                    }
+                }
             }
+            return totals
         }
 
-        guard let earliestWeek, !counts.isEmpty else { return [] }
+        // `now + 1s` so a session stamped exactly `now` lands in the window.
+        let current = totals(from: currentStart, to: now.addingTimeInterval(1))
+        let previous = totals(from: previousStart, to: currentStart)
 
-        // Zero-filled week axis from the first trained week through the current one.
-        var weekAxis: [Date] = []
-        var cursor = earliestWeek
-        while cursor <= currentWeek.start {
-            weekAxis.append(cursor)
-            guard let next = calendar.date(byAdding: .weekOfYear, value: 1, to: cursor) else { break }
-            cursor = next
+        let axes = radarMuscleOrder.map { group in
+            MuscleDistribution.Axis(
+                group: group.rawValue,
+                currentSets: current.setsByGroup[group] ?? 0,
+                previousSets: previous.setsByGroup[group] ?? 0
+            )
         }
+        let maxAxisSets = axes.map { max($0.currentSets, $0.previousSets) }.max() ?? 0
 
-        let order = chartMuscleGroups.map(\.rawValue) + [MuscleGroup.other.rawValue]
-        return order.compactMap { group in
-            guard let weekCounts = counts[group] else { return nil }
-            let points = weekAxis.map { WeekPoint(weekStart: $0, sets: weekCounts[$0] ?? 0) }
-            let total = weekCounts.values.reduce(0, +)
-            guard total > 0 else { return nil }
-            return MuscleSeries(group: group, points: points, totalSets: total)
-        }
+        return MuscleDistribution(
+            axes: axes,
+            maxAxisSets: maxAxisSets,
+            currentWorkouts: current.workouts,
+            previousWorkouts: previous.workouts,
+            currentSets: current.sets,
+            previousSets: previous.sets,
+            currentVolume: current.volume,
+            previousVolume: previous.volume,
+            currentDurationSeconds: current.durationSeconds,
+            previousDurationSeconds: previous.durationSeconds
+        )
     }
 
     // MARK: Muscle distribution donut
