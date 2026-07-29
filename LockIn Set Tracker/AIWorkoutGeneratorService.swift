@@ -362,13 +362,15 @@ struct AIWorkoutGeneratorClient {
 }
 
 enum AIWorkoutRoutineSaver {
-    static func save(_ draft: AIGeneratedRoutineDraft) {
+    /// Build a fresh `Routine` from a reviewed draft, or nil when the draft has
+    /// no usable title or exercises (matching the historical silent no-op save).
+    static func makeRoutine(from draft: AIGeneratedRoutineDraft) -> Routine? {
         let trimmedTitle = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let exercises = draft.exercises
             .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        guard !trimmedTitle.isEmpty, !exercises.isEmpty else { return }
+        guard !trimmedTitle.isEmpty, !exercises.isEmpty else { return nil }
 
         let preferredSetCounts = draft.exercises.reduce(into: [String: Int]()) { counts, exercise in
             let trimmedName = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -376,14 +378,18 @@ enum AIWorkoutRoutineSaver {
             counts[trimmedName] = max(1, exercise.sets)
         }
 
-        var routines = loadRoutines()
-        routines.append(
-            Routine(
-                name: trimmedTitle,
-                exercises: exercises,
-                preferredSetCounts: preferredSetCounts
-            )
+        return Routine(
+            name: trimmedTitle,
+            exercises: exercises,
+            preferredSetCounts: preferredSetCounts
         )
+    }
+
+    static func save(_ draft: AIGeneratedRoutineDraft) {
+        guard let routine = makeRoutine(from: draft) else { return }
+
+        var routines = loadRoutines()
+        routines.append(routine)
 
         if let encoded = try? JSONEncoder().encode(routines) {
             UserDefaults.standard.set(encoded, forKey: "routines")

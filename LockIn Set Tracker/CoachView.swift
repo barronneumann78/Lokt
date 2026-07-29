@@ -9,7 +9,7 @@ struct CoachView: View {
     @State private var messageText = ""
     @State private var isSending = false
     @State private var errorMessage: String?
-    @State private var savedMessage: String?
+    @State private var saveNotice: SaveNotice?
 
     /// IDs of drafts already saved to the routine library this session. Drafts
     /// live only in memory (they die with the conversation), so this set shares
@@ -17,7 +17,23 @@ struct CoachView: View {
     /// re-arms the save button for that new version.
     @State private var savedDraftIDs: Set<UUID> = []
 
+    /// Draft-version id → id of the routine that version's lineage saved.
+    /// Seeded when a version is first saved and carried forward every time a
+    /// coach revision replaces the draft, so saving a later version updates
+    /// the same routine in place instead of appending a copy.
+    @State private var savedRoutineIDsByDraft: [UUID: UUID] = [:]
+
+    /// Draft versions that performed an in-place update (capsule reads
+    /// "Updated" instead of "Saved").
+    @State private var updatedDraftIDs: Set<UUID> = []
+
+    @EnvironmentObject private var store: WorkoutStore
     @StateObject private var exerciseStore = ExerciseStore()
+
+    private struct SaveNotice: Equatable {
+        var title: String
+        var text: String
+    }
 
     private let coachService = CoachChatService()
 
@@ -55,10 +71,10 @@ struct CoachView: View {
                                 )
                             }
 
-                            if let savedMessage {
+                            if let saveNotice {
                                 inlineStatusRow(
-                                    title: "Saved to routines",
-                                    text: savedMessage,
+                                    title: saveNotice.title,
+                                    text: saveNotice.text,
                                     tint: AppTheme.success
                                 )
                             }
@@ -328,7 +344,7 @@ struct CoachView: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(AppTheme.success)
 
-                        Text("Saved")
+                        Text(updatedDraftIDs.contains(draft.id) ? "Updated" : "Saved")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
@@ -341,7 +357,7 @@ struct CoachView: View {
                             .stroke(AppTheme.cardBorder, lineWidth: 1)
                     }
                 } else {
-                    Button("Save Routine") {
+                    Button(hasSavedLineage(draft) ? "Update Workout" : "Save Workout") {
                         saveDraft(draft)
                     }
                     .buttonStyle(SecondaryButtonStyle())
@@ -453,13 +469,55 @@ struct CoachView: View {
         }
     }
 
-    /// Saves a draft to the routine library exactly once. Marking the id saved
-    /// before writing makes the action idempotent even against re-entrant taps.
+    /// True when this draft version descends from a version that already saved
+    /// a routine and that routine still exists. Drives the "Update Workout"
+    /// button label; a deleted target falls back to a fresh save.
+    private func hasSavedLineage(_ draft: AIGeneratedRoutineDraft) -> Bool {
+        guard let lineageID = savedRoutineIDsByDraft[draft.id] else { return false }
+        return store.routine(withID: lineageID) != nil
+    }
+
+    /// Saves a draft to the routine library exactly once per draft version.
+    /// A version whose lineage already produced a routine updates that routine
+    /// in place; otherwise it appends a new one. Marking the id saved before
+    /// writing makes the action idempotent even against re-entrant taps.
     private func saveDraft(_ draft: AIGeneratedRoutineDraft) {
         guard savedDraftIDs.insert(draft.id).inserted else { return }
-        AIWorkoutRoutineSaver.save(draft)
-        withAnimation(.easeOut(duration: 0.18)) {
-            savedMessage = "\(draft.title) is now saved in your routines."
+
+        // Unmigrated screens still write the "routines" key directly (M1b),
+        // and persisting through a stale store would drop their changes —
+        // sync with UserDefaults before touching the library.
+        store.reload()
+
+        guard let routine = AIWorkoutRoutineSaver.makeRoutine(from: draft) else { return }
+
+        if let lineageID = savedRoutineIDsByDraft[draft.id],
+           let existing = store.routine(withID: lineageID) {
+            // Coach revision of an already-saved routine: same identity,
+            // updated content. Name history and adaptation state survive so
+            // session history and the progression loop stay attached.
+            var updated = Routine(
+                id: existing.id,
+                name: routine.name,
+                exercises: routine.exercises,
+                preferredSetCounts: routine.preferredSetCounts,
+                historyNames: existing.allKnownNames + [routine.name],
+                importContext: existing.importContext
+            )
+            updated.progression = existing.progression
+            store.upsertRoutine(updated)
+            updatedDraftIDs.insert(draft.id)
+            withAnimation(.easeOut(duration: 0.18)) {
+                saveNotice = SaveNotice(title: "Routine updated", text: "\(routine.name) now matches this draft.")
+            }
+        } else {
+            // First save of this lineage — or its routine was deleted, in
+            // which case we append fresh rather than resurrect the old id.
+            store.addRoutine(routine)
+            savedRoutineIDsByDraft[draft.id] = routine.id
+            withAnimation(.easeOut(duration: 0.18)) {
+                saveNotice = SaveNotice(title: "Saved to routines", text: "\(draft.title) is now saved in your routines.")
+            }
         }
     }
 
@@ -468,7 +526,7 @@ struct CoachView: View {
         guard trimmedMessage.count >= 4 else { return }
 
         errorMessage = nil
-        savedMessage = nil
+        saveNotice = nil
         isSending = true
         let userMessage = AIWorkoutConversationMessage.user(trimmedMessage)
         conversationMessages.append(userMessage)
@@ -484,6 +542,14 @@ struct CoachView: View {
                 )
 
                 if result.action.changedDraft {
+                    // Carry the lineage forward: the new draft version keeps
+                    // pointing at whatever routine its ancestor saved, so a
+                    // later save updates that routine instead of appending.
+                    if let newDraft = result.routine,
+                       let previousDraftID = currentDraft?.id,
+                       let lineageRoutineID = savedRoutineIDsByDraft[previousDraftID] {
+                        savedRoutineIDsByDraft[newDraft.id] = lineageRoutineID
+                    }
                     currentDraft = result.routine
                 }
                 latestChangeSummary = result.changeSummary
