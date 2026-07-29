@@ -336,7 +336,7 @@ struct ExerciseSwapSheet: View {
                 }
             }
 
-            TextField("Example: machine taken, dumbbell version, easier on shoulders", text: $reason, axis: .vertical)
+            TrackerTextField("Example: machine taken, dumbbell version, easier on shoulders", text: $reason, axis: .vertical)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .lineLimit(2...4)
 

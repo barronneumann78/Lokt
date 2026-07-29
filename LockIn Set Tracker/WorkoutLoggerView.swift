@@ -436,7 +436,7 @@ struct WorkoutLoggerView: View {
 
             if isActive {
                 HStack(spacing: 10) {
-                    TextField(
+                    TrackerTextField(
                         "Quick log: 135 x 8 · drop to 120",
                         text: quickLogBinding(for: exercise, set: set)
                     )
@@ -469,7 +469,7 @@ struct WorkoutLoggerView: View {
     }
 
     private func setField(text: Binding<String>, keyboard: UIKeyboardType, isActive: Bool) -> some View {
-        TextField("0", text: text)
+        TrackerTextField("0", text: text)
             .keyboardType(keyboard)
             .font(.system(size: 20, weight: .semibold))
             .monospacedDigit()

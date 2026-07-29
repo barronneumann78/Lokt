@@ -318,7 +318,7 @@ struct ExerciseDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                TextField("Ask your own question about this exercise", text: $coachQuestion)
+                TrackerTextField("Ask your own question about this exercise", text: $coachQuestion)
                     .textFieldStyle(TrackerTextFieldStyle())
 
                 Button(isRequestingCoach ? "Thinking..." : "Ask Lokt") {

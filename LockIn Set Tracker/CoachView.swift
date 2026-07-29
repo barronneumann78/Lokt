@@ -172,7 +172,7 @@ struct CoachView: View {
                 }
                 .buttonStyle(.plain)
 
-                TextField("Ask anything", text: $messageText, axis: .vertical)
+                TrackerTextField("Ask anything", text: $messageText, axis: .vertical)
                     .foregroundStyle(AppTheme.textPrimary)
                     .tint(AppTheme.primary)
                     .lineLimit(1...5)

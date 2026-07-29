@@ -178,6 +178,34 @@ struct TertiaryButtonStyle: ButtonStyle {
     }
 }
 
+/// Drop-in `TextField` replacement whose placeholder renders in
+/// `AppTheme.textSecondary`. The system placeholder color is nearly invisible
+/// on the app's dark field fills; user-entered text stays `textPrimary` via
+/// `TrackerTextFieldStyle` / the UIKit appearance proxies.
+struct TrackerTextField: View {
+    private let title: String
+    private let text: Binding<String>
+    private let axis: Axis?
+
+    init(_ title: String, text: Binding<String>, axis: Axis? = nil) {
+        self.title = title
+        self.text = text
+        self.axis = axis
+    }
+
+    var body: some View {
+        if let axis {
+            TextField(title, text: text, prompt: prompt, axis: axis)
+        } else {
+            TextField(title, text: text, prompt: prompt)
+        }
+    }
+
+    private var prompt: Text {
+        Text(title).foregroundStyle(AppTheme.textSecondary)
+    }
+}
+
 struct TrackerTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<_Label>) -> some View {
         configuration

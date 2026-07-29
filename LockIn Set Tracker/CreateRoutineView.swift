@@ -185,7 +185,7 @@ struct CreateRoutineView: View {
                 Text("ROUTINE NAME")
                     .microLabel()
 
-                TextField("Push Day, Pull Day, Legs...", text: $routineName)
+                TrackerTextField("Push Day, Pull Day, Legs...", text: $routineName)
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 

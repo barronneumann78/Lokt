@@ -212,7 +212,7 @@ struct SupplementaryWorkoutGeneratorView: View {
                 Text("BLOCK TITLE")
                     .microLabel()
 
-                TextField("Block title", text: titleBinding)
+                TrackerTextField("Block title", text: titleBinding)
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 
@@ -283,7 +283,7 @@ struct SupplementaryWorkoutGeneratorView: View {
                 Text("EXERCISE NAME")
                     .microLabel()
 
-                TextField("Exercise name", text: nameBinding(for: index))
+                TrackerTextField("Exercise name", text: nameBinding(for: index))
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 
@@ -303,7 +303,7 @@ struct SupplementaryWorkoutGeneratorView: View {
                     Text("REPS / TIME")
                         .microLabel()
 
-                    TextField("Reps or time", text: repsBinding(for: index))
+                    TrackerTextField("Reps or time", text: repsBinding(for: index))
                         .textFieldStyle(TrackerTextFieldStyle())
                 }
             }

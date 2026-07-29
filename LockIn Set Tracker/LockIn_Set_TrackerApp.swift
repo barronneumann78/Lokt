@@ -65,6 +65,10 @@ struct LockInSetTrackerApp: App {
                 }
             }
             .environmentObject(store)
+            // The app is fully dark-themed; declare it so system-managed
+            // chrome (search-field placeholders, keyboard, alerts) uses
+            // legible dark-mode colors instead of light-mode grays.
+            .preferredColorScheme(.dark)
         }
     }
 }

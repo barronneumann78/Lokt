@@ -61,7 +61,7 @@ struct SettingsView: View {
             Text("AI BACKEND")
                 .microLabel()
 
-            TextField("Backend URL", text: $aiBackendBaseURL)
+            TrackerTextField("Backend URL", text: $aiBackendBaseURL)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
@@ -267,7 +267,7 @@ struct SettingsView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.textSecondary)
 
-            TextField(placeholder, text: text)
+            TrackerTextField(placeholder, text: text)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .keyboardType(keyboardType)
         }

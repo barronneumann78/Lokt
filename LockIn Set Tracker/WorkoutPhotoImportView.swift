@@ -290,7 +290,7 @@ struct WorkoutPhotoImportView: View {
                 coachChangeCard(summary: latestCoachChangeSummary)
             }
 
-            TextField("Try: replace barbell work with easier machine exercises", text: $revisionPrompt, axis: .vertical)
+            TrackerTextField("Try: replace barbell work with easier machine exercises", text: $revisionPrompt, axis: .vertical)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .lineLimit(2...4)
 
@@ -334,7 +334,7 @@ struct WorkoutPhotoImportView: View {
 
     private func reviewDayCard(dayIndex: Int) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            TextField("Day Name", text: dayNameBinding(for: dayIndex))
+            TrackerTextField("Day Name", text: dayNameBinding(for: dayIndex))
                 .textFieldStyle(TrackerTextFieldStyle())
 
             if let notes = importedWorkout?.days[dayIndex].notes, !notes.isEmpty {
@@ -926,7 +926,7 @@ private struct ImportedExerciseEditorSheet: View {
                 .microLabel()
 
             if draft.isCustomExercise {
-                TextField("Custom exercise name", text: $customName)
+                TrackerTextField("Custom exercise name", text: $customName)
                     .textFieldStyle(TrackerTextFieldStyle())
             } else {
                 Text(selectedExerciseName)
@@ -939,7 +939,7 @@ private struct ImportedExerciseEditorSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
-            TextField("Search existing exercises to swap", text: $searchText)
+            TrackerTextField("Search existing exercises to swap", text: $searchText)
                 .textFieldStyle(TrackerTextFieldStyle())
 
             LazyVStack(spacing: 10) {
@@ -981,23 +981,23 @@ private struct ImportedExerciseEditorSheet: View {
                 .microLabel()
 
             HStack(spacing: 12) {
-                TextField("Sets", text: $setCountText)
+                TrackerTextField("Sets", text: $setCountText)
                     .keyboardType(.numberPad)
                     .textFieldStyle(TrackerTextFieldStyle())
 
-                TextField("Reps", text: $repText)
+                TrackerTextField("Reps", text: $repText)
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 
-            TextField("Rest (seconds)", text: $restText)
+            TrackerTextField("Rest (seconds)", text: $restText)
                 .keyboardType(.numberPad)
                 .textFieldStyle(TrackerTextFieldStyle())
 
-            TextField("Notes", text: $notesText, axis: .vertical)
+            TrackerTextField("Notes", text: $notesText, axis: .vertical)
                 .lineLimit(2...4)
                 .textFieldStyle(TrackerTextFieldStyle())
 
-            TextField("Intensity notes (comma separated)", text: $intensityText, axis: .vertical)
+            TrackerTextField("Intensity notes (comma separated)", text: $intensityText, axis: .vertical)
                 .lineLimit(1...3)
                 .textFieldStyle(TrackerTextFieldStyle())
         }

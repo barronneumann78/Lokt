@@ -193,7 +193,7 @@ struct AIWorkoutGeneratorView: View {
                 Text("ROUTINE TITLE")
                     .microLabel()
 
-                TextField("Workout Title", text: titleBinding)
+                TrackerTextField("Workout Title", text: titleBinding)
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 
@@ -255,7 +255,7 @@ struct AIWorkoutGeneratorView: View {
                 coachChangeCard(summary: latestCoachChangeSummary)
             }
 
-            TextField("Try: swap barbell squat for something easier on my knees", text: $revisionPrompt, axis: .vertical)
+            TrackerTextField("Try: swap barbell squat for something easier on my knees", text: $revisionPrompt, axis: .vertical)
                 .textFieldStyle(TrackerTextFieldStyle())
                 .lineLimit(2...4)
 
@@ -310,7 +310,7 @@ struct AIWorkoutGeneratorView: View {
                 Text("EXERCISE NAME")
                     .microLabel()
 
-                TextField("Exercise name", text: nameBinding(for: index))
+                TrackerTextField("Exercise name", text: nameBinding(for: index))
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 
@@ -330,7 +330,7 @@ struct AIWorkoutGeneratorView: View {
                     Text("REPS")
                         .microLabel()
 
-                    TextField("Reps", text: repsBinding(for: index))
+                    TrackerTextField("Reps", text: repsBinding(for: index))
                         .textFieldStyle(TrackerTextFieldStyle())
                 }
             }
@@ -339,7 +339,7 @@ struct AIWorkoutGeneratorView: View {
                 Text("NOTE")
                     .microLabel()
 
-                TextField("Optional note", text: notesBinding(for: index), axis: .vertical)
+                TrackerTextField("Optional note", text: notesBinding(for: index), axis: .vertical)
                     .textFieldStyle(TrackerTextFieldStyle())
                     .lineLimit(1...3)
             }
