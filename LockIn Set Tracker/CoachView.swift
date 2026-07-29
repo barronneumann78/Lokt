@@ -11,6 +11,12 @@ struct CoachView: View {
     @State private var errorMessage: String?
     @State private var savedMessage: String?
 
+    /// IDs of drafts already saved to the routine library this session. Drafts
+    /// live only in memory (they die with the conversation), so this set shares
+    /// their lifetime. A coach edit produces a new draft with a new id, which
+    /// re-arms the save button for that new version.
+    @State private var savedDraftIDs: Set<UUID> = []
+
     @StateObject private var exerciseStore = ExerciseStore()
 
     private let coachService = CoachChatService()
@@ -316,11 +322,30 @@ struct CoachView: View {
 
                 Spacer()
 
-                Button("Save Routine") {
-                    AIWorkoutRoutineSaver.save(draft)
-                    savedMessage = "\(draft.title) is now saved in your routines."
+                if savedDraftIDs.contains(draft.id) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(AppTheme.success)
+
+                        Text("Saved")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(AppTheme.mutedFill)
+                    .clipShape(Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+                } else {
+                    Button("Save Routine") {
+                        saveDraft(draft)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
                 }
-                .buttonStyle(SecondaryButtonStyle())
             }
 
             if let latestChangeSummary = nonEmptyText(latestChangeSummary) {
@@ -425,6 +450,16 @@ struct CoachView: View {
                 "Should I lower the weight for the next set?",
                 "Give me a quicker finisher after this"
             ]
+        }
+    }
+
+    /// Saves a draft to the routine library exactly once. Marking the id saved
+    /// before writing makes the action idempotent even against re-entrant taps.
+    private func saveDraft(_ draft: AIGeneratedRoutineDraft) {
+        guard savedDraftIDs.insert(draft.id).inserted else { return }
+        AIWorkoutRoutineSaver.save(draft)
+        withAnimation(.easeOut(duration: 0.18)) {
+            savedMessage = "\(draft.title) is now saved in your routines."
         }
     }
 
