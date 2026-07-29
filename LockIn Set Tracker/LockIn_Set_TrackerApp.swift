@@ -6,51 +6,13 @@ struct LockInSetTrackerApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     // Single source of truth for routines + sessions (build plan M1).
     @StateObject private var store = WorkoutStore()
+    // Accent scheme owner. The token cache self-seeds from the stored scheme
+    // on first read (so `AppChrome.apply()` below already captures the right
+    // accent); the store handles changes at runtime.
+    @StateObject private var themeStore = ThemeStore()
 
     init() {
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(AppTheme.backgroundTop)
-        appearance.shadowColor = .clear
-        appearance.titleTextAttributes = [.foregroundColor: UIColor(AppTheme.textPrimary)]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(AppTheme.textPrimary)]
-
-        let navigationBar = UINavigationBar.appearance()
-        navigationBar.standardAppearance = appearance
-        navigationBar.scrollEdgeAppearance = appearance
-        navigationBar.compactAppearance = appearance
-        navigationBar.compactScrollEdgeAppearance = appearance
-        navigationBar.tintColor = UIColor(AppTheme.textPrimary)
-
-        let tabBarAppearance = UITabBarAppearance()
-        tabBarAppearance.configureWithOpaqueBackground()
-        tabBarAppearance.backgroundColor = UIColor(AppTheme.backgroundTop)
-        tabBarAppearance.shadowColor = UIColor(AppTheme.cardBorder)
-
-        let normalColor = UIColor(AppTheme.textSecondary)
-        let selectedColor = UIColor(AppTheme.primary)
-
-        [tabBarAppearance.stackedLayoutAppearance,
-         tabBarAppearance.inlineLayoutAppearance,
-         tabBarAppearance.compactInlineLayoutAppearance].forEach { itemAppearance in
-            itemAppearance.normal.iconColor = normalColor
-            itemAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
-            itemAppearance.selected.iconColor = selectedColor
-            itemAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
-        }
-
-        let tabBar = UITabBar.appearance()
-        tabBar.standardAppearance = tabBarAppearance
-        tabBar.scrollEdgeAppearance = tabBarAppearance
-        tabBar.tintColor = selectedColor
-        tabBar.unselectedItemTintColor = normalColor
-
-        UITextField.appearance().textColor = UIColor(AppTheme.textPrimary)
-        UITextField.appearance().tintColor = UIColor(AppTheme.primary)
-        UITextView.appearance().textColor = UIColor(AppTheme.textPrimary)
-        UITextView.appearance().tintColor = UIColor(AppTheme.primary)
-        UITextView.appearance().backgroundColor = .clear
-        UIStepper.appearance().tintColor = UIColor(AppTheme.textPrimary)
+        AppChrome.apply()
     }
 
     var body: some Scene {
@@ -65,6 +27,7 @@ struct LockInSetTrackerApp: App {
                 }
             }
             .environmentObject(store)
+            .environmentObject(themeStore)
             // The app is fully dark-themed; declare it so system-managed
             // chrome (search-field placeholders, keyboard, alerts) uses
             // legible dark-mode colors instead of light-mode grays.

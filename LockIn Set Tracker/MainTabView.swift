@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @StateObject private var coachRouter = CoachRouter()
+    @EnvironmentObject private var theme: ThemeStore
 
     var body: some View {
         TabView(selection: $coachRouter.selectedTab) {
@@ -26,5 +27,10 @@ struct MainTabView: View {
         }
         .tint(AppTheme.primary)
         .environmentObject(coachRouter)
+        // Accent-scheme commit boundary: bumping `rootEpoch` rebuilds every
+        // tab with the new accent (and fresh UIKit bars). `coachRouter` lives
+        // above this id, so the selected tab survives the rebuild; the tabs'
+        // navigation stacks reset to their roots.
+        .id(theme.rootEpoch)
     }
 }
