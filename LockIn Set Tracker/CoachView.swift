@@ -11,6 +11,39 @@ struct CoachView: View {
     @State private var errorMessage: String?
     @State private var saveNotice: SaveNotice?
 
+    /// Live frame of the composer text field in chat space — the launch pad
+    /// for the send morph.
+    @State private var composerFieldFrame: CGRect = .zero
+
+    /// In-flight send morphs. While a message id is here, its real bubble in
+    /// the conversation renders invisible and a floating overlay bubble flies
+    /// from the composer to the bubble's live frame; on spring settle the
+    /// overlay is removed and the real bubble takes over in the same frame.
+    @State private var sendMorphs: [SendMorph] = []
+
+    /// iMessage-style three-dot bubble shown while the coach is "typing".
+    /// Appears slightly after the send morph so the landing slot stays stable
+    /// during the flight.
+    @State private var showTypingIndicator = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// One spring family for every chat motion — the send morph, the scroll
+    /// ride-up, and the incoming pop — so the whole exchange feels like a
+    /// single piece of physics.
+    private static let sendSpring = Animation.spring(response: 0.40, dampingFraction: 0.78)
+    private static let replySpring = Animation.spring(response: 0.42, dampingFraction: 0.80)
+    private static let chatSpaceName = "coachChatSpace"
+
+    private struct SendMorph: Identifiable, Equatable {
+        let id: UUID
+        let text: String
+        let start: CGRect
+        var dest: CGRect
+        var progress: CGFloat = 0
+        var launched = false
+    }
+
     /// IDs of drafts already saved to the routine library this session. Drafts
     /// live only in memory (they die with the conversation), so this set shares
     /// their lifetime. A coach edit produces a new draft with a new id, which
@@ -58,7 +91,7 @@ struct CoachView: View {
 
                 ScrollViewReader { proxy in
                     ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 22) {
+                        VStack(alignment: .leading, spacing: 16) {
                             if let contextBannerText {
                                 contextBanner(text: contextBannerText)
                             }
@@ -84,9 +117,19 @@ struct CoachView: View {
                                     .id(message.id)
                             }
 
+                            if showTypingIndicator {
+                                HStack {
+                                    TypingIndicatorBubble()
+                                    Spacer(minLength: 56)
+                                }
+                                .id("typing-indicator")
+                                .transition(incomingTransition)
+                            }
+
                             if let currentDraft {
                                 draftCard(for: currentDraft)
                                     .id("coach-draft-card")
+                                    .transition(incomingTransition)
                             }
 
                             if currentDraft == nil {
@@ -99,20 +142,21 @@ struct CoachView: View {
                         }
                         .padding(.horizontal, 28)
                         .padding(.top, 18)
-                        .padding(.bottom, 140)
+                        .padding(.bottom, 12)
                     }
                     .onAppear {
                         proxy.scrollTo("chat-bottom", anchor: .bottom)
                     }
                     .onChange(of: conversationMessages) { _, _ in
-                        withAnimation(.easeOut(duration: 0.22)) {
-                            proxy.scrollTo("chat-bottom", anchor: .bottom)
+                        scrollToBottom(proxy)
+                    }
+                    .onChange(of: showTypingIndicator) { _, shown in
+                        if shown {
+                            scrollToBottom(proxy)
                         }
                     }
                     .onChange(of: currentDraft?.id) { _, _ in
-                        withAnimation(.easeOut(duration: 0.22)) {
-                            proxy.scrollTo("chat-bottom", anchor: .bottom)
-                        }
+                        scrollToBottom(proxy)
                     }
                 }
             }
@@ -120,6 +164,55 @@ struct CoachView: View {
         .safeAreaInset(edge: .bottom) {
             composerBar
         }
+        .overlay {
+            sendMorphLayer
+        }
+        .coordinateSpace(name: Self.chatSpaceName)
+    }
+
+    /// The conversation rides up on the same spring the send morph flies on,
+    /// so the new bubble and the content shift read as one motion.
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        if reduceMotion {
+            proxy.scrollTo("chat-bottom", anchor: .bottom)
+        } else {
+            withAnimation(Self.sendSpring) {
+                proxy.scrollTo("chat-bottom", anchor: .bottom)
+            }
+        }
+    }
+
+    /// Incoming coach content pops from the bottom-leading corner — scale up
+    /// with a slight rise, springed. Reduce Motion gets a plain fade.
+    private var incomingTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .scale(scale: 0.86, anchor: .bottomLeading)
+            .combined(with: .offset(y: 8))
+            .combined(with: .opacity)
+    }
+
+    /// Floating layer that carries in-flight send bubbles from the composer
+    /// to their slot in the conversation. Drawn above the composer so the
+    /// bubble visibly lifts out of the input field.
+    private var sendMorphLayer: some View {
+        GeometryReader { geo in
+            let layerOrigin = geo.frame(in: .named(Self.chatSpaceName)).origin
+
+            ZStack(alignment: .topLeading) {
+                ForEach(sendMorphs) { morph in
+                    Color.clear
+                        .modifier(SendMorphRender(
+                            progress: morph.progress,
+                            start: morph.start.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y),
+                            dest: morph.dest.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y),
+                            text: morph.text
+                        ))
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private var topBar: some View {
@@ -198,22 +291,24 @@ struct CoachView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .tint(AppTheme.primary)
                     .lineLimit(1...5)
-
-                if isSending {
-                    ProgressView()
-                        .tint(AppTheme.textPrimary)
-                        .frame(width: 32, height: 32)
-                } else {
-                    Button {
-                        sendMessage()
-                    } label: {
-                        Image(systemName: currentDraft == nil ? "arrow.up.circle.fill" : "waveform.circle.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4 ? AppTheme.primary : AppTheme.textSecondary.opacity(0.55))
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(Self.chatSpaceName))
+                    } action: { frame in
+                        composerFieldFrame = frame
                     }
-                    .buttonStyle(.plain)
-                    .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).count < 4)
+
+                // The button stays put while sending (dimmed, disabled) —
+                // the in-conversation typing indicator carries the "coach is
+                // thinking" signal, iMessage-style, instead of a spinner.
+                Button {
+                    sendMessage()
+                } label: {
+                    Image(systemName: currentDraft == nil ? "arrow.up.circle.fill" : "waveform.circle.fill")
+                        .font(.system(size: 34))
+                        .foregroundStyle(sendButtonColor)
                 }
+                .buttonStyle(.plain)
+                .disabled(isSending || messageText.trimmingCharacters(in: .whitespacesAndNewlines).count < 4)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
@@ -236,6 +331,15 @@ struct CoachView: View {
             AppTheme.backgroundTop
                 .ignoresSafeArea()
         )
+    }
+
+    private var sendButtonColor: Color {
+        if isSending {
+            return AppTheme.textSecondary.opacity(0.35)
+        }
+        return messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4
+            ? AppTheme.primary
+            : AppTheme.textSecondary.opacity(0.55)
     }
 
     private func contextBanner(text: String) -> some View {
@@ -274,37 +378,50 @@ struct CoachView: View {
         }
     }
 
+    @ViewBuilder
     private func conversationMessageView(_ message: AIWorkoutConversationMessage) -> some View {
-        let isUser = message.role == .user
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 56)
 
-        return VStack(alignment: .leading, spacing: 8) {
-            if isUser {
-                HStack {
-                    Spacer(minLength: 42)
-
-                    Text(message.text)
-                        .font(.title3.weight(.medium))
-                        .italic()
-                        .foregroundStyle(AppTheme.textPrimary.opacity(0.85))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 16)
-                        .background(AppTheme.surfaceElevated)
-                        .clipShape(Capsule())
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(message.text)
-                        .font(.system(size: 18, weight: .regular, design: .default))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineSpacing(5)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if message.id == conversationMessages.last?.id {
-                        assistantActionRow
+                Text(message.text)
+                    .font(ChatBubble.font)
+                    .foregroundStyle(AppTheme.backgroundTop)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, ChatBubble.hPad)
+                    .padding(.vertical, ChatBubble.vPad)
+                    .background(ChatBubble.userShape.fill(AppTheme.accent))
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(Self.chatSpaceName))
+                    } action: { frame in
+                        updateMorphDestination(messageID: message.id, frame: frame)
                     }
-                }
-                .frame(maxWidth: 920, alignment: .leading)
             }
+            // While the overlay bubble is in flight, the real bubble stays
+            // invisible but keeps its layout — it is the morph's live target.
+            .opacity(sendMorphs.contains { $0.id == message.id } ? 0 : 1)
+            .transition(.opacity)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(message.text)
+                        .font(ChatBubble.font)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, ChatBubble.hPad)
+                        .padding(.vertical, ChatBubble.vPad)
+                        .background(ChatBubble.coachShape.fill(AppTheme.surfaceElevated))
+
+                    Spacer(minLength: 56)
+                }
+
+                if message.id == conversationMessages.last?.id {
+                    assistantActionRow
+                        .padding(.leading, 4)
+                }
+            }
+            .transition(incomingTransition)
         }
     }
 
@@ -536,7 +653,42 @@ struct CoachView: View {
         saveNotice = nil
         isSending = true
         let userMessage = AIWorkoutConversationMessage.user(trimmedMessage)
-        conversationMessages.append(userMessage)
+
+        // Capture the composer's live frame before clearing it — a multiline
+        // draft shrinks the field the moment the text goes away.
+        let fieldFrame = composerFieldFrame
+
+        var instant = Transaction()
+        instant.disablesAnimations = true
+
+        if reduceMotion || fieldFrame == .zero {
+            // Reduce Motion (or no measured composer yet): clear instantly,
+            // fade the bubble in where it belongs. No flight.
+            withTransaction(instant) {
+                messageText = ""
+            }
+            withAnimation(.easeOut(duration: 0.2)) {
+                conversationMessages.append(userMessage)
+            }
+        } else {
+            // The typed text detaches from the composer: bubble padding grows
+            // around the exact spot the text sat in the field, so glyphs never
+            // jump at liftoff. The real bubble is appended hidden in the same
+            // update; its first measured frame launches the flight.
+            let startRect = fieldFrame.insetBy(dx: -ChatBubble.hPad, dy: -ChatBubble.vPad)
+            withTransaction(instant) {
+                messageText = ""
+                sendMorphs.append(SendMorph(
+                    id: userMessage.id,
+                    text: userMessage.text,
+                    start: startRect,
+                    dest: startRect
+                ))
+                conversationMessages.append(userMessage)
+            }
+        }
+
+        scheduleTypingIndicator()
 
         Task { @MainActor in
             do {
@@ -548,28 +700,86 @@ struct CoachView: View {
                     conversation: conversationMessages
                 )
 
-                if result.action.changedDraft {
-                    // Carry the lineage forward: the new draft version keeps
-                    // pointing at whatever routine its ancestor saved, so a
-                    // later save updates that routine instead of appending.
-                    if let newDraft = result.routine,
-                       let previousDraftID = currentDraft?.id,
-                       let lineageRoutineID = savedRoutineIDsByDraft[previousDraftID] {
-                        savedRoutineIDsByDraft[newDraft.id] = lineageRoutineID
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.replySpring) {
+                    showTypingIndicator = false
+
+                    if result.action.changedDraft {
+                        // Carry the lineage forward: the new draft version keeps
+                        // pointing at whatever routine its ancestor saved, so a
+                        // later save updates that routine instead of appending.
+                        if let newDraft = result.routine,
+                           let previousDraftID = currentDraft?.id,
+                           let lineageRoutineID = savedRoutineIDsByDraft[previousDraftID] {
+                            savedRoutineIDsByDraft[newDraft.id] = lineageRoutineID
+                        }
+                        currentDraft = result.routine
                     }
-                    currentDraft = result.routine
+                    latestChangeSummary = result.changeSummary
+                    conversationMessages.append(.assistant(result.assistantReply))
                 }
-                latestChangeSummary = result.changeSummary
-                conversationMessages.append(.assistant(result.assistantReply))
-                messageText = ""
             } catch {
-                if conversationMessages.last == userMessage {
-                    conversationMessages.removeLast()
+                withTransaction(instant) {
+                    sendMorphs.removeAll { $0.id == userMessage.id }
+                }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showTypingIndicator = false
+                    if conversationMessages.last == userMessage {
+                        conversationMessages.removeLast()
+                    }
+                }
+                // Put the failed message back so nothing typed is lost — but
+                // never clobber text the user has started typing since.
+                if messageText.isEmpty {
+                    messageText = trimmedMessage
                 }
                 errorMessage = error.localizedDescription
             }
 
             isSending = false
+        }
+    }
+
+    /// Shows the three-dot bubble only if the coach is still thinking once the
+    /// send morph has mostly landed, so the flight's target slot stays put.
+    private func scheduleTypingIndicator() {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard isSending, !showTypingIndicator else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.replySpring) {
+                showTypingIndicator = true
+            }
+        }
+    }
+
+    /// Called from the hidden real bubble's geometry observer. The first
+    /// measurement launches the flight; every later one retargets it, so the
+    /// overlay chases the bubble while the scroll spring settles.
+    private func updateMorphDestination(messageID: UUID, frame: CGRect) {
+        guard let index = sendMorphs.firstIndex(where: { $0.id == messageID }) else { return }
+        guard sendMorphs[index].dest != frame || !sendMorphs[index].launched else { return }
+
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            sendMorphs[index].dest = frame
+        }
+
+        guard !sendMorphs[index].launched else { return }
+        sendMorphs[index].launched = true
+
+        withAnimation(Self.sendSpring, completionCriteria: .removed) {
+            sendMorphs[index].progress = 1
+        } completion: {
+            finishMorph(messageID)
+        }
+    }
+
+    /// Swaps the settled overlay for the real bubble in a single frame.
+    private func finishMorph(_ messageID: UUID) {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            sendMorphs.removeAll { $0.id == messageID }
         }
     }
 
@@ -591,5 +801,137 @@ struct CoachView: View {
     private func nonEmptyText(_ value: String?) -> String? {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+/// Shared geometry for chat bubbles — the real bubbles and the in-flight
+/// morph render must agree on every one of these so the settle is seamless.
+private enum ChatBubble {
+    static let radius: CGFloat = 18
+    static let tailRadius: CGFloat = 6
+    static let hPad: CGFloat = 14
+    static let vPad: CGFloat = 9
+    static let font = Font.system(size: 17)
+
+    /// Sent bubble: tight bottom-trailing corner, iMessage tail feel.
+    static var userShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: radius,
+            bottomLeadingRadius: radius,
+            bottomTrailingRadius: tailRadius,
+            topTrailingRadius: radius,
+            style: .continuous
+        )
+    }
+
+    /// Received bubble: tight bottom-leading corner.
+    static var coachShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: radius,
+            bottomLeadingRadius: tailRadius,
+            bottomTrailingRadius: radius,
+            topTrailingRadius: radius,
+            style: .continuous
+        )
+    }
+}
+
+/// Draws one in-flight sent bubble. `progress` is the animatable scalar the
+/// send spring drives; `start`/`dest` are plain values, so retargeting the
+/// destination mid-flight (the conversation is still riding the scroll
+/// spring) updates the path without restarting the animation. Position runs
+/// on unclamped progress — the spring's overshoot carries the bubble past its
+/// slot and back — while size and corner radii settle at 1 so text never
+/// re-wraps during the overshoot.
+private struct SendMorphRender: ViewModifier, Animatable {
+    var progress: CGFloat
+    var start: CGRect
+    var dest: CGRect
+    var text: String
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let posT = max(progress, 0)
+        let sizeT = min(posT, 1)
+
+        let width = max(lerp(start.width, dest.width, sizeT), 1)
+        let height = max(lerp(start.height, dest.height, sizeT), 1)
+        let minX = lerp(start.minX, dest.minX, posT)
+        let minY = lerp(start.minY, dest.minY, posT)
+
+        // The composer capsule's rounding relaxes into the bubble's corners;
+        // the bottom-trailing corner tightens into the tail.
+        let startRadius = min(start.height / 2, 26)
+        let radius = lerp(startRadius, ChatBubble.radius, sizeT)
+        let tail = lerp(startRadius, ChatBubble.tailRadius, sizeT)
+
+        // Color commits early — by half the flight the bubble reads as sent.
+        let colorT = min(posT / 0.5, 1)
+        let fill = AppTheme.surfaceElevated.mix(with: AppTheme.accent, by: colorT)
+        let textColor = AppTheme.textPrimary.mix(with: AppTheme.backgroundTop, by: colorT)
+
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radius,
+            bottomLeadingRadius: radius,
+            bottomTrailingRadius: tail,
+            topTrailingRadius: radius,
+            style: .continuous
+        )
+
+        ZStack(alignment: .topLeading) {
+            shape.fill(fill)
+
+            Text(text)
+                .font(ChatBubble.font)
+                .foregroundStyle(textColor)
+                .padding(.horizontal, ChatBubble.hPad)
+                .padding(.vertical, ChatBubble.vPad)
+                .frame(width: width, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(width: width, height: height, alignment: .topLeading)
+        .clipShape(shape)
+        .position(x: minX + width / 2, y: minY + height / 2)
+    }
+
+    private func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat {
+        a + (b - a) * t
+    }
+}
+
+/// iMessage-style "coach is typing" bubble: three dots pulsing in a wave.
+/// Reduce Motion shows the dots statically.
+private struct TypingIndicatorBubble: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3) { index in
+                Circle()
+                    .fill(AppTheme.textSecondary)
+                    .frame(width: 8, height: 8)
+                    .opacity(pulsing ? 1 : 0.35)
+                    .scaleEffect(pulsing ? 1 : 0.82)
+                    .animation(
+                        reduceMotion
+                            ? nil
+                            : .easeInOut(duration: 0.45)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.15),
+                        value: pulsing
+                    )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(ChatBubble.coachShape.fill(AppTheme.surfaceElevated))
+        .onAppear {
+            pulsing = true
+        }
     }
 }
