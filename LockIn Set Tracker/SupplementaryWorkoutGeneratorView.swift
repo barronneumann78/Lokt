@@ -208,39 +208,14 @@ struct SupplementaryWorkoutGeneratorView: View {
                 }
             }
 
+            RoutinePlainExplanationSection(draft: generatedBlock)
+
             VStack(alignment: .leading, spacing: 10) {
                 Text("BLOCK TITLE")
                     .microLabel()
 
                 TrackerTextField("Block title", text: titleBinding)
                     .textFieldStyle(TrackerTextFieldStyle())
-            }
-
-            if !generatedBlock.summary.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("SUMMARY")
-                        .microLabel()
-
-                    Text(generatedBlock.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textPrimary)
-                }
-                .padding(16)
-                .surfaceCard()
-            }
-
-            if !generatedBlock.rationale.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("WHY THIS FITS")
-                        .microLabel()
-
-                    Text(generatedBlock.rationale)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(16)
-                .surfaceCard()
             }
         }
         .padding(20)
@@ -277,6 +252,14 @@ struct SupplementaryWorkoutGeneratorView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+
+            if let reasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !reasoning.isEmpty {
+                Text(reasoning)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 8) {

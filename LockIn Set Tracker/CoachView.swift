@@ -392,6 +392,13 @@ struct CoachView: View {
                                 .font(.caption)
                                 .monospacedDigit()
                                 .foregroundStyle(AppTheme.textSecondary)
+
+                            if let reasoning = nonEmptyText(item.element.reasoning) {
+                                Text(reasoning)
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textTertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                 }

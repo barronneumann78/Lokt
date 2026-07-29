@@ -189,6 +189,8 @@ struct AIWorkoutGeneratorView: View {
 
             reviewSummaryBanner(for: generatedRoutine)
 
+            RoutinePlainExplanationSection(draft: generatedRoutine)
+
             VStack(alignment: .leading, spacing: 10) {
                 Text("ROUTINE TITLE")
                     .microLabel()
@@ -201,22 +203,6 @@ struct AIWorkoutGeneratorView: View {
                 statPill(title: "\(generatedRoutine.exercises.count)", subtitle: "Exercises")
                 statPill(title: "\(generatedRoutine.totalSets)", subtitle: "Sets")
                 statPill(title: "\(matchedLibraryExerciseCount(for: generatedRoutine))", subtitle: "Known")
-            }
-
-            if !generatedRoutine.routineNotes.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("ROUTINE NOTES")
-                        .microLabel()
-
-                    ForEach(generatedRoutine.routineNotes, id: \.self) { note in
-                        Text(note)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-                    }
-                }
             }
         }
         .padding(20)
@@ -304,6 +290,13 @@ struct AIWorkoutGeneratorView: View {
 
             if matchedExercise == nil {
                 aiStatusChip(title: "Check Name", color: AppTheme.secondary)
+            }
+
+            if let reasoning = nonEmptyText(exercise.reasoning) {
+                Text(reasoning)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 8) {

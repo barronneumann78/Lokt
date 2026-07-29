@@ -66,6 +66,9 @@ struct AIGeneratedExercise: Identifiable, Hashable, Codable {
     var sets: Int
     var reps: String
     var notes: String?
+    /// One short AI sentence on why this exercise is in the plan. Optional so
+    /// photo/voice-import drafts and older cached payloads still decode.
+    var reasoning: String?
 }
 
 struct AIGeneratedRoutineDraft: Identifiable, Hashable, Codable {
@@ -96,9 +99,35 @@ struct AIWorkoutExercisePayload: Codable {
     var sets: Int
     var reps: String
     var notes: String
+    /// Optional so responses from older backends (or cached payloads) decode.
+    var reasoning: String?
 }
 
 extension AIGeneratedRoutineDraft {
+    /// 1–2 sentence overview for the review header: the backend-constrained
+    /// summary when present, otherwise the first two sentences of the rationale.
+    var briefOverview: String? {
+        let source = [summary, rationale]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+
+        guard let source else { return nil }
+
+        var sentences: [String] = []
+        source.enumerateSubstrings(in: source.startIndex..., options: .bySentences) { substring, _, _, stop in
+            let sentence = substring?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !sentence.isEmpty {
+                sentences.append(sentence)
+            }
+            if sentences.count >= 2 {
+                stop = true
+            }
+        }
+
+        let overview = sentences.joined(separator: " ")
+        return overview.isEmpty ? source : overview
+    }
+
     var routinePayload: AIWorkoutRoutinePayload {
         AIWorkoutRoutinePayload(
             title: title,
@@ -110,7 +139,8 @@ extension AIGeneratedRoutineDraft {
                     name: $0.name,
                     sets: $0.sets,
                     reps: $0.reps,
-                    notes: $0.notes ?? ""
+                    notes: $0.notes ?? "",
+                    reasoning: $0.reasoning
                 )
             }
         )

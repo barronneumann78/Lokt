@@ -312,12 +312,14 @@ struct AIWorkoutGeneratorClient {
             guard !name.isEmpty, !reps.isEmpty else { return nil }
 
             let notes = exercise.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            let reasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             return AIGeneratedExercise(
                 name: name,
                 sets: max(1, exercise.sets),
                 reps: reps,
-                notes: notes.isEmpty ? nil : notes
+                notes: notes.isEmpty ? nil : notes,
+                reasoning: reasoning.isEmpty ? nil : reasoning
             )
         }
 
@@ -359,6 +361,93 @@ struct AIWorkoutGeneratorClient {
 
         return name
     }
+}
+
+/// Fetches a routine-level plain-language explanation from the backend's
+/// `/api/ai/workout-generator/explain` endpoint.
+struct AIRoutineExplainService {
+    func plainExplanation(for draft: AIGeneratedRoutineDraft) async throws -> String {
+        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
+            throw AIWorkoutGenerationError.invalidBackendURL
+        }
+
+        let payload = AIRoutineExplainRequest(
+            routine: AIRoutineExplainRoutinePayload(
+                title: draft.title,
+                summary: draft.summary,
+                exercises: draft.exercises.map {
+                    AIRoutineExplainExercisePayload(
+                        name: $0.name,
+                        sets: $0.sets,
+                        reps: $0.reps,
+                        reasoning: $0.reasoning
+                    )
+                }
+            )
+        )
+
+        let (data, response): (Data, URLResponse)
+
+        do {
+            let result = try await sendAIBackendRequest(
+                path: "api/ai/workout-generator/explain",
+                timeout: 60,
+                body: try JSONEncoder().encode(payload)
+            )
+            (data, response) = (result.data, result.response)
+        } catch {
+            throw AIWorkoutGenerationError.requestFailed(
+                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+            )
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AIWorkoutGenerationError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if let decodedError = try? JSONDecoder().decode(AIWorkoutGeneratorErrorEnvelope.self, from: data) {
+                throw AIWorkoutGenerationError.requestFailed(decodedError.error)
+            }
+
+            throw AIWorkoutGenerationError.requestFailed(
+                "The AI backend returned an error (\(httpResponse.statusCode))."
+            )
+        }
+
+        guard let decoded = try? JSONDecoder().decode(AIRoutineExplainResponseEnvelope.self, from: data) else {
+            throw AIWorkoutGenerationError.invalidResponse
+        }
+
+        let explanation = decoded.explanation.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !explanation.isEmpty else {
+            throw AIWorkoutGenerationError.invalidResponse
+        }
+
+        return explanation
+    }
+}
+
+private struct AIRoutineExplainRequest: Codable {
+    var routine: AIRoutineExplainRoutinePayload
+}
+
+private struct AIRoutineExplainRoutinePayload: Codable {
+    var title: String
+    var summary: String
+    var exercises: [AIRoutineExplainExercisePayload]
+}
+
+private struct AIRoutineExplainExercisePayload: Codable {
+    var name: String
+    var sets: Int
+    var reps: String
+    var reasoning: String?
+}
+
+private struct AIRoutineExplainResponseEnvelope: Codable {
+    var explanation: String
 }
 
 enum AIWorkoutRoutineSaver {

@@ -12,7 +12,10 @@ const workoutSchema = {
   required: ["title", "summary", "rationale", "routineNotes", "exercises"],
   properties: {
     title: { type: "string" },
-    summary: { type: "string" },
+    summary: {
+      type: "string",
+      description: "Plain-English overview of the workout in at most two short sentences a beginner can read at a glance."
+    },
     rationale: { type: "string" },
     routineNotes: {
       type: "array",
@@ -25,12 +28,16 @@ const workoutSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "sets", "reps", "notes"],
+        required: ["name", "sets", "reps", "notes", "reasoning"],
         properties: {
           name: { type: "string" },
           sets: { type: "integer", minimum: 1, maximum: 10 },
           reps: { type: "string" },
-          notes: { type: "string" }
+          notes: { type: "string" },
+          reasoning: {
+            type: "string",
+            description: "Why this exercise is in this plan — its role, one short sentence, at most 15 words."
+          }
         }
       }
     }
@@ -131,6 +138,15 @@ const exerciseFormCuesSchema = {
 };
 
 const exerciseSimpleExplanationSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["explanation"],
+  properties: {
+    explanation: { type: "string" }
+  }
+};
+
+const routineSimpleExplanationSchema = {
   type: "object",
   additionalProperties: false,
   required: ["explanation"],
@@ -274,6 +290,12 @@ const preferenceInstructions = [
   "Do not mention the saved profile explicitly unless it helps explain a coaching choice."
 ].join(" ");
 
+const routineFieldGuidelines = [
+  "Keep the summary to at most two short sentences a beginner can read at a glance.",
+  "For each exercise, fill reasoning with one short sentence, at most 15 words, naming its role in this plan, such as main press for chest, balancing pull for the back, or easy-recovery finisher.",
+  "reasoning must be specific to this plan, never generic filler like great exercise or builds muscle."
+].join(" ");
+
 const workoutGeneratorInstructions = [
   "You write practical gym routines for a workout tracking app.",
   "Match the user's requested split, equipment, time cap, and goal as closely as possible.",
@@ -283,6 +305,7 @@ const workoutGeneratorInstructions = [
   "Include a short rationale that explains why this workout structure fits the user's request.",
   "The rationale should read like a concise coach note, not hidden reasoning or a step-by-step chain of thought.",
   "The summary should read like a practical overview of the session, not generic app copy.",
+  routineFieldGuidelines,
   "Routine notes should feel like useful coaching reminders, not filler.",
   coachVoiceGuidelines,
   preferenceInstructions,
@@ -301,6 +324,7 @@ const supplementaryWorkoutInstructions = [
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Use the summary to explain what the add-on is for in plain English.",
   "Use the rationale like a concise coach note about why this small block fits.",
+  routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
   "Use working sets only unless the user explicitly asks for a warm-up series.",
@@ -337,6 +361,7 @@ const workoutRevisionInstructions = [
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Update the rationale so it briefly explains why the revised version fits the user's request.",
   "The rationale should stay concise and user-facing, not hidden reasoning or chain-of-thought.",
+  routineFieldGuidelines,
   "Write reply as a short coach-style response that explains what changed and why.",
   "When action is updated_draft, fill changeSummary with one short plain-English sentence describing the change.",
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
@@ -378,6 +403,7 @@ const coachChatInstructions = [
   "When action is created_draft or updated_draft, return a complete routine in the schema and write a short changeSummary.",
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
   "If a routine is returned, keep the name field to exercise names only, never sets, reps, numbering, or prescription text.",
+  routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
   "Only return JSON matching the schema."
@@ -428,6 +454,18 @@ const exerciseSimpleExplanationInstructions = [
   "Cover: what the exercise is, what part of the body it works in everyday terms, why it is worth doing, and how it should feel when done right.",
   "Go a little deeper than a one-line summary, but stay under 120 words.",
   "Use short sentences in one or two flowing paragraphs. No markdown, no lists.",
+  "Do not include anything outside the JSON schema."
+].join(" ");
+
+const routineSimpleExplanationInstructions = [
+  "You explain a full workout routine to a friend who has never lifted weights.",
+  "Write like you are talking to that friend. Plain, everyday words only.",
+  "Never use gym or anatomy jargon such as hypertrophy, superset, compound, accessory, RPE, eccentric, tempo, or posterior chain.",
+  "First say in one or two sentences what this workout as a whole does for the body.",
+  "Then walk through the exercises in order, one short line each, saying in everyday terms what it works and why it is in the plan.",
+  "Mention how it should roughly feel, like tiring but doable, when that helps.",
+  "Go deeper than a one-line overview, but stay under 160 words.",
+  "Use short sentences in a few flowing paragraphs. No markdown, no lists, no headings.",
   "Do not include anything outside the JSON schema."
 ].join(" ");
 
@@ -562,6 +600,39 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       sendJson(response, 502, {
         error: error instanceof Error ? error.message : "Failed to revise the workout."
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/ai/workout-generator/explain") {
+    try {
+      if (!apiKey) {
+        sendJson(response, 500, {
+          error: "OPENAI_API_KEY is missing on the backend."
+        });
+        return;
+      }
+
+      const body = await readJsonBody(request);
+      const routine = normalizeRoutineExplainInput(body?.routine);
+
+      if (!routine) {
+        sendJson(response, 400, {
+          error: "Routine data with a title and at least one exercise is required."
+        });
+        return;
+      }
+
+      const explainResult = await explainWorkoutRoutine(routine);
+
+      sendJson(response, 200, {
+        ...explainResult,
+        model: workoutGeneratorModel
+      });
+    } catch (error) {
+      sendJson(response, 502, {
+        error: error instanceof Error ? error.message : "Failed to explain the workout."
       });
     }
     return;
@@ -1487,6 +1558,100 @@ async function explainExercise({ exercise, mode }) {
   };
 }
 
+function normalizeRoutineExplainInput(routine) {
+  if (!routine || typeof routine !== "object") {
+    return null;
+  }
+
+  const title = typeof routine.title === "string" ? routine.title.trim() : "";
+  const summary = typeof routine.summary === "string" ? routine.summary.trim() : "";
+
+  const exercises = Array.isArray(routine.exercises)
+    ? routine.exercises
+        .map((exercise) => ({
+          name: String(exercise?.name ?? "").trim(),
+          sets: Number.isFinite(Number(exercise?.sets)) ? clampNumber(Number(exercise.sets), 1, 10) : null,
+          reps: String(exercise?.reps ?? "").trim(),
+          reasoning: String(exercise?.reasoning ?? "").trim()
+        }))
+        .filter((exercise) => exercise.name)
+        .slice(0, 12)
+    : [];
+
+  if (!title || exercises.length === 0) {
+    return null;
+  }
+
+  return { title, summary, exercises };
+}
+
+async function explainWorkoutRoutine(routine) {
+  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: workoutGeneratorModel,
+      store: false,
+      instructions: routineSimpleExplanationInstructions,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                "Workout routine JSON:",
+                JSON.stringify(routine, null, 2)
+              ].join("\n")
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "routine_simple_explanation",
+          strict: true,
+          schema: routineSimpleExplanationSchema
+        }
+      }
+    })
+  });
+
+  const payload = await apiResponse.json();
+
+  if (!apiResponse.ok) {
+    throw new Error(payload?.error?.message ?? "OpenAI routine explain request failed.");
+  }
+
+  const outputText = extractOutputText(payload);
+  if (!outputText) {
+    throw new Error("OpenAI returned a response without structured routine explanation JSON.");
+  }
+
+  let responseBody;
+
+  try {
+    responseBody = JSON.parse(outputText);
+  } catch {
+    throw new Error("OpenAI returned malformed routine explanation JSON.");
+  }
+
+  const explanation = typeof responseBody?.explanation === "string" ? responseBody.explanation.trim() : "";
+
+  if (!explanation) {
+    throw new Error("The routine explanation came back empty.");
+  }
+
+  return {
+    requestId: payload.id ?? null,
+    explanation
+  };
+}
+
 async function transcribeVoiceRecording({ audioBase64, fileName, mimeType }) {
   const audioBuffer = Buffer.from(audioBase64, "base64");
   const audioBlob = new Blob([audioBuffer], { type: mimeType });
@@ -1786,7 +1951,8 @@ function sanitizeRoutine(routine) {
           name: String(exercise?.name ?? "").trim(),
           sets: clampNumber(Number(exercise?.sets ?? 3), 1, 10),
           reps: String(exercise?.reps ?? "").trim(),
-          notes: String(exercise?.notes ?? "").trim()
+          notes: String(exercise?.notes ?? "").trim(),
+          reasoning: String(exercise?.reasoning ?? "").trim()
         }))
         .filter((exercise) => exercise.name && exercise.reps)
     : [];
