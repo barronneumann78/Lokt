@@ -338,12 +338,18 @@ struct WorkoutPhotoImportView: View {
                 .textFieldStyle(TrackerTextFieldStyle())
 
             if let notes = importedWorkout?.days[dayIndex].notes, !notes.isEmpty {
-                Text(notes.joined(separator: " • "))
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(notes.enumerated()), id: \.offset) { note in
+                        Text(note.element)
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
             }
 
             LazyVStack(spacing: 12) {
@@ -370,6 +376,14 @@ struct WorkoutPhotoImportView: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let tip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !tip.isEmpty {
+                        Text(tip)
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     Text(importStatusLine(for: exercise))
                         .font(.caption.weight(.medium))

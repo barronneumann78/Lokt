@@ -50,6 +50,9 @@ struct ImportedExerciseDraft: Identifiable, Hashable, Codable {
     var confidence: ImportedExerciseConfidence
     var isCustomExercise: Bool
     var customExercise: Exercise?
+    /// One short practical execution tip from an AI-generated draft. Optional
+    /// (and defaulted) so photo extractions and older payloads still decode.
+    var tip: String? = nil
 
     var resolvedExerciseName: String {
         if isCustomExercise {

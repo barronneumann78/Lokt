@@ -299,6 +299,13 @@ struct AIWorkoutGeneratorView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let tip = nonEmptyText(exercise.tip) {
+                Text(tip)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("EXERCISE NAME")
                     .microLabel()

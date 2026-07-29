@@ -313,13 +313,15 @@ struct AIWorkoutGeneratorClient {
 
             let notes = exercise.notes.trimmingCharacters(in: .whitespacesAndNewlines)
             let reasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let tip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             return AIGeneratedExercise(
                 name: name,
                 sets: max(1, exercise.sets),
                 reps: reps,
                 notes: notes.isEmpty ? nil : notes,
-                reasoning: reasoning.isEmpty ? nil : reasoning
+                reasoning: reasoning.isEmpty ? nil : reasoning,
+                tip: tip.isEmpty ? nil : tip
             )
         }
 

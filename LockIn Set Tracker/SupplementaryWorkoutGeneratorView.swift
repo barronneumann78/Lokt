@@ -262,6 +262,14 @@ struct SupplementaryWorkoutGeneratorView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let tip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !tip.isEmpty {
+                Text(tip)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("EXERCISE NAME")
                     .microLabel()

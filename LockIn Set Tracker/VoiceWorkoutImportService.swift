@@ -267,9 +267,11 @@ struct VoiceWorkoutImportPipeline {
 
     private func buildGeneratedParsingResult(from transcript: String, exercises: [Exercise]) async throws -> AIWorkoutParsingResult {
         let generatedRoutine = try await generatorClient.generateRoutine(from: transcript)
-        let routineNotes = ([generatedRoutine.summary] + generatedRoutine.routineNotes)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        // Day notes carry ONLY the short summary. routineNotes are intentionally
+        // dropped from display: the backend now folds that advice into
+        // per-exercise tips, and dumping the bullets here made an unreadable wall.
+        let summary = generatedRoutine.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let routineNotes = summary.isEmpty ? [] : [summary]
 
         let drafts = generatedRoutine.exercises.map { generatedExercise in
             draftForExerciseName(
@@ -279,7 +281,8 @@ struct VoiceWorkoutImportPipeline {
                 setCount: generatedExercise.sets,
                 repText: generatedExercise.reps,
                 notes: generatedExercise.notes,
-                exercises: exercises
+                exercises: exercises,
+                tip: generatedExercise.tip
             )
         }
 
@@ -310,7 +313,8 @@ struct VoiceWorkoutImportPipeline {
         setCount: Int?,
         repText: String?,
         notes: String?,
-        exercises: [Exercise]
+        exercises: [Exercise],
+        tip: String? = nil
     ) -> ImportedExerciseDraft {
         let resolution = matcher.resolve(exerciseName: exerciseName, dayName: dayName, exercises: exercises)
 
@@ -328,7 +332,8 @@ struct VoiceWorkoutImportPipeline {
                 intensityNotes: [],
                 confidence: confidence,
                 isCustomExercise: false,
-                customExercise: nil
+                customExercise: nil,
+                tip: tip
             )
         case let .custom(candidates):
             return ImportedExerciseDraft(
@@ -343,7 +348,8 @@ struct VoiceWorkoutImportPipeline {
                 intensityNotes: [],
                 confidence: .low,
                 isCustomExercise: true,
-                customExercise: nil
+                customExercise: nil,
+                tip: tip
             )
         }
     }

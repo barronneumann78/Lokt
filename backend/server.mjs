@@ -28,7 +28,7 @@ const workoutSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "sets", "reps", "notes", "reasoning"],
+        required: ["name", "sets", "reps", "notes", "reasoning", "tip"],
         properties: {
           name: { type: "string" },
           sets: { type: "integer", minimum: 1, maximum: 10 },
@@ -37,6 +37,10 @@ const workoutSchema = {
           reasoning: {
             type: "string",
             description: "Why this exercise is in this plan — its role, one short sentence, at most 15 words."
+          },
+          tip: {
+            type: "string",
+            description: "One practical execution or setup tip for THIS exercise in THIS workout — form, setup, tempo, or rest. At most 12 words."
           }
         }
       }
@@ -293,7 +297,10 @@ const preferenceInstructions = [
 const routineFieldGuidelines = [
   "Keep the summary to at most two short sentences a beginner can read at a glance.",
   "For each exercise, fill reasoning with one short sentence, at most 15 words, naming its role in this plan, such as main press for chest, balancing pull for the back, or easy-recovery finisher.",
-  "reasoning must be specific to this plan, never generic filler like great exercise or builds muscle."
+  "reasoning must be specific to this plan, never generic filler like great exercise or builds muscle.",
+  "For each exercise, fill tip with one practical how-to line for this workout, at most 12 words, covering form, setup, tempo, or rest, such as Warm up your shoulders before going heavy or Rest about 2 minutes between sets.",
+  "Put workout-level advice such as warm-up, rest periods, equipment setup, or pacing into the tip of the exercise where it matters most, never into routineNotes.",
+  "Leave routineNotes empty unless one short reminder truly applies to the whole session and fits no single exercise."
 ].join(" ");
 
 const workoutGeneratorInstructions = [
@@ -306,7 +313,6 @@ const workoutGeneratorInstructions = [
   "The rationale should read like a concise coach note, not hidden reasoning or a step-by-step chain of thought.",
   "The summary should read like a practical overview of the session, not generic app copy.",
   routineFieldGuidelines,
-  "Routine notes should feel like useful coaching reminders, not filler.",
   coachVoiceGuidelines,
   preferenceInstructions,
   "Use working sets only.",
@@ -1952,7 +1958,8 @@ function sanitizeRoutine(routine) {
           sets: clampNumber(Number(exercise?.sets ?? 3), 1, 10),
           reps: String(exercise?.reps ?? "").trim(),
           notes: String(exercise?.notes ?? "").trim(),
-          reasoning: String(exercise?.reasoning ?? "").trim()
+          reasoning: String(exercise?.reasoning ?? "").trim(),
+          tip: String(exercise?.tip ?? "").trim()
         }))
         .filter((exercise) => exercise.name && exercise.reps)
     : [];

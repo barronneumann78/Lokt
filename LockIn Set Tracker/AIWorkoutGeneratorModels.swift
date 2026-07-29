@@ -69,6 +69,9 @@ struct AIGeneratedExercise: Identifiable, Hashable, Codable {
     /// One short AI sentence on why this exercise is in the plan. Optional so
     /// photo/voice-import drafts and older cached payloads still decode.
     var reasoning: String?
+    /// One short practical tip on how to execute this exercise in this workout
+    /// (form, setup, tempo, or rest). Optional so older drafts still decode.
+    var tip: String?
 }
 
 struct AIGeneratedRoutineDraft: Identifiable, Hashable, Codable {
@@ -101,6 +104,8 @@ struct AIWorkoutExercisePayload: Codable {
     var notes: String
     /// Optional so responses from older backends (or cached payloads) decode.
     var reasoning: String?
+    /// Optional so responses from older backends (or cached payloads) decode.
+    var tip: String?
 }
 
 extension AIGeneratedRoutineDraft {
@@ -140,7 +145,8 @@ extension AIGeneratedRoutineDraft {
                     sets: $0.sets,
                     reps: $0.reps,
                     notes: $0.notes ?? "",
-                    reasoning: $0.reasoning
+                    reasoning: $0.reasoning,
+                    tip: $0.tip
                 )
             }
         )

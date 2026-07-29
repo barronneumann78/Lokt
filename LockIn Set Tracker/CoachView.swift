@@ -481,6 +481,13 @@ struct CoachView: View {
                 }
             }
 
+            if let overview = draft.briefOverview {
+                Text(overview)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if let latestChangeSummary = nonEmptyText(latestChangeSummary) {
                 Text(latestChangeSummary)
                     .font(.caption.weight(.medium))
@@ -512,8 +519,15 @@ struct CoachView: View {
 
                             if let reasoning = nonEmptyText(item.element.reasoning) {
                                 Text(reasoning)
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textTertiary)
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            if let tip = nonEmptyText(item.element.tip) {
+                                Text(tip)
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
