@@ -132,8 +132,22 @@ struct Exercise: Identifiable, Hashable, Codable {
     }
 }
 
+/// Loads the bundled exercise library plus the user's custom exercises.
+///
+/// Decoding the bundled JSON (~2 MB, 1k+ exercises) is expensive, so exactly one
+/// instance lives at the app root (`LockInSetTrackerApp`) and is shared via
+/// `.environmentObject`. Consume it with `@EnvironmentObject`; never construct a
+/// second instance in a view. When custom exercises change, call
+/// `reloadCustomExercises()` — it re-merges without re-decoding the JSON.
 final class ExerciseStore: ObservableObject {
     @Published var exercises: [Exercise] = []
+
+    /// The decoded bundled library, kept so custom-exercise refreshes never
+    /// re-decode the JSON.
+    private var bundledExercises: [Exercise] = []
+    /// Snapshot of the custom exercises last merged, so no-op refreshes skip
+    /// publishing and cache invalidation.
+    private var lastMergedCustomExercises: [Exercise] = []
 
     init() {
         loadExercises()
@@ -149,7 +163,7 @@ final class ExerciseStore: ObservableObject {
             let data = try Data(contentsOf: url)
             let decoded = try JSONDecoder().decode([Exercise].self, from: data)
 
-            let bundledExercises = decoded.map { exercise in
+            bundledExercises = decoded.map { exercise in
                 var exercise = exercise
 
                 if exercise.imageName == nil {
@@ -163,22 +177,42 @@ final class ExerciseStore: ObservableObject {
                 return exercise
             }
 
-            let customExercises = CustomExerciseLibrary.loadExercises().map { exercise in
-                var exercise = exercise
-
-                if exercise.instructions.isEmpty {
-                    exercise.instructions = exercise.description
-                }
-
-                return exercise
-            }
-
-            var seenNames = Set<String>()
-            exercises = (bundledExercises + customExercises).filter { exercise in
-                seenNames.insert(exercise.name.lowercased()).inserted
-            }
+            merge(customExercises: CustomExerciseLibrary.loadExercises())
         } catch {
             print("Error loading exercise JSON: \(error)")
+        }
+    }
+
+    /// Cheap refresh after custom exercises may have changed (e.g. a photo or
+    /// voice import saved one): re-merges the persisted custom list into the
+    /// already-decoded bundled library. Skips entirely when nothing changed;
+    /// otherwise also invalidates the fuzzy-match memo cache, since custom
+    /// exercises participate in name resolution.
+    func reloadCustomExercises() {
+        let customExercises = CustomExerciseLibrary.loadExercises()
+        guard customExercises != lastMergedCustomExercises else { return }
+
+        merge(customExercises: customExercises)
+        ExerciseNameMatcher.invalidateCache()
+    }
+
+    private func merge(customExercises: [Exercise]) {
+        lastMergedCustomExercises = customExercises
+
+        let prepared = customExercises.map { exercise in
+            var exercise = exercise
+
+            if exercise.instructions.isEmpty {
+                exercise.instructions = exercise.description
+            }
+
+            return exercise
+        }
+
+        // Bundled wins on name collisions, case-insensitively.
+        var seenNames = Set<String>()
+        exercises = (bundledExercises + prepared).filter { exercise in
+            seenNames.insert(exercise.name.lowercased()).inserted
         }
     }
 }

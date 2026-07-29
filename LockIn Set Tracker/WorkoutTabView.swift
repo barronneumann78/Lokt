@@ -4,7 +4,7 @@ import SwiftUI
 // create-flow entry; the logger is pushed from here.
 struct WorkoutTabView: View {
     @EnvironmentObject private var store: WorkoutStore
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var routines: [Routine] = []
     @State private var selectedRoutine: Routine?
     @State private var routineToEdit: Routine?

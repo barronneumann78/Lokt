@@ -6,7 +6,7 @@ struct CreateRoutineView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var routineName = ""
     @State private var selectedExercises: [String] = []
     @State private var preferredSetCounts: [String: Int] = [:]
@@ -177,6 +177,8 @@ struct CreateRoutineView: View {
         .navigationTitle(screenTitle)
         .searchable(text: $searchText, prompt: "Search Exercises")
         .onAppear(perform: configureFormIfNeeded)
+        // Cheap safety net: pick up custom exercises saved elsewhere.
+        .onAppear(perform: exerciseStore.reloadCustomExercises)
     }
 
     private var routineSetupSection: some View {

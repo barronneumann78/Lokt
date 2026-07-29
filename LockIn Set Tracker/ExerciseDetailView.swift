@@ -4,7 +4,7 @@ struct ExerciseDetailView: View {
     let exercise: Exercise
     var primaryAddAction: ExerciseDetailPrimaryAddAction? = nil
 
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var showAddSheet = false
     @State private var addFeedbackMessage: String?
     @State private var coachQuestion = ""

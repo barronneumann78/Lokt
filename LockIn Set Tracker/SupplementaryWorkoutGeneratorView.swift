@@ -12,7 +12,7 @@ struct SupplementaryWorkoutGeneratorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AIBackendConfiguration.userDefaultsKey) private var aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
 
     @State private var stage: AIWorkoutGenerationStage = .prompt
     @State private var prompt = ""

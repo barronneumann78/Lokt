@@ -10,7 +10,7 @@ struct WorkoutLoggerView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var coachRouter: CoachRouter
     @AppStorage("workoutCoachModeEnabled") private var isCoachModeEnabled = true
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var activeRoutine: Routine
     @State private var logs: [String: [WorkoutSet]] = [:]
     @State private var completed = false

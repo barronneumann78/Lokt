@@ -6,6 +6,13 @@ enum ExerciseNameMatcher {
     private static var resolutionCache: [String: String] = [:]
     private static let unresolvedMarker = ""
 
+    /// Drops all memoized resolutions. Call when the exercise library changes
+    /// (custom exercises added/edited), since cached "unresolved" or matched
+    /// names may no longer be correct against the new list.
+    static func invalidateCache() {
+        resolutionCache.removeAll()
+    }
+
     static func bestMatch(for name: String, in exercises: [Exercise]) -> Exercise? {
         let cacheKey = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cacheKey.isEmpty else { return nil }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ExerciseLibraryView: View {
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var searchText = ""
     @State private var selectedMuscleGroup = "All"
     @State private var selectedEquipment = "All"
@@ -49,6 +49,8 @@ struct ExerciseLibraryView: View {
         .navigationTitle("Exercise Library")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search Exercises")
+        // Cheap safety net: pick up custom exercises saved elsewhere.
+        .onAppear(perform: exerciseStore.reloadCustomExercises)
     }
 
     private var filterSection: some View {

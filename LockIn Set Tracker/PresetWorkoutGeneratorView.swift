@@ -4,7 +4,7 @@ struct PresetWorkoutGeneratorView: View {
     var onSave: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var selectedSplitKind: WorkoutPresetSplitKind = .fullBodyBeginner
     @State private var selectedTemplateID: String?
     @State private var preview: GeneratedPresetWorkout?

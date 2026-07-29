@@ -7,7 +7,7 @@ import Combine
 /// all derived once per data change in `AnalyticsSnapshot`.
 struct AnalyticsView: View {
     @EnvironmentObject private var store: WorkoutStore
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var snapshot: AnalyticsSnapshot = .empty
 
     var body: some View {

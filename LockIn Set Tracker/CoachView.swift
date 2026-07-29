@@ -61,7 +61,7 @@ struct CoachView: View {
     @State private var updatedDraftIDs: Set<UUID> = []
 
     @EnvironmentObject private var store: WorkoutStore
-    @StateObject private var exerciseStore = ExerciseStore()
+    @EnvironmentObject private var exerciseStore: ExerciseStore
 
     private struct SaveNotice: Equatable {
         var title: String

@@ -6,6 +6,9 @@ struct LockInSetTrackerApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     // Single source of truth for routines + sessions (build plan M1).
     @StateObject private var store = WorkoutStore()
+    // The exercise library decodes ~2 MB of JSON, so it's built once here and
+    // shared app-wide; views consume it via @EnvironmentObject.
+    @StateObject private var exerciseStore = ExerciseStore()
     // Accent scheme owner. The token cache self-seeds from the stored scheme
     // on first read (so `AppChrome.apply()` below already captures the right
     // accent); the store handles changes at runtime.
@@ -27,6 +30,7 @@ struct LockInSetTrackerApp: App {
                 }
             }
             .environmentObject(store)
+            .environmentObject(exerciseStore)
             .environmentObject(themeStore)
             // The app is fully dark-themed; declare it so system-managed
             // chrome (search-field placeholders, keyboard, alerts) uses
