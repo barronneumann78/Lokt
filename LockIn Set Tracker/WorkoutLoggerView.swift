@@ -7,11 +7,6 @@ struct WorkoutLoggerView: View {
         case reps(String, Int)
     }
 
-    private struct QuickLogCommand {
-        var weight: String?
-        var reps: String?
-    }
-
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var coachRouter: CoachRouter
     @AppStorage("workoutCoachModeEnabled") private var isCoachModeEnabled = true
@@ -28,7 +23,6 @@ struct WorkoutLoggerView: View {
     @State private var restTimerEndDate: Date?
     @State private var lastRestDuration: TimeInterval = 90
     @State private var activeRestExercise: String?
-    @State private var quickLogInputs: [String: String] = [:]
     @State private var swapTarget: ExerciseSwapTarget?
     @State private var showSupplementaryBlockGenerator = false
     @State private var workoutBuilderFeedbackMessage: String?
@@ -432,34 +426,6 @@ struct WorkoutLoggerView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.leading, 42)
-            }
-
-            if isActive {
-                HStack(spacing: 10) {
-                    TrackerTextField(
-                        "Quick log: 135 x 8 · drop to 120",
-                        text: quickLogBinding(for: exercise, set: set)
-                    )
-                    .font(.footnote)
-                    .textFieldStyle(TrackerTextFieldStyle())
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.done)
-                    .onSubmit {
-                        applyQuickLogInput(for: exercise, at: set)
-                    }
-
-                    Button("Apply") {
-                        applyQuickLogInput(for: exercise, at: set)
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                    .disabled(quickLogInputs[quickLogKey(for: exercise, set: set), default: ""]
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .isEmpty)
-                    .opacity(quickLogInputs[quickLogKey(for: exercise, set: set), default: ""]
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .isEmpty ? 0.6 : 1)
-                }
             }
         }
         .padding(.vertical, 8)
@@ -1086,129 +1052,6 @@ struct WorkoutLoggerView: View {
         }
     }
 
-    private func quickLogBinding(for exercise: String, set: Int) -> Binding<String> {
-        let key = quickLogKey(for: exercise, set: set)
-
-        return Binding(
-            get: { quickLogInputs[key, default: ""] },
-            set: { quickLogInputs[key] = $0 }
-        )
-    }
-
-    private func quickLogKey(for exercise: String, set: Int) -> String {
-        "\(exercise.lowercased())::\(set)"
-    }
-
-    private func applyQuickLogInput(for exercise: String, at set: Int) {
-        let key = quickLogKey(for: exercise, set: set)
-        let input = quickLogInputs[key, default: ""]
-
-        guard let command = parseQuickLogCommand(input, exercise: exercise, setIndex: set) else {
-            return
-        }
-
-        let currentSet = resize(sets: logs[exercise], to: setCount(for: exercise))[safe: set] ?? WorkoutSet(weight: "", reps: "")
-        let resolvedWeight = command.weight ?? currentSet.weight
-        let resolvedReps = command.reps ?? currentSet.reps
-
-        logs[exercise, default: []] = update(
-            logs[exercise],
-            exercise: exercise,
-            at: set,
-            weight: resolvedWeight,
-            reps: resolvedReps,
-            targetCount: setCount(for: exercise)
-        )
-
-        quickLogInputs[key] = ""
-    }
-
-    private func parseQuickLogCommand(_ input: String, exercise: String, setIndex: Int) -> QuickLogCommand? {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let normalized = trimmed
-            .lowercased()
-            .replacingOccurrences(of: "×", with: "x")
-            .replacingOccurrences(of: ",", with: "")
-
-        if let match = firstMatch(
-            in: normalized,
-            pattern: #"^\s*(\d+(?:\.\d+)?)\s*(?:x|for)\s*(\d+)\s*(?:reps?)?\s*$"#
-        ) {
-            return QuickLogCommand(weight: match[0], reps: match[1])
-        }
-
-        if normalized.contains("same weight") {
-            guard let referenceWeight = quickLogReferenceSet(for: exercise, before: setIndex)?.weight,
-                  !referenceWeight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
-            }
-
-            let reps = firstMatch(in: normalized, pattern: #"(\d+)\s*(?:reps?)"#)?.first
-                ?? firstMatch(in: normalized, pattern: #"same weight\s*(\d+)"#)?.first
-
-            return QuickLogCommand(weight: referenceWeight, reps: reps)
-        }
-
-        if let match = firstMatch(
-            in: normalized,
-            pattern: #"(?:drop|down)\s*(?:to)?\s*(\d+(?:\.\d+)?)"#
-        ) {
-            return QuickLogCommand(weight: match[0], reps: nil)
-        }
-
-        return nil
-    }
-
-    private func quickLogReferenceSet(for exercise: String, before setIndex: Int) -> WorkoutSet? {
-        let currentSets = resize(sets: logs[exercise], to: setCount(for: exercise))
-
-        if setIndex > 0 {
-            for previousIndex in stride(from: setIndex - 1, through: 0, by: -1) {
-                let candidate = currentSets[previousIndex]
-                if isLoggedSet(candidate) {
-                    return candidate
-                }
-            }
-        }
-
-        if let previousWorkoutSet = getLastSet(for: exercise, at: setIndex), isLoggedSet(previousWorkoutSet) {
-            return previousWorkoutSet
-        }
-
-        let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        if let latestLoggedSet = sessions.last?.logs[exercise]?
-            .reversed()
-            .first(where: { $0.isCompleted && isLoggedSet($0) }) {
-            return latestLoggedSet
-        }
-
-        return nil
-    }
-
-    private func firstMatch(in text: String, pattern: String) -> [String]? {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return nil
-        }
-
-        let range = NSRange(text.startIndex..., in: text)
-        guard let match = regex.firstMatch(in: text, options: [], range: range),
-              match.numberOfRanges > 1 else {
-            return nil
-        }
-
-        return (1..<match.numberOfRanges).compactMap { index in
-            let captureRange = match.range(at: index)
-            guard captureRange.location != NSNotFound,
-                  let range = Range(captureRange, in: text) else {
-                return nil
-            }
-
-            return String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-    }
-
     private func applyPreviousSet(_ previousSet: WorkoutSet, to exercise: String, at set: Int) {
         var updatedSets = resize(sets: logs[exercise], to: setCount(for: exercise))
         guard updatedSets.indices.contains(set) else { return }
@@ -1418,17 +1261,6 @@ struct WorkoutLoggerView: View {
 
         if activeRestExercise?.caseInsensitiveCompare(currentExerciseName) == .orderedSame {
             activeRestExercise = newExerciseName
-        }
-
-        let migratedQuickLogInputs = quickLogInputs
-            .filter { $0.key.hasPrefix("\(currentExerciseName.lowercased())::") }
-
-        for (key, value) in migratedQuickLogInputs {
-            quickLogInputs.removeValue(forKey: key)
-            if let separator = key.range(of: "::") {
-                let suffix = key[separator.lowerBound...]
-                quickLogInputs["\(newExerciseName.lowercased())\(suffix)"] = value
-            }
         }
 
         if var context = activeRoutine.importContext,
