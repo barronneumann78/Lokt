@@ -48,6 +48,18 @@ enum AnalyticsMath {
         return weight * Double(reps)
     }
 
+    /// Best Epley e1RM across a group of sets — completed sets where both
+    /// weight and reps parse. The shared "best lift" ranking the strength
+    /// chart, the PR digest and the day scorecard all agree on.
+    static func bestE1RM(in sets: [WorkoutSet]) -> Double? {
+        sets.compactMap { set -> Double? in
+            guard set.isCompleted,
+                  let weight = parseWeight(set.weight),
+                  let reps = parseReps(set.reps) else { return nil }
+            return epleyOneRepMax(weight: weight, reps: reps)
+        }.max()
+    }
+
     /// Compact "sets × reps · weight" line for a day-summary row.
     /// "3 × 8–10 · 145 lb", "3 × 12" (bodyweight), "2 sets · 145 lb" (no reps).
     static func setSummary(for sets: [WorkoutSet]) -> String {
@@ -545,11 +557,7 @@ struct AnalyticsSnapshot {
             }
 
             for (canonical, sets) in perExercise {
-                let e1RM = sets.compactMap { set -> Double? in
-                    guard let weight = AnalyticsMath.parseWeight(set.weight),
-                          let reps = AnalyticsMath.parseReps(set.reps) else { return nil }
-                    return AnalyticsMath.epleyOneRepMax(weight: weight, reps: reps)
-                }.max()
+                let e1RM = AnalyticsMath.bestE1RM(in: sets)
 
                 let volumes = sets.compactMap(AnalyticsMath.setVolume)
                 let volume = volumes.isEmpty ? nil : volumes.reduce(0, +)
@@ -774,6 +782,149 @@ struct AnalyticsSnapshot {
         let symbols = calendar.veryShortWeekdaySymbols
         let first = calendar.firstWeekday - 1
         return (0..<7).map { symbols[(first + $0) % 7] }
+    }
+
+    // MARK: Day scorecard (calendar sheet)
+
+    struct DayScorecard {
+        struct PR: Identifiable {
+            var id: String { exercise }
+            /// Canonical (library-resolved) exercise name.
+            var exercise: String
+            /// The new all-time best Epley e1RM set that day.
+            var e1RM: Double
+        }
+
+        /// Total tonnage across the day's completed sets, all sessions.
+        var volume: Double
+        /// Checked-off sets with usable numbers, all sessions.
+        var completedSets: Int
+        /// Summed over the day's sessions that recorded a duration; nil when none did.
+        var durationSeconds: Int?
+        /// Median tonnage of the most recent prior lifting days (see
+        /// `dayScorecard`); nil until enough history exists.
+        var typicalDayVolume: Double?
+        /// Exercises whose best lift that day beat all earlier history, best first.
+        var prs: [PR]
+        /// The day's check-in — a pain-flagged one wins, else the latest.
+        var checkIn: SessionCheckIn?
+
+        /// Volume vs a typical training day, in percent. Nil without a
+        /// baseline or when the day itself logged no tonnage.
+        var volumeDeltaPercent: Double? {
+            guard let typical = typicalDayVolume, typical > 0, volume > 0 else { return nil }
+            return (volume - typical) / typical * 100
+        }
+    }
+
+    /// Prior lifting days feeding the "typical day" baseline.
+    static let typicalDayWindow = 10
+    /// Prior lifting days required before the comparison is shown.
+    static let typicalDayMinimumHistory = 3
+
+    /// Scorecard for one tapped calendar day, aggregated across its sessions.
+    /// `sessionsByDay` is the snapshot's start-of-day bucketing, so day
+    /// membership always matches the calendar cell that was tapped (late-night
+    /// sessions land where the grid shows them).
+    ///
+    /// "Typical day" = median tonnage of the last `typicalDayWindow` days
+    /// strictly before this one that logged any tonnage (median so one monster
+    /// or deload day can't skew the baseline). PRs compare the day's best e1RM
+    /// per exercise against full history strictly before the day, so a later,
+    /// bigger lift never erases the flag; an exercise's first-ever day seeds
+    /// the baseline without one (same rule as the user-memory digest).
+    static func dayScorecard(
+        day: Date,
+        sessionsByDay: [Date: [WorkoutSession]],
+        resolve: (String) -> Exercise?
+    ) -> DayScorecard {
+        var resolutionCache: [String: String] = [:]
+        func canonical(_ name: String) -> String {
+            if let cached = resolutionCache[name] { return cached }
+            let match = resolve(name)?.name ?? name
+            resolutionCache[name] = match
+            return match
+        }
+
+        func tonnage(_ sessions: [WorkoutSession]) -> Double {
+            sessions
+                .flatMap { $0.logs.values }
+                .flatMap { $0 }
+                .compactMap(AnalyticsMath.setVolume)
+                .reduce(0, +)
+        }
+
+        /// Best e1RM per canonical exercise across the given sessions.
+        func bestByExercise(_ sessions: [WorkoutSession]) -> [String: Double] {
+            var best: [String: Double] = [:]
+            for session in sessions {
+                for (name, sets) in session.logs {
+                    guard let e1RM = AnalyticsMath.bestE1RM(in: sets) else { continue }
+                    let exercise = canonical(name)
+                    best[exercise] = max(best[exercise] ?? 0, e1RM)
+                }
+            }
+            return best
+        }
+
+        let todays = sessionsByDay[day] ?? []
+        let volume = tonnage(todays)
+        let completedSets = todays
+            .flatMap { $0.logs.values }
+            .flatMap { $0 }
+            .filter(AnalyticsMath.isCountedSet)
+            .count
+
+        var durationSeconds: Int?
+        for session in todays {
+            if let duration = session.durationSeconds {
+                durationSeconds = (durationSeconds ?? 0) + duration
+            }
+        }
+
+        var priorVolumes: [Double] = []
+        for prior in sessionsByDay.keys.filter({ $0 < day }).sorted(by: >) {
+            guard priorVolumes.count < typicalDayWindow else { break }
+            let dayTonnage = tonnage(sessionsByDay[prior] ?? [])
+            if dayTonnage > 0 { priorVolumes.append(dayTonnage) }
+        }
+        let typical = priorVolumes.count >= typicalDayMinimumHistory
+            ? median(of: priorVolumes)
+            : nil
+
+        let dayBest = bestByExercise(todays)
+        let priorBest = bestByExercise(
+            sessionsByDay.filter { $0.key < day }.values.flatMap { $0 }
+        )
+        let prs = dayBest
+            .compactMap { exercise, value -> DayScorecard.PR? in
+                guard let previous = priorBest[exercise], value > previous else { return nil }
+                return DayScorecard.PR(exercise: exercise, e1RM: value)
+            }
+            .sorted { lhs, rhs in
+                if lhs.e1RM != rhs.e1RM { return lhs.e1RM > rhs.e1RM }
+                return lhs.exercise < rhs.exercise
+            }
+
+        let checkIns = todays.sorted { $0.date < $1.date }.compactMap(\.checkIn)
+        let checkIn = checkIns.first(where: \.hadPain) ?? checkIns.last
+
+        return DayScorecard(
+            volume: volume,
+            completedSets: completedSets,
+            durationSeconds: durationSeconds,
+            typicalDayVolume: typical,
+            prs: prs,
+            checkIn: checkIn
+        )
+    }
+
+    private static func median(of values: [Double]) -> Double {
+        let sorted = values.sorted()
+        let mid = sorted.count / 2
+        return sorted.count.isMultiple(of: 2)
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid]
     }
 
     // MARK: Rep distribution

@@ -827,7 +827,12 @@ private struct CalendarCard: View {
             DaySummarySheet(
                 date: selection.date,
                 sessions: snapshot.sessionsByDay[selection.date] ?? [],
-                exercises: exercises
+                exercises: exercises,
+                scorecard: AnalyticsSnapshot.dayScorecard(
+                    day: selection.date,
+                    sessionsByDay: snapshot.sessionsByDay,
+                    resolve: { exercises.resolvedExercise(named: $0) }
+                )
             )
         }
     }
@@ -941,6 +946,7 @@ private struct DaySummarySheet: View {
     let date: Date
     let sessions: [WorkoutSession]
     let exercises: [Exercise]
+    let scorecard: AnalyticsSnapshot.DayScorecard
 
     @Environment(\.dismiss) private var dismiss
 
@@ -951,6 +957,7 @@ private struct DaySummarySheet: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 12) {
+                        scorecardCard
                         ForEach(sessions) { session in
                             sessionCard(session)
                         }
@@ -973,6 +980,123 @@ private struct DaySummarySheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.backgroundTop)
     }
+
+    // MARK: Day scorecard
+
+    private var scorecardCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                heroMetric(label: "Volume", value: AnalyticsMath.compactVolume(scorecard.volume) + " lbs")
+                heroMetric(label: "Sets", value: "\(scorecard.completedSets)")
+                if let seconds = scorecard.durationSeconds {
+                    heroMetric(label: "Duration", value: AnalyticsMath.durationText(seconds: seconds))
+                }
+            }
+
+            if let delta = scorecard.volumeDeltaPercent {
+                deltaLine(delta)
+            }
+
+            if !scorecard.prs.isEmpty {
+                Divider().overlay(AppTheme.cardBorder)
+                prSection
+            }
+
+            if let checkIn = scorecard.checkIn {
+                Divider().overlay(AppTheme.cardBorder)
+                checkInLine(checkIn)
+            }
+        }
+        .padding(16)
+        .glassCard()
+    }
+
+    private func heroMetric(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label.uppercased())
+                .microLabel()
+
+            Text(value)
+                .font(.system(size: 26, weight: .bold))
+                .monospacedDigit()
+                .tracking(-0.5)
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Volume vs the typical training day. Down is a lighter day, not an
+    /// error — never red.
+    private func deltaLine(_ delta: Double) -> some View {
+        let direction: (icon: String, color: Color)
+        if delta > 1.5 {
+            direction = ("arrow.up", AppTheme.success)
+        } else if delta < -1.5 {
+            direction = ("arrow.down", AppTheme.textSecondary)
+        } else {
+            direction = ("minus", AppTheme.textSecondary)
+        }
+
+        return HStack(spacing: 4) {
+            Image(systemName: direction.icon)
+                .font(.system(size: 9, weight: .bold))
+            Text(AnalyticsFormat.signedPercent(delta) + " vs typical day")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+        }
+        .foregroundStyle(direction.color)
+    }
+
+    private var prSection: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("PRS · E1RM")
+                .microLabel()
+
+            VStack(spacing: 0) {
+                ForEach(Array(scorecard.prs.enumerated()), id: \.element.id) { index, pr in
+                    prRow(pr)
+                    if index < scorecard.prs.count - 1 {
+                        Divider().overlay(AppTheme.cardBorder)
+                    }
+                }
+            }
+        }
+    }
+
+    private func prRow(_ pr: AnalyticsSnapshot.DayScorecard.PR) -> some View {
+        ExerciseTextNavigationLink(exerciseName: pr.exercise, exercises: exercises) {
+            HStack(spacing: 8) {
+                Text(pr.exercise)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 8)
+
+                Text("\(AnalyticsMath.formattedWeight(pr.e1RM)) lb")
+                    .font(.footnote.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.primary)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+    }
+
+    private func checkInLine(_ checkIn: SessionCheckIn) -> some View {
+        Text("Felt \(checkIn.overall.label.lowercased())\(checkIn.hadPain ? " · pain flagged" : "")")
+            .font(.footnote)
+            .foregroundStyle(checkIn.hadPain ? AppTheme.secondary : AppTheme.textSecondary)
+    }
+
+    // MARK: Session cards
 
     private func sessionCard(_ session: WorkoutSession) -> some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -162,11 +162,7 @@ enum UserMemoryBuilder {
                     entry.bestSets.append(BestSet(exercise: exercise, set: best))
                 }
 
-                let sessionE1RM = counted.compactMap { set -> Double? in
-                    guard let weight = AnalyticsMath.parseWeight(set.weight),
-                          let reps = AnalyticsMath.parseReps(set.reps) else { return nil }
-                    return AnalyticsMath.epleyOneRepMax(weight: weight, reps: reps)
-                }.max()
+                let sessionE1RM = AnalyticsMath.bestE1RM(in: counted)
 
                 if let sessionE1RM {
                     if let previous = allTimeBest[exercise] {
