@@ -404,59 +404,12 @@ struct ExerciseDetailView: View {
     }
 
     private func coachReplyCard(_ reply: ExerciseCoachReply) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("COACH TAKE")
-                .microLabel()
-
-            Text(reply.answer)
-                .font(.body)
-                .foregroundStyle(AppTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !reply.suggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("GOOD ALTERNATIVES")
-                        .microLabel()
-
-                    ForEach(reply.suggestions) { suggestion in
-                        ExerciseTextNavigationLink(
-                            exerciseName: suggestion.exerciseName,
-                            exercises: exerciseStore.exercises,
-                            primaryAddAction: primaryAddAction
-                        ) {
-                            HStack(alignment: .top, spacing: 12) {
-                                Image(systemName: "arrow.triangle.swap")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .padding(.top, 2)
-
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(suggestion.exerciseName)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(AppTheme.textPrimary)
-
-                                    Text(suggestion.reason)
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-
-                                Spacer(minLength: 0)
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(AppTheme.textSecondary.opacity(0.8))
-                                    .padding(.top, 4)
-                            }
-                            .padding(14)
-                            .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+        ExerciseCoachReplyCard(
+            reply: reply,
+            exercises: exerciseStore.exercises,
+            primaryAddAction: primaryAddAction,
+            allowsSuggestionNavigation: true
+        )
     }
 
     private func requestCoachAnswer(for question: String, updatingField: Bool) {

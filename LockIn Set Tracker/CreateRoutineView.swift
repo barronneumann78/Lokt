@@ -18,6 +18,7 @@ struct CreateRoutineView: View {
     @State private var navigateToExerciseLibrary = false
     @State private var hasLoadedRoutine = false
     @State private var draggedExercise: String?
+    @State private var askTarget: ExerciseAskContext?
 
     init(routineToEdit: Routine? = nil, onSave: @escaping () -> Void) {
         self.routineToEdit = routineToEdit
@@ -179,6 +180,9 @@ struct CreateRoutineView: View {
         .onAppear(perform: configureFormIfNeeded)
         // Cheap safety net: pick up custom exercises saved elsewhere.
         .onAppear(perform: exerciseStore.reloadCustomExercises)
+        .sheet(item: $askTarget) { context in
+            ExerciseAskCoachSheet(context: context)
+        }
     }
 
     private var routineSetupSection: some View {
@@ -271,6 +275,15 @@ struct CreateRoutineView: View {
                                         }
                                     }
                                 }
+
+                                ExerciseAskButton(
+                                    context: ExerciseAskContext(
+                                        name: exercise,
+                                        sets: preferredSetCount(for: exercise)
+                                    ),
+                                    askTarget: $askTarget,
+                                    font: .subheadline
+                                )
                             }
 
                             VStack(alignment: .leading, spacing: 12) {

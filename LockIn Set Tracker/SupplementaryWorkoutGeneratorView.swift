@@ -21,6 +21,7 @@ struct SupplementaryWorkoutGeneratorView: View {
     @State private var destinationMessage: String?
     @State private var showDestinationSheet = false
     @State private var smartSwapIndex: SmartSwapIndex?
+    @State private var askTarget: ExerciseAskContext?
 
     private let client = SupplementaryWorkoutClient()
     private let promptSuggestions = [
@@ -73,6 +74,9 @@ struct SupplementaryWorkoutGeneratorView: View {
                     onComplete: handleDestinationResult
                 )
             }
+        }
+        .sheet(item: $askTarget) { context in
+            ExerciseAskCoachSheet(context: context)
         }
     }
 
@@ -237,12 +241,14 @@ struct SupplementaryWorkoutGeneratorView: View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
 
         return VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            HStack(spacing: 16) {
                 Text("EXERCISE \(index + 1)")
                     .microLabel()
                     .monospacedDigit()
 
                 Spacer()
+
+                ExerciseAskButton(context: ExerciseAskContext(draft: exercise), askTarget: $askTarget)
 
                 if let matchedExercise {
                     NavigationLink(destination: ExerciseDetailView(exercise: matchedExercise)) {

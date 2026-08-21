@@ -10,6 +10,7 @@ struct PresetWorkoutGeneratorView: View {
     @State private var preview: GeneratedPresetWorkout?
     @State private var selectedEquipment: Set<EquipmentType> = Set(EquipmentType.selectionOptions)
     @State private var showEquipmentOptions = false
+    @State private var askTarget: ExerciseAskContext?
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -72,6 +73,9 @@ struct PresetWorkoutGeneratorView: View {
         .onChange(of: selectedSplitKind) { _, _ in
             selectedTemplateID = selectedSplit?.templates.first?.id
             preview = nil
+        }
+        .sheet(item: $askTarget) { context in
+            ExerciseAskCoachSheet(context: context)
         }
     }
 
@@ -266,10 +270,20 @@ struct PresetWorkoutGeneratorView: View {
 
             ForEach(preview.matches) { match in
                 VStack(alignment: .leading, spacing: 6) {
-                    ExerciseTextNavigationLink(exerciseName: match.exercise.name, exercises: exerciseStore.exercises) {
-                        Text(match.exercise.name)
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.textPrimary)
+                    HStack(spacing: 10) {
+                        ExerciseTextNavigationLink(exerciseName: match.exercise.name, exercises: exerciseStore.exercises) {
+                            Text(match.exercise.name)
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.textPrimary)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        ExerciseAskButton(
+                            context: ExerciseAskContext(name: match.exercise.name),
+                            askTarget: $askTarget,
+                            font: .subheadline
+                        )
                     }
 
                     Text(match.role.title)

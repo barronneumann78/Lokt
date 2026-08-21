@@ -3,8 +3,19 @@ import Foundation
 /// Resolves loosely written exercise names (AI drafts, imports, old saved routines)
 /// to real library exercises so every exercise mention can open a detail page.
 enum ExerciseNameMatcher {
-    private static var resolutionCache: [String: String] = [:]
-    private static let unresolvedMarker = ""
+    /// One memoized verdict, tagged with the size of the candidate list it was
+    /// computed against. Some callers resolve against a filtered subset of the
+    /// library (e.g. the logger's swap sheet excludes exercises already in the
+    /// routine). A verdict computed against a subset must never answer for the
+    /// full library: that is how fuzzy draft names went "unresolved" app-wide
+    /// for the rest of the session, leaving every non-exactly-named exercise
+    /// row inert while exactly-named rows kept navigating.
+    private struct CachedResolution {
+        var listCount: Int
+        var resolvedName: String?
+    }
+
+    private static var resolutionCache: [String: CachedResolution] = [:]
 
     /// Drops all memoized resolutions. Call when the exercise library changes
     /// (custom exercises added/edited), since cached "unresolved" or matched
@@ -17,13 +28,19 @@ enum ExerciseNameMatcher {
         let cacheKey = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cacheKey.isEmpty else { return nil }
 
-        if let cachedName = resolutionCache[cacheKey] {
-            guard cachedName != unresolvedMarker else { return nil }
-            return exercises.first { $0.name == cachedName }
+        if let cached = resolutionCache[cacheKey], cached.listCount == exercises.count {
+            if let cachedName = cached.resolvedName {
+                if let hit = exercises.first(where: { $0.name == cachedName }) {
+                    return hit
+                }
+                // Same size but a different list — recompute below.
+            } else {
+                return nil
+            }
         }
 
         let match = computeBestMatch(for: name, in: exercises)
-        resolutionCache[cacheKey] = match?.name ?? unresolvedMarker
+        resolutionCache[cacheKey] = CachedResolution(listCount: exercises.count, resolvedName: match?.name)
         return match
     }
 

@@ -60,6 +60,9 @@ struct CoachView: View {
     /// "Updated" instead of "Saved").
     @State private var updatedDraftIDs: Set<UUID> = []
 
+    /// Exercise the quick-ask sheet is currently scoped to.
+    @State private var askTarget: ExerciseAskContext?
+
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
 
@@ -79,6 +82,9 @@ struct CoachView: View {
         NavigationView {
             coachContent
                 .navigationBarHidden(true)
+        }
+        .sheet(item: $askTarget) { context in
+            ExerciseAskCoachSheet(context: context)
         }
     }
 
@@ -503,13 +509,23 @@ struct CoachView: View {
                             .foregroundStyle(AppTheme.textTertiary)
 
                         VStack(alignment: .leading, spacing: 3) {
-                            ExerciseTextNavigationLink(
-                                exerciseName: item.element.name,
-                                exercises: exerciseStore.exercises
-                            ) {
-                                Text(item.element.name)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(AppTheme.textPrimary)
+                            HStack(spacing: 10) {
+                                ExerciseTextNavigationLink(
+                                    exerciseName: item.element.name,
+                                    exercises: exerciseStore.exercises
+                                ) {
+                                    Text(item.element.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                ExerciseAskButton(
+                                    context: ExerciseAskContext(draft: item.element),
+                                    askTarget: $askTarget,
+                                    font: .subheadline
+                                )
                             }
 
                             Text("\(item.element.sets) sets • \(item.element.reps)")

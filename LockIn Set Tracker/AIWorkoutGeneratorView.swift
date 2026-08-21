@@ -20,6 +20,7 @@ struct AIWorkoutGeneratorView: View {
     @State private var conversationMessages: [AIWorkoutConversationMessage] = []
     @State private var latestCoachChangeSummary: String?
     @State private var smartSwapIndex: SmartSwapIndex?
+    @State private var askTarget: ExerciseAskContext?
     @State private var isApplyingRevision = false
 
     private let client = AIWorkoutGeneratorClient()
@@ -63,6 +64,9 @@ struct AIWorkoutGeneratorView: View {
                     applySmartSwap(suggestion, at: target.index)
                 }
             }
+        }
+        .sheet(item: $askTarget) { context in
+            ExerciseAskCoachSheet(context: context)
         }
     }
 
@@ -271,12 +275,14 @@ struct AIWorkoutGeneratorView: View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
 
         return VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            HStack(spacing: 16) {
                 Text("EXERCISE \(index + 1)")
                     .microLabel()
                     .monospacedDigit()
 
                 Spacer()
+
+                ExerciseAskButton(context: ExerciseAskContext(draft: exercise), askTarget: $askTarget)
 
                 if let matchedExercise {
                     NavigationLink(destination: ExerciseDetailView(exercise: matchedExercise)) {

@@ -19,6 +19,26 @@ private struct ExerciseCoachRequestPayload: Codable {
     var candidates: [ExerciseSwapCandidatePayload]
 }
 
+/// Request payload for draft exercises that never matched the library. The
+/// backend embeds `currentExercise` verbatim in the prompt, so this leaner
+/// shape (draft numbers + AI reasoning instead of library metadata) is enough
+/// context for a grounded answer.
+private struct DraftExercisePayload: Codable {
+    var name: String
+    var sets: Int?
+    var reps: String?
+    var notes: String?
+    var reasoning: String?
+    var tip: String?
+    var libraryStatus: String
+}
+
+private struct DraftExerciseCoachRequestPayload: Codable {
+    var currentExercise: DraftExercisePayload
+    var question: String
+    var candidates: [ExerciseSwapCandidatePayload]
+}
+
 private struct ExerciseCoachResponseEnvelope: Codable {
     var answer: String
     var suggestions: [ExerciseCoachSuggestion]
@@ -86,6 +106,94 @@ struct ExerciseCoachService {
             question: trimmedQuestion,
             exercise: exercise,
             exercises: exercises
+        )
+    }
+
+    /// Entry point for creation/review surfaces. Resolves the draft name
+    /// against the library when it can (full quick-answer + swap plumbing);
+    /// otherwise asks the backend with the draft's own context, so AI-invented
+    /// names still get answers.
+    func reply(
+        for question: String,
+        context: ExerciseAskContext,
+        exercises: [Exercise]
+    ) async throws -> ExerciseCoachReply {
+        if let matched = exercises.resolvedExercise(named: context.name) {
+            return try await reply(for: question, exercise: matched, exercises: exercises)
+        }
+
+        return try await requestDraftCoachReply(question: question, context: context)
+    }
+
+    private func requestDraftCoachReply(
+        question: String,
+        context: ExerciseAskContext
+    ) async throws -> ExerciseCoachReply {
+        let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuestion.count >= 4 else {
+            throw ExerciseCoachError.invalidQuestion
+        }
+
+        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
+            throw ExerciseCoachError.invalidBackendURL
+        }
+
+        let payload = DraftExerciseCoachRequestPayload(
+            currentExercise: DraftExercisePayload(
+                name: context.name,
+                sets: context.sets,
+                reps: context.reps,
+                notes: context.notes,
+                reasoning: context.reasoning,
+                tip: context.tip,
+                libraryStatus: "Not in the exercise library — answer from the draft context above."
+            ),
+            question: trimmedQuestion,
+            candidates: []
+        )
+
+        let (data, response): (Data, URLResponse)
+
+        do {
+            let result = try await sendAIBackendRequest(
+                path: "api/ai/exercise-coach/answer",
+                timeout: 60,
+                body: try JSONEncoder().encode(payload)
+            )
+            (data, response) = (result.data, result.response)
+        } catch {
+            throw ExerciseCoachError.requestFailed(
+                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+            )
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ExerciseCoachError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if let decodedError = try? JSONDecoder().decode(ExerciseCoachErrorEnvelope.self, from: data) {
+                throw ExerciseCoachError.requestFailed(decodedError.error)
+            }
+
+            throw ExerciseCoachError.requestFailed("The AI backend returned an error (\(httpResponse.statusCode)).")
+        }
+
+        guard let decoded = try? JSONDecoder().decode(ExerciseCoachResponseEnvelope.self, from: data) else {
+            throw ExerciseCoachError.invalidResponse
+        }
+
+        let answer = decoded.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !answer.isEmpty else {
+            throw ExerciseCoachError.invalidResponse
+        }
+
+        // No library candidates were offered, so drop any invented suggestions.
+        return ExerciseCoachReply(
+            question: trimmedQuestion,
+            answer: answer,
+            suggestions: []
         )
     }
 
