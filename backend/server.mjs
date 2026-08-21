@@ -301,6 +301,14 @@ const preferenceInstructions = [
   "Do not mention the saved profile explicitly unless it helps explain a coaching choice."
 ].join(" ");
 
+const userMemoryInstructions = [
+  "You may receive a USER MEMORY digest summarizing the user's real logged training history.",
+  "It is tiered: the most recent sessions are detailed, weeks two through thirteen are weekly summaries, and everything older is monthly one-liners plus durable lifetime facts such as all-time PRs, pain history, and consistency.",
+  "Treat it as ground truth about what the user actually did, and prefer newer information when tiers disagree.",
+  "Use it to personalize: base loads and progressions on recent numbers, respect recovery after heavy recent volume, reference PRs accurately, and never program movements that clash with a reported pain or limitation without adjusting for it.",
+  "Do not recite the memory back to the user; use it the way a coach who knows their history would."
+].join(" ");
+
 const routineFieldGuidelines = [
   "Write the summary as one concrete sentence a beginner can read at a glance. Add a second sentence only when it carries genuinely distinct information, such as a constraint, equipment note, or scheduling detail.",
   "Never pad the summary with filler that restates the goal or with generic benefit-speak such as maximizing volume, efficiently, keeps things effective, or optimized. If the second sentence only rephrases the first, drop it.",
@@ -323,6 +331,7 @@ const workoutGeneratorInstructions = [
   routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
+  userMemoryInstructions,
   "Use working sets only.",
   "Make rep targets concise, such as 5-8, 8-10, 10-15, or 30 sec.",
   "Only add exercise notes when they are genuinely useful.",
@@ -381,6 +390,7 @@ const workoutRevisionInstructions = [
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
   coachVoiceGuidelines,
   preferenceInstructions,
+  userMemoryInstructions,
   "Only return JSON matching the schema."
 ].join(" ");
 
@@ -426,6 +436,7 @@ const coachChatInstructions = [
   routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
+  userMemoryInstructions,
   "Only return JSON matching the schema."
 ].join(" ");
 
@@ -520,6 +531,7 @@ const server = http.createServer(async (request, response) => {
       const body = await readJsonBody(request);
       const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
       const preferences = normalizePreferences(body?.preferences);
+      const memory = normalizeUserMemory(body?.memory);
 
       if (prompt.length < 8) {
         sendJson(response, 400, {
@@ -528,7 +540,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const routineResult = await generateWorkoutRoutine(prompt, preferences);
+      const routineResult = await generateWorkoutRoutine(prompt, preferences, memory);
 
       sendJson(response, 200, {
         routine: routineResult.routine,
@@ -592,6 +604,7 @@ const server = http.createServer(async (request, response) => {
       const currentRoutine = body?.currentRoutine ?? null;
       const conversation = normalizeConversation(body?.conversation);
       const preferences = normalizePreferences(body?.preferences);
+      const memory = normalizeUserMemory(body?.memory);
 
       if (editPrompt.length < 8) {
         sendJson(response, 400, {
@@ -607,7 +620,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const routineResult = await reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, preferences });
+      const routineResult = await reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, preferences, memory });
 
       sendJson(response, 200, {
         routine: routineResult.routine,
@@ -763,6 +776,7 @@ const server = http.createServer(async (request, response) => {
       const context = normalizeCoachContext(body?.context);
       const savedRoutines = normalizeSavedRoutines(body?.savedRoutines);
       const preferences = normalizePreferences(body?.preferences);
+      const memory = normalizeUserMemory(body?.memory);
 
       if (message.length < 4) {
         sendJson(response, 400, {
@@ -777,7 +791,8 @@ const server = http.createServer(async (request, response) => {
         currentRoutine,
         context,
         savedRoutines,
-        preferences
+        preferences,
+        memory
       });
 
       sendJson(response, 200, {
@@ -977,7 +992,7 @@ server.listen(port, () => {
   console.log(`Lokt AI backend listening on http://127.0.0.1:${port}`);
 });
 
-async function generateWorkoutRoutine(prompt, preferences) {
+async function generateWorkoutRoutine(prompt, preferences, memory = null) {
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -988,7 +1003,7 @@ async function generateWorkoutRoutine(prompt, preferences) {
       model: workoutGeneratorModel,
       store: false,
       instructions: workoutGeneratorInstructions,
-      input: formatPromptWithPreferences(prompt, preferences),
+      input: formatPromptWithPreferences(prompt, preferences, memory),
       text: {
         format: {
           type: "json_schema",
@@ -1073,7 +1088,7 @@ async function generateSupplementaryWorkout(prompt, preferences) {
   };
 }
 
-async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, preferences }) {
+async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, preferences, memory = null }) {
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -1096,6 +1111,9 @@ async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, 
                 "",
                 "Saved user preferences:",
                 formatPreferences(preferences),
+                "",
+                "USER MEMORY:",
+                formatUserMemory(memory),
                 "",
                 "Earlier conversation:",
                 formatConversation(conversation),
@@ -1286,7 +1304,7 @@ async function reviseImportedWorkout({ editPrompt, currentDraft, conversation, p
   };
 }
 
-async function chatWithCoach({ message, conversation, currentRoutine, context, savedRoutines, preferences }) {
+async function chatWithCoach({ message, conversation, currentRoutine, context, savedRoutines, preferences, memory = null }) {
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -1315,6 +1333,9 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
                 "",
                 "Saved user preferences:",
                 formatPreferences(preferences),
+                "",
+                "USER MEMORY:",
+                formatUserMemory(memory),
                 "",
                 "Earlier conversation:",
                 formatConversation(conversation),
@@ -1896,14 +1917,189 @@ function formatPreferences(preferences) {
   return lines.length > 0 ? lines.join("\n") : "None.";
 }
 
-function formatPromptWithPreferences(prompt, preferences) {
-  return [
+function formatPromptWithPreferences(prompt, preferences, memory = null) {
+  const parts = [
     "User request:",
     prompt,
     "",
     "Saved user preferences:",
     formatPreferences(preferences)
-  ].join("\n");
+  ];
+
+  if (memory) {
+    parts.push("", "USER MEMORY:", formatUserMemory(memory));
+  }
+
+  return parts.join("\n");
+}
+
+// Validates and hard-caps the tiered user-memory digest the app attaches to
+// coach chat and generator/revise requests. Everything is length-clamped so a
+// hostile or buggy client can never balloon the model context.
+function normalizeUserMemory(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const text = (input, maxLength) =>
+    typeof input === "string" ? input.trim().slice(0, maxLength) : "";
+  const count = (input, maxValue) =>
+    Number.isFinite(input) ? Math.max(0, Math.min(maxValue, Math.round(Number(input)))) : null;
+  const list = (input, maxItems, maxLength) =>
+    Array.isArray(input)
+      ? input.map((item) => String(item).trim().slice(0, maxLength)).filter(Boolean).slice(0, maxItems)
+      : [];
+
+  const recentSessions = (Array.isArray(value.recentSessions) ? value.recentSessions : [])
+    .slice(0, 14)
+    .map((session) => ({
+      date: text(session?.date, 10),
+      routine: text(session?.routine, 80),
+      sets: count(session?.sets, 200),
+      volume: count(session?.volume, 10000000),
+      durationMinutes: count(session?.durationMinutes, 1000),
+      checkIn: text(session?.checkIn, 24),
+      painNote: text(session?.painNote, 160),
+      bestSets: list(session?.bestSets, 8, 80),
+      prs: list(session?.prs, 6, 90)
+    }))
+    .filter((session) => session.date && session.routine);
+
+  const weeklySummaries = (Array.isArray(value.weeklySummaries) ? value.weeklySummaries : [])
+    .slice(0, 14)
+    .map((week) => ({
+      weekOf: text(week?.weekOf, 10),
+      sessions: count(week?.sessions, 50),
+      sets: count(week?.sets, 1000),
+      volume: count(week?.volume, 10000000),
+      focus: list(week?.focus, 3, 24),
+      prs: list(week?.prs, 6, 90),
+      introduced: list(week?.introduced, 6, 60),
+      dropped: list(week?.dropped, 6, 60)
+    }))
+    .filter((week) => week.weekOf && week.sessions !== null);
+
+  const rawLifetime = value.lifetime && typeof value.lifetime === "object" ? value.lifetime : null;
+  const lifetime = rawLifetime
+    ? {
+        since: text(rawLifetime.since, 10),
+        totalSessions: count(rawLifetime.totalSessions, 100000),
+        totalVolume: count(rawLifetime.totalVolume, 2000000000),
+        sessionsPerWeek: Number.isFinite(rawLifetime.sessionsPerWeek)
+          ? Math.max(0, Math.min(50, Math.round(Number(rawLifetime.sessionsPerWeek) * 10) / 10))
+          : null,
+        longestStreakWeeks: count(rawLifetime.longestStreakWeeks, 5000),
+        allTimePRs: list(rawLifetime.allTimePRs, 15, 100),
+        painHistory: list(rawLifetime.painHistory, 10, 170),
+        limitations: text(rawLifetime.limitations, 240),
+        months: (Array.isArray(rawLifetime.months) ? rawLifetime.months : [])
+          .slice(0, 30)
+          .map((month) => ({
+            month: text(month?.month, 7),
+            sessions: count(month?.sessions, 1000),
+            volume: count(month?.volume, 100000000),
+            focus: list(month?.focus, 3, 24)
+          }))
+          .filter((month) => month.month && month.sessions !== null)
+      }
+    : null;
+
+  if (recentSessions.length === 0 && weeklySummaries.length === 0 && !lifetime) {
+    return null;
+  }
+
+  return { recentSessions, weeklySummaries, lifetime };
+}
+
+function formatUserMemory(memory) {
+  if (!memory) {
+    return "None.";
+  }
+
+  const lines = [];
+
+  if (memory.recentSessions.length > 0) {
+    lines.push("Recent sessions (newest first, most detailed):");
+    for (const session of memory.recentSessions) {
+      const facts = [
+        session.sets !== null ? `${session.sets} sets` : null,
+        session.volume !== null ? `volume ${session.volume}` : null,
+        session.durationMinutes !== null ? `${session.durationMinutes} min` : null,
+        session.checkIn ? `felt ${session.checkIn}` : null,
+        session.painNote ? `pain: ${session.painNote}` : null
+      ].filter(Boolean).join(", ");
+
+      let line = `- ${session.date} | ${session.routine}`;
+      if (facts) {
+        line += ` | ${facts}`;
+      }
+      if (session.bestSets.length > 0) {
+        line += ` | best: ${session.bestSets.join("; ")}`;
+      }
+      if (session.prs.length > 0) {
+        line += ` | ${session.prs.join("; ")}`;
+      }
+      lines.push(line);
+    }
+  }
+
+  if (memory.weeklySummaries.length > 0) {
+    lines.push("Weekly summaries (2-13 weeks ago):");
+    for (const week of memory.weeklySummaries) {
+      const facts = [
+        `${week.sessions} sessions`,
+        week.sets !== null ? `${week.sets} sets` : null,
+        week.volume !== null ? `volume ${week.volume}` : null,
+        week.focus.length > 0 ? `focus ${week.focus.join("/")}` : null,
+        week.prs.length > 0 ? `PRs: ${week.prs.join("; ")}` : null,
+        week.introduced.length > 0 ? `introduced ${week.introduced.join(", ")}` : null,
+        week.dropped.length > 0 ? `dropped ${week.dropped.join(", ")}` : null
+      ].filter(Boolean).join(", ");
+      lines.push(`- week of ${week.weekOf}: ${facts}`);
+    }
+  }
+
+  if (memory.lifetime) {
+    const lifetime = memory.lifetime;
+    lines.push("Lifetime:");
+
+    const facts = [
+      lifetime.since ? `training in app since ${lifetime.since}` : null,
+      lifetime.totalSessions !== null ? `${lifetime.totalSessions} total sessions` : null,
+      lifetime.totalVolume !== null ? `total volume ${lifetime.totalVolume}` : null,
+      lifetime.sessionsPerWeek !== null ? `avg ${lifetime.sessionsPerWeek} sessions/week` : null,
+      lifetime.longestStreakWeeks !== null ? `longest streak ${lifetime.longestStreakWeeks} weeks` : null
+    ].filter(Boolean).join(", ");
+    if (facts) {
+      lines.push(`- ${facts}`);
+    }
+    if (lifetime.allTimePRs.length > 0) {
+      lines.push(`- All-time PRs: ${lifetime.allTimePRs.join("; ")}`);
+    }
+    if (lifetime.painHistory.length > 0) {
+      lines.push(`- Pain history: ${lifetime.painHistory.join("; ")}`);
+    }
+    if (lifetime.limitations) {
+      lines.push(`- Standing limitations: ${lifetime.limitations}`);
+    }
+    for (const month of lifetime.months) {
+      const monthFacts = [
+        `${month.sessions} sessions`,
+        month.volume !== null ? `volume ${month.volume}` : null,
+        month.focus.length > 0 ? `focus ${month.focus.join("/")}` : null
+      ].filter(Boolean).join(", ");
+      lines.push(`- ${month.month}: ${monthFacts}`);
+    }
+  }
+
+  if (lines.length === 0) {
+    return "None.";
+  }
+
+  // Final guard well past the app-side cap: never let a crafted payload
+  // balloon the context.
+  const rendered = lines.join("\n");
+  return rendered.length > 9000 ? `${rendered.slice(0, 9000)}\n(truncated)` : rendered;
 }
 
 function formatConversation(conversation) {

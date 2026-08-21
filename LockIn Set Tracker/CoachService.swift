@@ -98,7 +98,8 @@ struct CoachChatService {
                 }
             ),
             savedRoutines: Self.savedRoutinesPayload(from: savedRoutines),
-            preferences: preferences
+            preferences: preferences,
+            memory: UserMemoryStore.current()
         )
 
         let decoded = try await sendRequest(body: payload)
@@ -206,6 +207,9 @@ private struct CoachChatRequest: Codable {
     var context: CoachChatContextPayload
     var savedRoutines: [CoachSavedRoutinePayload]
     var preferences: AIUserPreferencesPayload
+    /// Tiered training-history digest (recent detail, weekly summaries,
+    /// lifetime facts). nil when the user has no logged history yet.
+    var memory: UserMemory?
 }
 
 private struct CoachChatResponseEnvelope: Codable {

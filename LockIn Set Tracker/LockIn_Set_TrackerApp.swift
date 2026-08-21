@@ -32,6 +32,14 @@ struct LockInSetTrackerApp: App {
             .environmentObject(store)
             .environmentObject(exerciseStore)
             .environmentObject(themeStore)
+            // The AI memory digest names muscle-group focus by resolving logged
+            // exercise names against the shared library. Installed here once so
+            // digest rebuilds anywhere in the app resolve consistently.
+            .onAppear {
+                UserMemoryStore.exerciseResolver = { name in
+                    exerciseStore.exercises.resolvedExercise(named: name)
+                }
+            }
             // The app is fully dark-themed; declare it so system-managed
             // chrome (search-field placeholders, keyboard, alerts) uses
             // legible dark-mode colors instead of light-mode grays.

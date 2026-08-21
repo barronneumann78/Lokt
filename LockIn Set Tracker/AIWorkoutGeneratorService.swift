@@ -158,7 +158,11 @@ struct AIWorkoutGeneratorClient {
         let preferences = AIUserPreferencesPayload(preferences: AIUserPreferencesStore.load())
         let decoded = try await sendGeneratorRequest(
             path: "api/ai/workout-generator",
-            body: AIWorkoutGeneratorRequest(prompt: trimmedPrompt, preferences: preferences)
+            body: AIWorkoutGeneratorRequest(
+                prompt: trimmedPrompt,
+                preferences: preferences,
+                memory: UserMemoryStore.current()
+            )
         )
 
         guard let routinePayload = decoded.routine else {
@@ -181,7 +185,8 @@ struct AIWorkoutGeneratorClient {
                 editPrompt: trimmedPrompt,
                 currentRoutine: routine.routinePayload,
                 conversation: conversation.aiPayload,
-                preferences: preferences
+                preferences: preferences,
+                memory: UserMemoryStore.current()
             )
         )
 
@@ -500,6 +505,8 @@ enum AIWorkoutRoutineSaver {
 private struct AIWorkoutGeneratorRequest: Codable {
     var prompt: String
     var preferences: AIUserPreferencesPayload
+    /// Tiered training-history digest; nil when there is no logged history.
+    var memory: UserMemory?
 }
 
 private struct AIWorkoutGeneratorRevisionRequest: Codable {
@@ -507,6 +514,8 @@ private struct AIWorkoutGeneratorRevisionRequest: Codable {
     var currentRoutine: AIWorkoutRoutinePayload
     var conversation: [AIWorkoutConversationMessagePayload]
     var preferences: AIUserPreferencesPayload
+    /// Tiered training-history digest; nil when there is no logged history.
+    var memory: UserMemory?
 }
 
 private struct AIWorkoutGeneratorResponseEnvelope: Codable {

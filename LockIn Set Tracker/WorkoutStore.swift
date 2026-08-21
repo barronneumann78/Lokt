@@ -96,6 +96,9 @@ final class WorkoutStore: ObservableObject {
     func addSession(_ session: WorkoutSession) {
         sessions.append(session)
         persistSessions()
+        // Refresh the derived AI memory digest (a pure function of the raw
+        // data — never a second persistence path for it).
+        UserMemoryStore.refresh(defaults: defaults)
     }
 
     func session(withID id: UUID) -> WorkoutSession? {
@@ -147,5 +150,7 @@ final class WorkoutStore: ObservableObject {
 
         routines[routineIndex].progression = progression
         persistRoutines()
+        // Check-in outcomes feed the AI memory digest's recent tier.
+        UserMemoryStore.refresh(defaults: defaults)
     }
 }

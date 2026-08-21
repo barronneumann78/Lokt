@@ -1161,6 +1161,8 @@ struct WorkoutLoggerView: View {
         saved.append(session)
         if let encoded = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(encoded, forKey: "workoutSessions")
+            // Keep the derived AI memory digest in step with the raw history.
+            UserMemoryStore.refresh()
         }
     }
 
