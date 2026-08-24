@@ -5,6 +5,8 @@ struct PresetWorkoutGeneratorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @EnvironmentObject private var workoutStore: WorkoutStore
+    @ObservedObject private var hints = DiscoveryHints.shared
     @State private var selectedSplitKind: WorkoutPresetSplitKind = .fullBodyBeginner
     @State private var selectedTemplateID: String?
     @State private var preview: GeneratedPresetWorkout?
@@ -282,7 +284,8 @@ struct PresetWorkoutGeneratorView: View {
                         ExerciseAskButton(
                             context: ExerciseAskContext(name: match.exercise.name),
                             askTarget: $askTarget,
-                            font: .subheadline
+                            font: .subheadline,
+                            hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
                         )
                     }
 

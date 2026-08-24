@@ -65,6 +65,7 @@ struct CoachView: View {
 
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @ObservedObject private var hints = DiscoveryHints.shared
 
     private struct SaveNotice: Equatable {
         var title: String
@@ -524,7 +525,8 @@ struct CoachView: View {
                                 ExerciseAskButton(
                                     context: ExerciseAskContext(draft: item.element),
                                     askTarget: $askTarget,
-                                    font: .subheadline
+                                    font: .subheadline,
+                                    hinted: hints.showAskHint(sessionCount: store.sessions.count)
                                 )
                             }
 

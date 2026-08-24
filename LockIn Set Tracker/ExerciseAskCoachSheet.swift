@@ -43,18 +43,28 @@ struct ExerciseAskContext: Identifiable {
 
 /// Small trailing icon button that opens the quick-ask sheet for one exercise.
 /// Neutral chrome by design — the sheet's single CTA carries the accent.
+/// While the button is undiscovered (`hinted`), a tiny gray "Ask" label leads
+/// the glyph; it collapses back to the bare icon with experience.
 struct ExerciseAskButton: View {
     let context: ExerciseAskContext
     @Binding var askTarget: ExerciseAskContext?
     var font: Font = .headline
+    var hinted: Bool = false
 
     var body: some View {
         Button {
+            DiscoveryHints.shared.recordAskUse()
             askTarget = context
         } label: {
-            Image(systemName: "questionmark.bubble")
-                .font(font)
-                .foregroundStyle(AppTheme.textPrimary)
+            HStack(spacing: 5) {
+                if hinted {
+                    DiscoveryHintLabel(text: "Ask")
+                }
+
+                Image(systemName: "questionmark.bubble")
+                    .font(font)
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Ask about \(context.name)")

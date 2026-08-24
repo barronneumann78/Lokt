@@ -7,6 +7,8 @@ struct CreateRoutineView: View {
     @Environment(\.dismiss) private var dismiss
 
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @EnvironmentObject private var workoutStore: WorkoutStore
+    @ObservedObject private var hints = DiscoveryHints.shared
     @State private var routineName = ""
     @State private var selectedExercises: [String] = []
     @State private var preferredSetCounts: [String: Int] = [:]
@@ -282,7 +284,8 @@ struct CreateRoutineView: View {
                                         sets: preferredSetCount(for: exercise)
                                     ),
                                     askTarget: $askTarget,
-                                    font: .subheadline
+                                    font: .subheadline,
+                                    hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
                                 )
                             }
 

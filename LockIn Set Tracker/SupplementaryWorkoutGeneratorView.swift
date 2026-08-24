@@ -13,8 +13,11 @@ struct SupplementaryWorkoutGeneratorView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AIBackendConfiguration.userDefaultsKey) private var aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @EnvironmentObject private var workoutStore: WorkoutStore
+    @ObservedObject private var hints = DiscoveryHints.shared
 
     @State private var stage: AIWorkoutGenerationStage = .prompt
+    @State private var isDiscoveryNudgeVisible = false
     @State private var prompt = ""
     @State private var generatedBlock: AIGeneratedRoutineDraft?
     @State private var errorMessage: String?
@@ -231,8 +234,26 @@ struct SupplementaryWorkoutGeneratorView: View {
             Text("BLOCK PREVIEW")
                 .microLabel()
 
+            if isDiscoveryNudgeVisible {
+                DiscoveryNudgeLine {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        isDiscoveryNudgeVisible = false
+                    }
+                }
+            }
+
             ForEach(Array(generatedBlock.exercises.enumerated()), id: \.element.id) { item in
                 exerciseCard(index: item.offset, exercise: item.element)
+            }
+        }
+        .onAppear {
+            guard hints.shouldOfferNudge(sessionCount: workoutStore.sessions.count) else { return }
+            isDiscoveryNudgeVisible = true
+            hints.markNudgeSeen()
+        }
+        .onChange(of: hints.interactionCount) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                isDiscoveryNudgeVisible = false
             }
         }
     }
@@ -248,15 +269,17 @@ struct SupplementaryWorkoutGeneratorView: View {
 
                 Spacer()
 
-                ExerciseAskButton(context: ExerciseAskContext(draft: exercise), askTarget: $askTarget)
+                ExerciseAskButton(
+                    context: ExerciseAskContext(draft: exercise),
+                    askTarget: $askTarget,
+                    hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
+                )
 
                 if let matchedExercise {
-                    NavigationLink(destination: ExerciseDetailView(exercise: matchedExercise)) {
-                        Image(systemName: "info.circle")
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.textPrimary)
-                    }
-                    .buttonStyle(.plain)
+                    ExerciseInfoButton(
+                        exercise: matchedExercise,
+                        hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
+                    )
                 }
             }
 
