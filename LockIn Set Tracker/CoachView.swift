@@ -63,6 +63,10 @@ struct CoachView: View {
     /// Exercise the quick-ask sheet is currently scoped to.
     @State private var askTarget: ExerciseAskContext?
 
+    /// Draft exercise ids whose reasoning/tip block is open. New draft
+    /// versions decode fresh ids, so rows naturally start collapsed.
+    @State private var expandedDetailIDs: Set<UUID> = []
+
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
     @ObservedObject private var hints = DiscoveryHints.shared
@@ -503,6 +507,10 @@ struct CoachView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(draft.exercises.enumerated()), id: \.element.id) { item in
+                    let reasoning = nonEmptyText(item.element.reasoning)
+                    let tip = nonEmptyText(item.element.tip)
+                    let isExpanded = expandedDetailIDs.contains(item.element.id)
+
                     HStack(alignment: .top, spacing: 10) {
                         Text("\(item.offset + 1).")
                             .font(.caption.weight(.bold))
@@ -528,6 +536,14 @@ struct CoachView: View {
                                     font: .subheadline,
                                     hinted: hints.showAskHint(sessionCount: store.sessions.count)
                                 )
+
+                                if reasoning != nil || tip != nil {
+                                    ExerciseDetailDisclosureChevron(
+                                        id: item.element.id,
+                                        expandedIDs: $expandedDetailIDs,
+                                        font: .footnote
+                                    )
+                                }
                             }
 
                             Text("\(item.element.sets) sets • \(item.element.reps)")
@@ -535,14 +551,14 @@ struct CoachView: View {
                                 .monospacedDigit()
                                 .foregroundStyle(AppTheme.textSecondary)
 
-                            if let reasoning = nonEmptyText(item.element.reasoning) {
+                            if isExpanded, let reasoning {
                                 Text(reasoning)
                                     .font(.footnote)
                                     .foregroundStyle(AppTheme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
-                            if let tip = nonEmptyText(item.element.tip) {
+                            if isExpanded, let tip {
                                 Text(tip)
                                     .font(.footnote)
                                     .foregroundStyle(AppTheme.textSecondary)

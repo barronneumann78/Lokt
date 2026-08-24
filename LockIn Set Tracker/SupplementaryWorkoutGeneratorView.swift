@@ -25,6 +25,9 @@ struct SupplementaryWorkoutGeneratorView: View {
     @State private var showDestinationSheet = false
     @State private var smartSwapIndex: SmartSwapIndex?
     @State private var askTarget: ExerciseAskContext?
+    /// Exercise ids whose reasoning/tip block is open. Fresh blocks decode new
+    /// ids, so cards naturally start collapsed.
+    @State private var expandedDetailIDs: Set<UUID> = []
 
     private let client = SupplementaryWorkoutClient()
     private let promptSuggestions = [
@@ -260,6 +263,12 @@ struct SupplementaryWorkoutGeneratorView: View {
 
     private func exerciseCard(index: Int, exercise: AIGeneratedExercise) -> some View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
+        let trimmedReasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reasoning = (trimmedReasoning?.isEmpty == false) ? trimmedReasoning : nil
+        let trimmedTip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tip = (trimmedTip?.isEmpty == false) ? trimmedTip : nil
+        let hasDisclosure = reasoning != nil || tip != nil
+        let isExpanded = expandedDetailIDs.contains(exercise.id)
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
@@ -281,18 +290,20 @@ struct SupplementaryWorkoutGeneratorView: View {
                         hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
                     )
                 }
+
+                if hasDisclosure {
+                    ExerciseDetailDisclosureChevron(id: exercise.id, expandedIDs: $expandedDetailIDs)
+                }
             }
 
-            if let reasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !reasoning.isEmpty {
+            if isExpanded, let reasoning {
                 Text(reasoning)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let tip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !tip.isEmpty {
+            if isExpanded, let tip {
                 Text(tip)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -343,6 +354,7 @@ struct SupplementaryWorkoutGeneratorView: View {
             }
         }
         .padding(18)
+        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: hasDisclosure)
         .glassCard()
     }
 
@@ -359,6 +371,7 @@ struct SupplementaryWorkoutGeneratorView: View {
                 self.generatedBlock = nil
                 destinationMessage = nil
                 errorMessage = nil
+                expandedDetailIDs = []
                 stage = .prompt
             }
             .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))

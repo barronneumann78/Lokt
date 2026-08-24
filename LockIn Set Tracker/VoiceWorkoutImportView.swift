@@ -17,6 +17,9 @@ struct VoiceWorkoutImportView: View {
     @State private var conversationMessages: [AIWorkoutConversationMessage] = []
     @State private var latestCoachChangeSummary: String?
     @State private var isApplyingRevision = false
+    /// Imported exercise ids whose tip line is open. New extractions and
+    /// revisions decode fresh ids, so rows naturally start collapsed.
+    @State private var expandedDetailIDs: Set<UUID> = []
 
     private let reviewSecondaryText = AppTheme.textSecondary
     private let reviewMutedText = AppTheme.textSecondary
@@ -354,7 +357,11 @@ struct VoiceWorkoutImportView: View {
     }
 
     private func exerciseRow(dayIndex: Int, exerciseIndex: Int, exercise: ImportedExerciseDraft) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let trimmedTip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tip = (trimmedTip?.isEmpty == false) ? trimmedTip : nil
+        let isExpanded = expandedDetailIDs.contains(exercise.id)
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     ExerciseTextNavigationLink(exerciseName: exercise.resolvedExerciseName, exercises: exerciseStore.exercises) {
@@ -368,8 +375,7 @@ struct VoiceWorkoutImportView: View {
                         .foregroundStyle(reviewSecondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let tip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !tip.isEmpty {
+                    if isExpanded, let tip {
                         Text(tip)
                             .font(.footnote)
                             .foregroundStyle(AppTheme.textSecondary)
@@ -387,6 +393,14 @@ struct VoiceWorkoutImportView: View {
                 Spacer()
 
                 confidenceChip(for: exercise)
+
+                if tip != nil {
+                    ExerciseDetailDisclosureChevron(
+                        id: exercise.id,
+                        expandedIDs: $expandedDetailIDs,
+                        font: .footnote
+                    )
+                }
             }
 
             if exercise.isCustomExercise {
@@ -438,6 +452,7 @@ struct VoiceWorkoutImportView: View {
             }
         }
         .padding(16)
+        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: tip != nil)
         .surfaceCard(border: AppTheme.cardBorder.opacity(0.75))
     }
 
@@ -618,6 +633,7 @@ struct VoiceWorkoutImportView: View {
         latestCoachChangeSummary = nil
         revisionPrompt = ""
         isApplyingRevision = false
+        expandedDetailIDs = []
         stage = .input
     }
 

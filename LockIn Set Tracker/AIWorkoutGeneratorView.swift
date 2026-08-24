@@ -25,6 +25,9 @@ struct AIWorkoutGeneratorView: View {
     @State private var smartSwapIndex: SmartSwapIndex?
     @State private var askTarget: ExerciseAskContext?
     @State private var isApplyingRevision = false
+    /// Exercise ids whose reasoning/tip block is open. Fresh drafts and
+    /// revisions decode new ids, so cards naturally start collapsed.
+    @State private var expandedDetailIDs: Set<UUID> = []
 
     private let client = AIWorkoutGeneratorClient()
     private let promptSuggestions = [
@@ -294,6 +297,10 @@ struct AIWorkoutGeneratorView: View {
 
     private func exerciseCard(index: Int, exercise: AIGeneratedExercise) -> some View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
+        let reasoning = nonEmptyText(exercise.reasoning)
+        let tip = nonEmptyText(exercise.tip)
+        let hasDisclosure = reasoning != nil || tip != nil
+        let isExpanded = expandedDetailIDs.contains(exercise.id)
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
@@ -315,20 +322,24 @@ struct AIWorkoutGeneratorView: View {
                         hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
                     )
                 }
+
+                if hasDisclosure {
+                    ExerciseDetailDisclosureChevron(id: exercise.id, expandedIDs: $expandedDetailIDs)
+                }
             }
 
             if matchedExercise == nil {
                 aiStatusChip(title: "Check Name", color: AppTheme.secondary)
             }
 
-            if let reasoning = nonEmptyText(exercise.reasoning) {
+            if isExpanded, let reasoning {
                 Text(reasoning)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let tip = nonEmptyText(exercise.tip) {
+            if isExpanded, let tip {
                 Text(tip)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -388,6 +399,7 @@ struct AIWorkoutGeneratorView: View {
             }
         }
         .padding(18)
+        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: hasDisclosure)
         .glassCard()
     }
 
@@ -406,6 +418,7 @@ struct AIWorkoutGeneratorView: View {
                 latestCoachChangeSummary = nil
                 revisionPrompt = ""
                 errorMessage = nil
+                expandedDetailIDs = []
                 stage = .prompt
             }
             .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
