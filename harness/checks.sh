@@ -1,0 +1,50 @@
+#!/bin/bash
+# Fast computational sensors. Every check exists because that exact failure
+# actually happened once. Add a check whenever a mistake recurs.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+SRC="LockIn Set Tracker"
+FAIL=0
+
+pass() { echo "  PASS  $1"; }
+fail() { echo "  FAIL  $1"; FAIL=1; }
+
+echo "== Lokt harness checks =="
+
+# 1. Banned visual styles (the "AI slop" list — restyle commits c6a9680/2489105).
+#    Blue/purple accents, gradients, and shadows are design-system violations.
+BANNED=$(grep -rnE '0\.29, *0\.62, *1\.00|0\.56, *0\.53, *0\.96|Color\.blue|#2A5285|#4A9EFF|LinearGradient|RadialGradient|AngularGradient|\.shadow\(' \
+  --include="*.swift" "$SRC" | grep -v "^Binary")
+if [ -n "$BANNED" ]; then fail "banned style (blue/purple/gradient/shadow) found:"; echo "$BANNED" | head -5
+else pass "no banned styles (blue/purple, gradients, shadows)"; fi
+
+# 2. Color literals outside the token layer (Theme.swift is the only home).
+LITERALS=$(grep -rn 'Color(red:' --include="*.swift" "$SRC" | grep -v "Theme.swift")
+if [ -n "$LITERALS" ]; then fail "Color(red:) literal outside Theme.swift:"; echo "$LITERALS" | head -5
+else pass "all color literals live in Theme.swift"; fi
+
+# 3. exercises.json must be valid JSON (a 1-char corruption once nearly shipped —
+#    it would have silently emptied the entire 1,036-exercise library).
+if python3 -c "import json;json.load(open('$SRC/exercises.json'))" 2>/dev/null
+then pass "exercises.json is valid JSON"
+else fail "exercises.json is INVALID JSON — the exercise library would load empty"; fi
+
+# 4. Exactly one ExerciseStore() construction (app root). Per-view copies each
+#    re-decoded 2MB of JSON (fixed in f4d6798).
+COUNT=$(grep -rn "ExerciseStore()" --include="*.swift" "$SRC" | wc -l | tr -d ' ')
+if [ "$COUNT" = "1" ]; then pass "single shared ExerciseStore (1 construction)"
+else fail "expected exactly 1 ExerciseStore() construction, found $COUNT"; fi
+
+# 5. No API keys in tracked sources (defense in depth; .env is gitignored).
+KEYS=$(grep -rnE 'sk-[A-Za-z0-9_-]{20,}' --include="*.swift" --include="*.mjs" --include="*.json" "$SRC" backend/server.mjs 2>/dev/null)
+if [ -n "$KEYS" ]; then fail "possible API key committed in sources:"; echo "$KEYS" | head -3
+else pass "no API keys in sources"; fi
+
+# 6. M1b drift tracker (informational): direct UserDefaults access to the
+#    store-owned keys. Should only ever DECREASE as screens migrate to WorkoutStore.
+DIRECT=$(grep -rnE 'forKey: *"(routines|workoutSessions)"' --include="*.swift" "$SRC" | grep -v "WorkoutStore.swift" | wc -l | tr -d ' ')
+echo "  INFO  M1b tracker: $DIRECT direct 'routines'/'workoutSessions' accesses outside WorkoutStore (should only decrease)"
+
+echo "=========================="
+if [ $FAIL -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "CHECKS FAILED"; fi
+exit $FAIL

@@ -1,106 +1,94 @@
 # CLAUDE.md — Lokt / LockIn Set Tracker
 
-Context for Claude Code working in this repo. Read this first, then `BUILD_PLAN.md`
-for what we're building and why.
+Context for Claude Code and agents working in this repo. Read this first.
+The repo has an engineering **harness** — see `harness/README.md`. Agents doing
+multi-step work should follow `harness/AGENT_PLAYBOOK.md`.
 
 ## What this is
 
-**Lokt** (folder/project name "LockIn Set Tracker", app display name `Lokt`) is an
-AI workout-coach iOS app. The user describes, speaks, or photographs a workout in
-plain language; the app turns it into a **structured, editable routine draft** they
-review before it's saved, then logs the session. There's also a coach chat.
-
-We are mid-way through repositioning it around a sharper thesis (see `BUILD_PLAN.md`
-and the design spine): the differentiator is **confirmation + ownership + an
-adaptation loop**, not content or price. The one feature that matters most and does
-not exist yet is the post-session adaptation loop (M4).
+**Lokt** (folder "LockIn Set Tracker", display name `Lokt`) is an AI
+workout-coach iOS app. Users generate/describe/import workouts → review a
+structured draft → confirm → log sessions with checkmark-completed sets → view
+analytics. A coach chat can create AND edit saved routines. `BUILD_PLAN.md`
+holds the product thesis (adaptation loop = M4, still pending); its milestone
+statuses are stale — trust this file for current state.
 
 ## Stack & layout
 
-- **iOS app** — SwiftUI, iOS deployment target 18.5, Swift 5. ~15k lines.
-  - Source: `LockIn Set Tracker/` (all `.swift`, plus `exercises.csv/json`, `ExerciseGIFs/`).
-  - Xcode project: `LockIn Set Tracker.xcodeproj`. **Uses Xcode 16 synchronized
-    folder groups** (`PBXFileSystemSynchronizedRootGroup`) — new `.swift` files added
-    to the folder are picked up by the target automatically. Do NOT hand-edit
-    `project.pbxproj` to register files.
-  - Scheme: `LockIn Set Tracker`. Bundle IDs: `LockIn.LockIn-Set-Tracker`.
-- **Backend** — `backend/server.mjs`, a single-file Node HTTP server (no framework)
-  that proxies OpenAI. Holds the OpenAI key server-side.
-- Tests: `LockIn Set TrackerTests/` and `...UITests/` exist but are **empty stubs**.
+- **iOS app** — SwiftUI, iOS 18.5 target, Swift 5. Source in `LockIn Set Tracker/`.
+  Xcode 16 synchronized folder groups: new `.swift` files are picked up
+  automatically — **never hand-edit `project.pbxproj`**.
+- **Backend** — `backend/server.mjs`, single-file Node HTTP server proxying
+  OpenAI (Responses API, **strict JSON schemas only** — never freeform parsing).
+  Key lives ONLY in `backend/.env` (gitignored). Never read/print/commit it.
+- Tests: XCTest targets are stubs and are NOT built by the scheme. Logic
+  verification uses compiled harness checks instead — see `harness/`.
 
 ## Build & run
 
 ```bash
-# Build the app (from repo root)
-xcodebuild -scheme "LockIn Set Tracker" \
-  -project "LockIn Set Tracker.xcodeproj" \
-  -destination 'platform=iOS Simulator,name=iPhone 16' build
-
-# Run the AI backend (needed for any AI feature)
-cd backend
-cp .env.example .env         # then put a real OPENAI_API_KEY in .env
-npm start                    # node --env-file=.env server.mjs, listens on PORT (default 8787)
+harness/build.sh          # canonical build (destination pinned to OS=18.5 — required,
+                          # the active Xcode also ships iOS 26.5 sims with same names)
+harness/checks.sh         # fast sensors: banned patterns, dataset integrity, drift
+cd backend && npm start   # AI backend on :8787 (harness/backend-check.sh to verify)
 ```
 
-Prefer running `xcodebuild` to catch compile errors after Swift changes — this is
-the main reason we moved to Claude Code. Fix against the real compiler, don't guess.
+Always build with the real compiler after Swift changes; fix errors, don't guess.
 
-## Architecture notes
+## Architecture (current, post-refactors)
 
-- **Persistence is `UserDefaults`-based** and, historically, scattered: `[Routine]`
-  and `[WorkoutSession]` are JSON-encoded under the keys `"routines"` and
-  `"workoutSessions"`, read/written directly from ~10 files.
-  - **`WorkoutStore.swift` (M1, done) is the intended single source of truth.** It
-    owns `routines` + `sessions`, reads/writes those same keys/encoding (so old data
-    and not-yet-migrated views still work), and is injected at the app root as an
-    `@EnvironmentObject`. **Migrating the remaining direct call sites onto it is
-    M1b and NOT done yet** — see the list in `BUILD_PLAN.md`.
-  - Do not introduce a second persistence path. Route new reads/writes through
-    `WorkoutStore`.
-- **Models** (`Models.swift`): `Routine`, `WorkoutSession` (`logs: [String:[WorkoutSet]]`
-  keyed by exercise name), `WorkoutSet{weight,reps}` (both `String`), plus the
-  adaptation types added in M1: `CheckInOutcome`, `SessionCheckIn`,
-  `ExerciseProgressionState`. `Routine.progression` and `WorkoutSession.checkIn` are
-  **optional** — keep new persisted fields optional so old saved data still decodes.
-- **Backend endpoints** (all `POST` unless noted; see `server.mjs`):
-  - `/api/ai/workout-generator`, `/api/ai/workout-addon`
-  - `/api/ai/workout-generator/revise` ← reuse this for the M4 adaptation nudge
-  - `/api/ai/workout-generator/explain` (routine-level plain-language explanation of a draft)
-  - `/api/ai/photo-to-workout/extract`, `/api/ai/workout-import/revise`
-  - `/api/ai/coach/chat`, `/api/ai/exercise-swap/suggest`, `/api/ai/exercise-coach/answer`
-  - `/api/ai/exercise-coach/explain` (mode `"cues"` → 3 form cues; mode `"simple"` → plain-language explanation)
-  - `/api/ai/voice-to-workout/transcribe`
-  - `GET /health`
-  - Responses use OpenAI's Responses API with **strict JSON schemas** — keep new
-    outputs schema-constrained, don't parse freeform text.
-- **App→backend base URL is hardcoded to localhost** (`AIWorkoutGeneratorService.swift`:
-  default `http://127.0.0.1:8788`, fallbacks `:8787` / `localhost`). There is no
-  production backend. Nothing AI works off the dev machine until this is hosted.
+- **`WorkoutStore`** (`@EnvironmentObject`, app root): intended single owner of
+  `routines` + `sessions` (UserDefaults keys `"routines"`/`"workoutSessions"`).
+  M1b migration is PARTIAL — some screens still read/write those keys directly;
+  bridge with `store.reload()` before reading if staleness matters. Do not add
+  new direct UserDefaults access for these keys.
+- **`ExerciseStore`** (`@EnvironmentObject`, app root): the ONE instance decoding
+  the bundled `exercises.json` (1,036 exercises + merged customs).
+  `harness/checks.sh` enforces exactly one `ExerciseStore()` construction.
+  Fuzzy name resolution via `ExerciseNameMatcher` (subset-aware memo cache —
+  see commit `3d11076` for why cache keys carry candidate-list size).
+- **Models**: `WorkoutSet.completed` is optional — `nil` means completed (legacy
+  data). Only `isCompleted` sets count in every metric. ALL new persisted model
+  fields must be optional/defaulted (old blobs must keep decoding).
+- **User memory** (`UserMemoryStore.swift`): tiered digest of the raw history
+  (≤14d detailed / 15–90d weekly / lifetime monthly+facts, hard 6KB cap) sent
+  with every coach/generator call. Pure function of raw data — never let it
+  become a second source of truth; raw data is never compacted or deleted.
+- **Coach seams** (in `CoachView.swift`): `savedDraftIDs` (one-shot save),
+  `savedRoutineIDsByDraft` (edit-in-place lineage; backend returns
+  `editedRoutineID`), `SendMorphRender` (iMessage send morph). Touch carefully.
+- **Backend endpoints**: workout-generator (+`/revise`, `/explain`), workout-addon,
+  coach/chat (accepts `savedRoutines` + `memory`, returns `editedRoutineID`),
+  exercise-coach/answer + `/explain` (cues|simple), photo/voice import, `GET /health`.
+  Generator schema: per-exercise required `reasoning` (≤15 words) + `tip`
+  (≤12 words); `summary` = one concrete sentence, filler banned.
+- Drafts seed set counts at **3** (`defaultReviewSetCount`); the AI's number
+  shows as a "Recommended sets: N" chip. Discovery hints (`DiscoveryHints.swift`)
+  label the ask/info buttons for new users (<8 sessions, <2 uses).
+
+## Design system — "dark athletic minimal" (volt)
+
+All colors route through `AppTheme` tokens in `Theme.swift`. Flat #0B0B0C bg,
+#141416 cards + #26262A hairlines, accent = volt #D6FF3F (user-selectable
+schemes exist; volt is default). **Banned** (checks.sh enforces): blue/purple,
+gradients, `.shadow(`, glassmorphism, `Color(red:...)` literals outside
+Theme.swift. Rules: volt ≤1–2×/screen (chrome; data encoding exempt),
+near-black labels on accent fills, `.monospacedDigit()` on every numeral, one
+hero number per screen, no gray explainer captions — labels carry the meaning.
 
 ## Conventions & guardrails
 
-- Keep the **review-before-save** invariant: AI output never silently becomes a
-  saved routine; the user confirms first.
-- **No secrets in the app.** The OpenAI key lives only in `backend/.env` (gitignored).
-  Don't add keys to Swift or commit `.env`.
-- New persisted model fields must be **optional / defaulted** for backward
-  compatibility with existing `UserDefaults` blobs.
-- Large view files already mix view + logic + persistence (e.g. `WorkoutLoggerView`
-  ~1.3k lines). When touching them, pull logic toward services/`WorkoutStore` rather
-  than adding more inline persistence.
-
-## Current state
-
-- M1 (persistence foundation) **done**: `WorkoutStore.swift` added; adaptation model
-  fields added; store injected at app root. Not yet built against Xcode on this
-  machine — **build once and fix any compile errors first.** Most likely nit: if
-  strict concurrency flags `@StateObject private var store = WorkoutStore()` (the
-  store is `@MainActor`), removing `@MainActor` from the class is the safe fix.
-- Everything else in `BUILD_PLAN.md` is pending. Next up: M1b (migrate call sites),
-  then M3/M4.
-
-## Housekeeping
-
-- Git history has a pre-work snapshot commit `377dd06`. The M1 changes may be
-  uncommitted (they were made in an environment where git couldn't write a lock) —
-  check `git status` and commit them.
+- **Review-before-save invariant**: AI output never persists without an explicit
+  user tap (Save/Update). Edits of saved routines replace by id, never duplicate.
+- Scoped commits only (never `git add -A`; leave `.DS_Store`/xcuserstate churn).
+  End commit messages with the standard Claude Co-Authored-By trailer. No push
+  unless the user asks — GitHub Pages serves this repo's root on push.
+- Simulator etiquette: iPhone 16 UDID `D512C8EC-0015-4890-825D-C2DB2CE5DA02`
+  carries seeded demo history — PRESERVE `workoutSessions`. Do not drive the
+  screen (clicks/typing/foregrounding) unless the user explicitly allows it in
+  the current session; default to headless builds + desk-checks.
+- FUSE filesystem gotcha: git may hit stale empty `.git/index.lock`/`HEAD.lock`
+  with no live git process — safe to delete, then retry. `.fuse_hidden*` files
+  are junk; never commit them.
+- OpenAI calls cost real money: live-test AI endpoints with a small budget
+  (≤2–3 calls) and say how many you used.
