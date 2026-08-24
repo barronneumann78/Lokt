@@ -22,11 +22,20 @@ enum ExerciseDetailDisclosure {
 }
 
 /// Small neutral chevron that opens/closes one exercise's reasoning/tip block.
-/// Rendered only when the card actually has something to disclose.
+/// Rendered only when the card actually has something to disclose. Sits
+/// immediately after the row's leading identity (exercise name or index
+/// label) — the first place the eye lands — so "what is this?" and its
+/// answer live in the same spot.
 struct ExerciseDetailDisclosureChevron: View {
     let id: UUID
     @Binding var expandedIDs: Set<UUID>
     var font: Font = .subheadline
+
+    /// Invisible padding that grows the tap target to ≥28pt; the matching
+    /// negative outer padding hands the space back to layout, so the glyph
+    /// occupies no more room than the bare image while staying fat-finger
+    /// friendly next to name links.
+    private static let hitPadding: CGFloat = 8
 
     private var isExpanded: Bool {
         expandedIDs.contains(id)
@@ -40,8 +49,11 @@ struct ExerciseDetailDisclosureChevron: View {
                 .font(font.weight(.semibold))
                 .foregroundStyle(AppTheme.textTertiary)
                 .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                .padding(Self.hitPadding)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(-Self.hitPadding)
         .accessibilityLabel(isExpanded ? "Hide exercise notes" : "Show exercise notes")
     }
 }

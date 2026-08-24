@@ -304,9 +304,15 @@ struct AIWorkoutGeneratorView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
-                Text("EXERCISE \(index + 1)")
-                    .microLabel()
-                    .monospacedDigit()
+                HStack(spacing: 8) {
+                    Text("EXERCISE \(index + 1)")
+                        .microLabel()
+                        .monospacedDigit()
+
+                    if hasDisclosure {
+                        ExerciseDetailDisclosureChevron(id: exercise.id, expandedIDs: $expandedDetailIDs)
+                    }
+                }
 
                 Spacer()
 
@@ -321,10 +327,6 @@ struct AIWorkoutGeneratorView: View {
                         exercise: matchedExercise,
                         hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
                     )
-                }
-
-                if hasDisclosure {
-                    ExerciseDetailDisclosureChevron(id: exercise.id, expandedIDs: $expandedDetailIDs)
                 }
             }
 
@@ -356,8 +358,17 @@ struct AIWorkoutGeneratorView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("SETS")
-                        .microLabel()
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("SETS")
+                            .microLabel()
+
+                        if let recommendedSets = exercise.recommendedSets {
+                            RecommendedSetsChip(
+                                recommended: recommendedSets,
+                                count: setBinding(for: index)
+                            )
+                        }
+                    }
 
                     TrackerStepper(
                         value: setBinding(for: index),

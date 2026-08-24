@@ -373,10 +373,20 @@ struct WorkoutPhotoImportView: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    ExerciseTextNavigationLink(exerciseName: exercise.resolvedExerciseName, exercises: exerciseStore.exercises) {
-                        Text(exercise.resolvedExerciseName)
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(AppTheme.textPrimary)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        ExerciseTextNavigationLink(exerciseName: exercise.resolvedExerciseName, exercises: exerciseStore.exercises) {
+                            Text(exercise.resolvedExerciseName)
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                        }
+
+                        if tip != nil {
+                            ExerciseDetailDisclosureChevron(
+                                id: exercise.id,
+                                expandedIDs: $expandedDetailIDs,
+                                font: .footnote
+                            )
+                        }
                     }
 
                     Text("Source: \(exercise.sourceText)")
@@ -400,14 +410,6 @@ struct WorkoutPhotoImportView: View {
                 Spacer()
 
                 confidenceChip(for: exercise)
-
-                if tip != nil {
-                    ExerciseDetailDisclosureChevron(
-                        id: exercise.id,
-                        expandedIDs: $expandedDetailIDs,
-                        font: .footnote
-                    )
-                }
             }
 
             if exercise.isCustomExercise {

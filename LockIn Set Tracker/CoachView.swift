@@ -519,13 +519,23 @@ struct CoachView: View {
 
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 10) {
-                                ExerciseTextNavigationLink(
-                                    exerciseName: item.element.name,
-                                    exercises: exerciseStore.exercises
-                                ) {
-                                    Text(item.element.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(AppTheme.textPrimary)
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    ExerciseTextNavigationLink(
+                                        exerciseName: item.element.name,
+                                        exercises: exerciseStore.exercises
+                                    ) {
+                                        Text(item.element.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(AppTheme.textPrimary)
+                                    }
+
+                                    if reasoning != nil || tip != nil {
+                                        ExerciseDetailDisclosureChevron(
+                                            id: item.element.id,
+                                            expandedIDs: $expandedDetailIDs,
+                                            font: .footnote
+                                        )
+                                    }
                                 }
 
                                 Spacer(minLength: 8)
@@ -536,20 +546,22 @@ struct CoachView: View {
                                     font: .subheadline,
                                     hinted: hints.showAskHint(sessionCount: store.sessions.count)
                                 )
+                            }
 
-                                if reasoning != nil || tip != nil {
-                                    ExerciseDetailDisclosureChevron(
-                                        id: item.element.id,
-                                        expandedIDs: $expandedDetailIDs,
-                                        font: .footnote
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text("\(item.element.sets) sets • \(item.element.reps)")
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                    .foregroundStyle(AppTheme.textSecondary)
+
+                                if let recommendedSets = item.element.recommendedSets {
+                                    RecommendedSetsChip(
+                                        recommended: recommendedSets,
+                                        count: draftSetBinding(for: item.offset),
+                                        font: .caption
                                     )
                                 }
                             }
-
-                            Text("\(item.element.sets) sets • \(item.element.reps)")
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(AppTheme.textSecondary)
 
                             if isExpanded, let reasoning {
                                 Text(reasoning)
@@ -639,6 +651,26 @@ struct CoachView: View {
                 "Give me a quicker finisher after this"
             ]
         }
+    }
+
+    /// Editable set count for one exercise of the current draft — the coach
+    /// card's only count control, driven by the "Rec N" chip. Changing it
+    /// after a save re-arms the save button (the draft id stays the same, so
+    /// its lineage still updates the same routine in place), keeping the
+    /// review-before-save invariant: what's saved is what the card shows.
+    private func draftSetBinding(for index: Int) -> Binding<Int> {
+        Binding(
+            get: { max(1, currentDraft?.exercises[safe: index]?.sets ?? 3) },
+            set: { newValue in
+                guard var draft = currentDraft,
+                      draft.exercises.indices.contains(index) else { return }
+
+                draft.exercises[index].sets = max(1, newValue)
+                currentDraft = draft
+                savedDraftIDs.remove(draft.id)
+                updatedDraftIDs.remove(draft.id)
+            }
+        )
     }
 
     /// True when this draft version descends from a version that already saved

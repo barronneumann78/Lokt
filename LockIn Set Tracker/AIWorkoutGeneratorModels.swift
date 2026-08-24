@@ -61,6 +61,11 @@ extension Array where Element == AIWorkoutConversationMessage {
 }
 
 struct AIGeneratedExercise: Identifiable, Hashable, Codable {
+    /// Editable drafts open at three sets — the count most lifters actually
+    /// run — regardless of what the AI proposed. The AI's honest number rides
+    /// along in `recommendedSets` as a one-tap "Rec N" affordance.
+    static let defaultReviewSetCount = 3
+
     var id = UUID()
     var name: String
     var sets: Int
@@ -72,6 +77,12 @@ struct AIGeneratedExercise: Identifiable, Hashable, Codable {
     /// One short practical tip on how to execute this exercise in this workout
     /// (form, setup, tempo, or rest). Optional so older drafts still decode.
     var tip: String?
+    /// The set count the AI actually proposed. `sets` is seeded to
+    /// `defaultReviewSetCount` when a draft is built for review; this keeps
+    /// the coach's recommendation around so review surfaces can offer it.
+    /// App-side only — never sent to or required from the backend. Optional
+    /// so older cached drafts still decode.
+    var recommendedSets: Int?
 }
 
 struct AIGeneratedRoutineDraft: Identifiable, Hashable, Codable {

@@ -320,13 +320,16 @@ struct AIWorkoutGeneratorClient {
             let reasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let tip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
+            // Seed the editable count at the app default; the AI's honest
+            // number rides along so the review card can offer it as "Rec N".
             return AIGeneratedExercise(
                 name: name,
-                sets: max(1, exercise.sets),
+                sets: AIGeneratedExercise.defaultReviewSetCount,
                 reps: reps,
                 notes: notes.isEmpty ? nil : notes,
                 reasoning: reasoning.isEmpty ? nil : reasoning,
-                tip: tip.isEmpty ? nil : tip
+                tip: tip.isEmpty ? nil : tip,
+                recommendedSets: max(1, exercise.sets)
             )
         }
 
