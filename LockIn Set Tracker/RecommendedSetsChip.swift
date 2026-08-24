@@ -21,7 +21,7 @@ struct RecommendedSetsChip: View {
                 count = max(1, recommended)
             }
         } label: {
-            Text("Rec \(recommended)")
+            Text("Recommended sets: \(recommended)")
                 .font(font.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(AppTheme.textSecondary)
