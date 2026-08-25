@@ -21,6 +21,15 @@ statuses are stale — trust this file for current state.
 - **Backend** — `backend/server.mjs`, single-file Node HTTP server proxying
   OpenAI (Responses API, **strict JSON schemas only** — never freeform parsing).
   Key lives ONLY in `backend/.env` (gitignored). Never read/print/commit it.
+  Deploy hardening (all optional, unset = open local dev): `APP_TOKEN` gates
+  `/api/*` behind an `x-app-token` header (401), `RATE_LIMIT_MAX`/
+  `RATE_LIMIT_WINDOW_SEC` (default 40/600s per token+IP, 429),
+  `MAX_BODY_BYTES` (default ~36MB, 413). `/health` stays open. Cloud deploy
+  runbook: `backend/DEPLOY.md` (+ `backend/Dockerfile`).
+- **App-side secret** — `LockIn Set Tracker/AIBackendSecrets.swift` (gitignored,
+  mirror of the `.env` pattern; copy from the committed
+  `AIBackendSecrets.swift.example`) holds the optional `appToken` that
+  `sendAIBackendRequest` attaches to every backend call.
 - Tests: XCTest targets are stubs and are NOT built by the scheme. Logic
   verification uses compiled harness checks instead — see `harness/`.
 
@@ -31,6 +40,7 @@ harness/build.sh          # canonical build (destination pinned to OS=18.5 — r
                           # the active Xcode also ships iOS 26.5 sims with same names)
 harness/checks.sh         # fast sensors: banned patterns, dataset integrity, drift
 cd backend && npm start   # AI backend on :8787 (harness/backend-check.sh to verify)
+harness/backend-hardening-check.sh  # auth/rate-limit/body-cap gates (throwaway instance, zero cost)
 ```
 
 Always build with the real compiler after Swift changes; fix errors, don't guess.

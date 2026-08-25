@@ -69,6 +69,18 @@ enum AIBackendConfiguration {
         "For local simulator testing, make sure the backend is running on 127.0.0.1:8788 or 127.0.0.1:8787."
     }
 
+    /// Header carrying the shared app token on every backend call.
+    static let appTokenHeaderField = "x-app-token"
+
+    /// The shared app token from the gitignored `AIBackendSecrets.swift`
+    /// (copy `AIBackendSecrets.swift.example` to create it). Nil or blank
+    /// means no header is sent — matching a token-less local backend.
+    static var appToken: String? {
+        guard let token = AIBackendSecrets.appToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty else { return nil }
+        return token
+    }
+
     static func persistWorkingBaseURL(_ url: URL) {
         UserDefaults.standard.set(url.absoluteString, forKey: userDefaultsKey)
     }
@@ -112,6 +124,10 @@ func sendAIBackendRequest(
 
         if !contentType.isEmpty {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+
+        if let appToken = AIBackendConfiguration.appToken {
+            request.setValue(appToken, forHTTPHeaderField: AIBackendConfiguration.appTokenHeaderField)
         }
 
         request.httpBody = body

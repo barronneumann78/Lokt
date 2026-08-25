@@ -1,10 +1,95 @@
 import http from "node:http";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const port = Number(process.env.PORT ?? 8787);
 const workoutGeneratorModel = process.env.OPENAI_MODEL ?? "gpt-4.1";
 const photoImportModel = process.env.OPENAI_PHOTO_IMPORT_MODEL ?? "gpt-4.1-mini";
 const transcriptionModel = process.env.OPENAI_TRANSCRIBE_MODEL ?? "gpt-4o-mini-transcribe";
 const apiKey = process.env.OPENAI_API_KEY ?? "";
+
+// --- Deployment hardening (all optional; local dev behavior is unchanged when unset) ---
+
+function envInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+// Shared app token. When set, every /api/* request must carry it in the
+// x-app-token header. It gates abuse of a deployed backend; it is not a
+// per-user credential. Unset = open (local dev).
+const appToken = (process.env.APP_TOKEN ?? "").trim();
+
+// Sliding-window rate limit per token+IP. 0 disables the limiter.
+const rateLimitMax = envInt("RATE_LIMIT_MAX", 40);
+const rateLimitWindowMs = Math.max(1, envInt("RATE_LIMIT_WINDOW_SEC", 600)) * 1000;
+
+// Max accepted POST body in bytes. Sized so the cap never rejects a payload
+// OpenAI itself would accept: photo import sends up to ~5MB PNG (~6.7MB as
+// base64) and voice import sends uncompressed WAV whose upstream limit is a
+// 25MB decoded file (~33.4MB as base64 JSON).
+const maxBodyBytes = Math.max(1, envInt("MAX_BODY_BYTES", 36_000_000));
+
+function timingSafeTokenMatch(provided, expected) {
+  // Hash both sides so lengths always match; comparison stays constant-time.
+  const providedDigest = createHash("sha256").update(provided).digest();
+  const expectedDigest = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(providedDigest, expectedDigest);
+}
+
+// key -> array of request timestamps (ms) inside the current window.
+const rateLimitWindows = new Map();
+const rateLimitMaxKeys = 10_000;
+
+function rateLimitKey(request) {
+  const forwarded = request.headers["x-forwarded-for"];
+  const forwardedIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : "";
+  const ip = forwardedIp || request.socket.remoteAddress || "unknown";
+  const rawToken = request.headers["x-app-token"];
+  const tokenPart = typeof rawToken === "string" && rawToken
+    ? createHash("sha256").update(rawToken).digest("hex").slice(0, 16)
+    : "anon";
+  return `${tokenPart}|${ip}`;
+}
+
+function checkRateLimit(key) {
+  if (rateLimitMax === 0) return { allowed: true, retryAfter: 0 };
+
+  const now = Date.now();
+  const cutoff = now - rateLimitWindowMs;
+  const timestamps = (rateLimitWindows.get(key) ?? []).filter((ts) => ts > cutoff);
+
+  if (timestamps.length >= rateLimitMax) {
+    rateLimitWindows.set(key, timestamps);
+    const retryAfter = Math.max(1, Math.ceil((timestamps[0] + rateLimitWindowMs - now) / 1000));
+    return { allowed: false, retryAfter };
+  }
+
+  timestamps.push(now);
+
+  // Memory bound: hard cap on tracked keys (evict oldest insertion first).
+  if (!rateLimitWindows.has(key) && rateLimitWindows.size >= rateLimitMaxKeys) {
+    const oldestKey = rateLimitWindows.keys().next().value;
+    rateLimitWindows.delete(oldestKey);
+  }
+
+  rateLimitWindows.set(key, timestamps);
+  return { allowed: true, retryAfter: 0 };
+}
+
+// Periodic sweep so idle keys do not accumulate between requests.
+setInterval(() => {
+  const cutoff = Date.now() - rateLimitWindowMs;
+  for (const [key, timestamps] of rateLimitWindows) {
+    const alive = timestamps.filter((ts) => ts > cutoff);
+    if (alive.length === 0) {
+      rateLimitWindows.delete(key);
+    } else if (alive.length !== timestamps.length) {
+      rateLimitWindows.set(key, alive);
+    }
+  }
+}, 60_000).unref();
 
 const workoutSchema = {
   type: "object",
@@ -523,6 +608,28 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.url?.startsWith("/api/")) {
+    if (appToken) {
+      const providedToken = request.headers["x-app-token"];
+      if (typeof providedToken !== "string" || providedToken === "" || !timingSafeTokenMatch(providedToken, appToken)) {
+        sendJson(response, 401, {
+          error: "Missing or invalid app token."
+        });
+        return;
+      }
+    }
+
+    const rateLimit = checkRateLimit(rateLimitKey(request));
+    if (!rateLimit.allowed) {
+      response.setHeader("Retry-After", String(rateLimit.retryAfter));
+      sendJson(response, 429, {
+        error: "Too many requests. Try again shortly.",
+        retryAfter: rateLimit.retryAfter
+      });
+      return;
+    }
+  }
+
   if (request.method === "POST" && request.url === "/api/ai/workout-generator") {
     try {
       if (!apiKey) {
@@ -532,7 +639,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
       const preferences = normalizePreferences(body?.preferences);
       const memory = normalizeUserMemory(body?.memory);
@@ -568,7 +675,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
       const preferences = normalizePreferences(body?.preferences);
 
@@ -603,7 +710,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const editPrompt = typeof body?.editPrompt === "string" ? body.editPrompt.trim() : "";
       const currentRoutine = body?.currentRoutine ?? null;
       const conversation = normalizeConversation(body?.conversation);
@@ -651,7 +758,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const routine = normalizeRoutineExplainInput(body?.routine);
 
       if (!routine) {
@@ -684,7 +791,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const imageBase64 = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
       const fileName = typeof body?.fileName === "string" && body.fileName.trim() ? body.fileName.trim() : "photo-workout-import.png";
       const mimeType = typeof body?.mimeType === "string" && body.mimeType.trim() ? body.mimeType.trim() : "image/png";
@@ -726,7 +833,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const editPrompt = typeof body?.editPrompt === "string" ? body.editPrompt.trim() : "";
       const currentDraft = body?.currentDraft ?? null;
       const conversation = normalizeConversation(body?.conversation);
@@ -773,7 +880,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const message = typeof body?.message === "string" ? body.message.trim() : "";
       const conversation = normalizeConversation(body?.conversation);
       const currentRoutine = body?.currentRoutine ?? null;
@@ -825,7 +932,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const currentExercise = body?.currentExercise ?? null;
       const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
       const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
@@ -875,7 +982,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const currentExercise = body?.currentExercise ?? null;
       const question = typeof body?.question === "string" ? body.question.trim() : "";
       const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
@@ -919,7 +1026,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const exercise = body?.exercise ?? null;
       const mode = typeof body?.mode === "string" ? body.mode.trim().toLowerCase() : "";
 
@@ -960,7 +1067,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, response);
       const audioBase64 = typeof body?.audioBase64 === "string" ? body.audioBase64 : "";
       const fileName = typeof body?.fileName === "string" && body.fileName.trim() ? body.fileName.trim() : "voice-workout.m4a";
       const mimeType = typeof body?.mimeType === "string" && body.mimeType.trim() ? body.mimeType.trim() : "audio/m4a";
@@ -993,7 +1100,11 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, () => {
-  console.log(`Lokt AI backend listening on http://127.0.0.1:${port}`);
+  const authStatus = appToken ? "app-token auth ON" : "auth OFF (APP_TOKEN unset — local dev)";
+  const limitStatus = rateLimitMax === 0
+    ? "rate limit OFF"
+    : `rate limit ${rateLimitMax}/${Math.round(rateLimitWindowMs / 1000)}s`;
+  console.log(`Lokt AI backend listening on port ${port} — ${authStatus}, ${limitStatus}`);
 });
 
 async function generateWorkoutRoutine(prompt, preferences, memory = null) {
@@ -2364,15 +2475,44 @@ function clampNumber(value, minimum, maximum) {
   return Math.min(Math.max(Math.round(value), minimum), maximum);
 }
 
-function readJsonBody(request) {
+function readJsonBody(request, response) {
   return new Promise((resolve, reject) => {
     let rawBody = "";
+    let receivedBytes = 0;
+    let rejectedForSize = false;
+
+    const rejectTooLarge = () => {
+      rejectedForSize = true;
+      // Stop the upload once the 413 has flushed; until then, oversized
+      // chunks are discarded (rejectedForSize guard), so memory stays flat.
+      response.on("finish", () => request.destroy());
+      sendJson(response, 413, {
+        error: `Request body too large. Limit is ${maxBodyBytes} bytes.`
+      });
+      reject(new Error("Request body too large."));
+    };
+
+    const declaredLength = Number(request.headers["content-length"]);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+      rejectTooLarge();
+      return;
+    }
 
     request.on("data", (chunk) => {
+      if (rejectedForSize) return;
+
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxBodyBytes) {
+        rejectTooLarge();
+        return;
+      }
+
       rawBody += chunk;
     });
 
     request.on("end", () => {
+      if (rejectedForSize) return;
+
       if (!rawBody) {
         resolve({});
         return;
@@ -2385,11 +2525,16 @@ function readJsonBody(request) {
       }
     });
 
-    request.on("error", reject);
+    request.on("error", (error) => {
+      if (rejectedForSize) return;
+      reject(error);
+    });
   });
 }
 
 function sendJson(response, statusCode, payload) {
+  if (response.writableEnded) return;
+
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8"
   });

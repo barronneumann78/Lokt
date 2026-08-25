@@ -5,3 +5,6 @@ harness/dashboard.html
 # Filesystem junk
 .DS_Store
 .fuse_hidden*
+
+# Local app secrets (mirror of backend/.env — copy AIBackendSecrets.swift.example)
+LockIn Set Tracker/AIBackendSecrets.swift
