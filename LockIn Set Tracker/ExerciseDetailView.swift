@@ -18,6 +18,7 @@ struct ExerciseDetailView: View {
     @State private var showSimpleExplanation = false
     @State private var isLoadingSimpleExplanation = false
     @State private var simpleExplanationErrorMessage: String?
+    @State private var variations: [Exercise] = []
 
     var body: some View {
         ZStack {
@@ -36,6 +37,7 @@ struct ExerciseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             loadCuesIfNeeded()
+            variations = ExerciseVariations.variations(for: exercise, in: exerciseStore.exercises)
         }
     }
 
@@ -85,23 +87,13 @@ struct ExerciseDetailView: View {
                 color: AppTheme.primary
             )
 
-            chipSection(
-                title: "Primary Muscles",
-                values: exercise.metadata.primaryMuscles,
-                color: AppTheme.secondary
-            )
-
-            if !exercise.metadata.secondaryMuscles.isEmpty {
-                chipSection(
-                    title: "Secondary Muscles",
-                    values: exercise.metadata.secondaryMuscles,
-                    color: AppTheme.accent
-                )
-            }
+            musclesSection
 
             if !exercise.howTo.isEmpty {
-                bulletSection(title: "How To", items: exercise.howTo)
+                numberedSection(title: "How To", items: exercise.howTo)
             }
+
+            variationsSection
         }
         .padding(20)
         .glassCard()
@@ -388,6 +380,109 @@ struct ExerciseDetailView: View {
                 }
             }
         }
+    }
+
+    private func numberedSection(title: String, items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased())
+                .microLabel()
+
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                HStack(alignment: .top, spacing: 10) {
+                    Text("\(index + 1)")
+                        .font(.footnote.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .frame(width: 18, alignment: .trailing)
+                        .padding(.top, 2)
+
+                    Text(item)
+                        .font(.body)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var musclesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MUSCLES")
+                .microLabel()
+
+            ForEach(ExerciseMuscleRoles.primaryRoles(for: exercise), id: \.muscle) { role in
+                (
+                    Text(role.muscle.sentenceStyled)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(AppTheme.textPrimary)
+                    + Text(" — ")
+                        .foregroundStyle(AppTheme.textTertiary)
+                    + Text(role.clause)
+                        .foregroundStyle(AppTheme.textSecondary)
+                )
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !exercise.metadata.secondaryMuscles.isEmpty {
+                (
+                    Text("Secondary")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(AppTheme.textTertiary)
+                    + Text(" — ")
+                        .foregroundStyle(AppTheme.textTertiary)
+                    + Text(exercise.metadata.secondaryMuscles.map(\.sentenceStyled).joined(separator: ", "))
+                        .foregroundStyle(AppTheme.textSecondary)
+                )
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var variationsSection: some View {
+        if !variations.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("VARIATIONS")
+                    .microLabel()
+
+                ForEach(variations) { variation in
+                    NavigationLink(destination: ExerciseDetailView(exercise: variation, primaryAddAction: primaryAddAction)) {
+                        HStack(spacing: 10) {
+                            Text(variation.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .multilineTextAlignment(.leading)
+
+                            Spacer(minLength: 8)
+
+                            Text(variationDescriptor(for: variation))
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.textSecondary)
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// What makes this variation different: equipment when it changes,
+    /// otherwise the difficulty step.
+    private func variationDescriptor(for variation: Exercise) -> String {
+        if variation.equipment != exercise.equipment {
+            return variation.equipment.rawValue
+        }
+        return variation.difficulty.rawValue
     }
 
     private func chipSection(title: String, values: [String], color: Color) -> some View {

@@ -314,7 +314,9 @@ const routineFieldGuidelines = [
   "Never pad the summary with filler that restates the goal or with generic benefit-speak such as maximizing volume, efficiently, keeps things effective, or optimized. If the second sentence only rephrases the first, drop it.",
   "For each exercise, fill reasoning with one short sentence, at most 15 words, naming its role in this plan, such as main press for chest, balancing pull for the back, or easy-recovery finisher.",
   "reasoning must be specific to this plan, never generic filler like great exercise or builds muscle.",
-  "For each exercise, fill tip with one practical how-to line for this workout, at most 12 words, covering form, setup, tempo, or rest, such as Warm up your shoulders before going heavy or Rest about 2 minutes between sets.",
+  "For each exercise, fill tip with one practical how-to line for this workout, at most 12 words, covering form, setup, tempo, or rest, such as Rest about 2 minutes between sets.",
+  "Anchor form and setup tips to a landmark the lifter can check mid-set, such as Lower until upper arms are parallel to the floor or Keep the bar over mid-foot, never vague effort words like go deep, stay tight, or use good form.",
+  "When the tip warns against a mistake, name its consequence if it fits the word budget, such as Don't let knees cave in, it stresses the knee.",
   "Put workout-level advice such as warm-up, rest periods, equipment setup, or pacing into the tip of the exercise where it matters most, never into routineNotes.",
   "Leave routineNotes empty unless one short reminder truly applies to the whole session and fits no single exercise."
 ].join(" ");
@@ -473,6 +475,8 @@ const exerciseFormCuesInstructions = [
   "Cue 1: setup — stance, foot position, grip, or body position.",
   "Cue 2: the single most important thing to do while performing the rep.",
   "Cue 3: the most common mistake, phrased as what to avoid.",
+  "Anchor cues 1 and 2 to a landmark the lifter can see or feel mid-set, such as bar over mid-foot, thighs parallel to the floor, or elbows under the wrists, never vague words like deep, tight, or good form.",
+  "In cue 3, pair the visible mistake with the problem it causes, such as Don't let knees cave in, it stresses the knee.",
   "Each cue is one short sentence, at most 12 words.",
   "Use plain language a beginner understands. No anatomy jargon.",
   "Do not include markdown, numbering, or anything outside the JSON schema."

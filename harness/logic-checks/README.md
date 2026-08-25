@@ -20,13 +20,17 @@ Run one:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-swiftc -o /tmp/logic-check harness/logic-checks/<name>/main.swift \
-  $(cat harness/logic-checks/<name>/SOURCES | sed 's/.*/"&"/' | tr '\n' ' ') \
+SRCS=(); while IFS= read -r f; do [ -n "$f" ] && SRCS+=("$f"); done \
+  < "harness/logic-checks/<name>/SOURCES"
+swiftc -o /tmp/logic-check "harness/logic-checks/<name>/main.swift" "${SRCS[@]}" \
   && /tmp/logic-check
 ```
 
-(Quote paths — they contain spaces. Stub any UI-only types the sources drag in
-inside `main.swift` rather than importing SwiftUI.)
+(The array loop is load-bearing: source paths contain spaces, and quotes added
+by `sed`/`tr` inside `$(...)` stay literal instead of grouping — a plain
+command substitution hands swiftc broken half-paths. Stub any app-only symbols
+the sources drag in — media catalogs, custom-exercise stores — inside
+`main.swift` rather than importing SwiftUI or compiling more of the app.)
 
 ## Rules
 
