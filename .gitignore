@@ -1,0 +1,7 @@
+# Harness run artifacts (local per-machine history + generated dashboard)
+harness/history.jsonl
+harness/dashboard.html
+
+# Filesystem junk
+.DS_Store
+.fuse_hidden*

@@ -14,9 +14,12 @@ STATUS=$?
 
 if [ $STATUS -eq 0 ] && grep -q "BUILD SUCCEEDED" "$LOG"; then
   echo "BUILD SUCCEEDED"
+  PASSBOOL=true
 else
   echo "BUILD FAILED — errors:"
   grep -E "error:" "$LOG" | head -20
+  PASSBOOL=false
 fi
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"kind\":\"build\",\"pass\":$PASSBOOL}" >> harness/history.jsonl
 rm -f "$LOG"
 exit $STATUS

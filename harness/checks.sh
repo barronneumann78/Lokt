@@ -6,8 +6,9 @@ cd "$(dirname "$0")/.."
 SRC="LockIn Set Tracker"
 FAIL=0
 
+FAILED_COUNT=0
 pass() { echo "  PASS  $1"; }
-fail() { echo "  FAIL  $1"; FAIL=1; }
+fail() { echo "  FAIL  $1"; FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); }
 
 echo "== Lokt harness checks =="
 
@@ -47,4 +48,9 @@ echo "  INFO  M1b tracker: $DIRECT direct 'routines'/'workoutSessions' accesses 
 
 echo "=========================="
 if [ $FAIL -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "CHECKS FAILED"; fi
+
+# Append to local run history (gitignored) — fuels harness/dashboard.sh.
+PASSBOOL=$([ $FAIL -eq 0 ] && echo true || echo false)
+echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"kind\":\"checks\",\"pass\":$PASSBOOL,\"m1b\":$DIRECT,\"failedCount\":$FAILED_COUNT}" >> harness/history.jsonl
+
 exit $FAIL

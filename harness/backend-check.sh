@@ -10,6 +10,7 @@ if echo "$HEALTH" | grep -q '"ok":true'; then
   echo "  PASS  /health ok ($(echo "$HEALTH" | head -c 60)...)"
 else
   echo "  FAIL  backend not responding on :8787 — start it: cd backend && npm start"
+  cd "$(dirname "$0")/.." && echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"kind\":\"backend\",\"pass\":false}" >> harness/history.jsonl
   exit 1
 fi
 
@@ -27,4 +28,6 @@ CODE=$(curl -s -m 10 -o /dev/null -w "%{http_code}" -X POST "$BASE/api/ai/workou
 [ "$CODE" = "400" ] && echo "  PASS  routine-explain rejects empty routine (400)" || { echo "  FAIL  routine-explain empty: got $CODE, want 400"; FAIL=1; }
 
 [ $FAIL -eq 0 ] && echo "BACKEND CHECKS PASSED"
+PASSBOOL=$([ $FAIL -eq 0 ] && echo true || echo false)
+cd "$(dirname "$0")/.." && echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"kind\":\"backend\",\"pass\":$PASSBOOL}" >> harness/history.jsonl
 exit $FAIL

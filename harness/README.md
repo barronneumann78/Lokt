@@ -25,6 +25,8 @@ sensor in `checks.sh` exists because that exact failure occurred once.
 | `checks.sh` | sensor | Fast greps: banned styles, secrets, dataset validity, singleton drift, M1b tracker |
 | `backend-check.sh` | sensor | Backend health + zero-cost validation probes |
 | `logic-checks/` | sensor | Convention for compiled logic harnesses (see its README) |
+| `install-hooks.sh` | wiring | Installs the pre-commit hook (checks.sh gates every commit) — run once per clone |
+| `dashboard.sh` | display | Renders run history (`history.jsonl`, gitignored) to `dashboard.html`; `--open` to view |
 
 ## Porting this to another project
 
