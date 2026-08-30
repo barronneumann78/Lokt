@@ -370,8 +370,10 @@ private struct WorkoutPreferencesSettingsView: View {
 // MARK: - Workout History
 
 private struct WorkoutHistorySettingsView: View {
+    @EnvironmentObject private var store: WorkoutStore
     @State private var workoutSessions: [WorkoutSession] = []
     @State private var pendingAction: PendingAction?
+    @State private var exportItem: ExportItem?
 
     var body: some View {
         ZStack {
@@ -381,6 +383,25 @@ private struct WorkoutHistorySettingsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("WORKOUT HISTORY")
                         .microLabel()
+
+                    Button {
+                        exportData()
+                    } label: {
+                        HStack {
+                            Text("Export My Data")
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.textPrimary)
+
+                            Spacer()
+
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                        .padding(14)
+                        .background(AppTheme.mutedFill)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
 
                     Button {
                         pendingAction = .deleteAll
@@ -439,6 +460,9 @@ private struct WorkoutHistorySettingsView: View {
         .onAppear {
             loadWorkoutSessions()
         }
+        .sheet(item: $exportItem) { item in
+            ShareSheet(activityItems: [item.url])
+        }
         .alert(item: $pendingAction) { action in
             switch action {
             case .deleteAll:
@@ -461,6 +485,37 @@ private struct WorkoutHistorySettingsView: View {
                 )
             }
         }
+    }
+
+    /// Builds the full-data JSON export and hands it to the share sheet.
+    /// Reads through `WorkoutStore` (after `reload()`, so screens that still
+    /// write UserDefaults directly are captured) — never a second persistence
+    /// path.
+    private func exportData() {
+        store.reload()
+
+        let now = Date()
+        let document = DataExport.buildDocument(
+            routines: store.routines,
+            sessions: store.sessions,
+            preferences: AIUserPreferencesStore.load(),
+            customExercises: CustomExerciseLibrary.loadExercises(),
+            appVersion: DataExport.currentAppVersion,
+            exportedAt: now
+        )
+
+        guard let data = try? DataExport.encode(document) else { return }
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(DataExport.filename(for: now))
+
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            return
+        }
+
+        exportItem = ExportItem(url: url)
     }
 
     private var exerciseNames: [String] {
@@ -498,6 +553,23 @@ private struct WorkoutHistorySettingsView: View {
 
         saveWorkoutSessions(updatedSessions)
     }
+}
+
+private struct ExportItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+// Minimal share-sheet bridge: SwiftUI has no programmatic ShareLink trigger,
+// and the export file must be built (store reload + encode) at tap time.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 private enum PendingAction: Identifiable {
