@@ -186,6 +186,7 @@ final class VoiceWorkoutRecorder: NSObject, ObservableObject {
 
 struct VoiceWorkoutImportPipeline {
     private let transcriber = VoiceWorkoutTranscriptionClient()
+    private let parseClient = VoiceWorkoutParseClient()
     private let matcher = VoiceExerciseMatcher()
     private let classifier = VoiceWorkoutIntentClassifier()
     private let parser = VoiceExercisePhraseParser()
@@ -196,20 +197,6 @@ struct VoiceWorkoutImportPipeline {
         exercises: [Exercise],
         progress: @escaping @MainActor (String) -> Void = { _ in }
     ) async throws -> ImportedWorkoutDraft {
-        let parsingResult = try await parseWorkout(
-            from: audioFileURL,
-            exercises: exercises,
-            progress: progress
-        )
-
-        return ImportedWorkoutDraft(parsingResult: parsingResult)
-    }
-
-    func parseWorkout(
-        from audioFileURL: URL,
-        exercises: [Exercise],
-        progress: @escaping @MainActor (String) -> Void = { _ in }
-    ) async throws -> AIWorkoutParsingResult {
         await progress("Uploading your recording...")
         let transcription = try await transcriber.transcribeAudio(at: audioFileURL)
         let transcript = transcription.transcript.nonEmptyOrFallback("")
@@ -223,46 +210,80 @@ struct VoiceWorkoutImportPipeline {
 
         switch intent {
         case .exerciseList:
-            return try buildListParsingResult(from: transcript, exercises: exercises)
+            await progress("Finding the exercises you named...")
+            return try await buildListDraft(from: transcript, exercises: exercises)
         case .workoutRequest:
             await progress("Generating a routine from your transcript...")
-            return try await buildGeneratedParsingResult(from: transcript, exercises: exercises)
+            let parsingResult = try await buildGeneratedParsingResult(from: transcript, exercises: exercises)
+            return ImportedWorkoutDraft(parsingResult: parsingResult)
         }
     }
 
-    private func buildListParsingResult(from transcript: String, exercises: [Exercise]) throws -> AIWorkoutParsingResult {
-        let phrases = parser.parsePhrases(from: transcript)
-        guard !phrases.isEmpty else {
-            throw VoiceWorkoutImportError.noExercisesDetected
-        }
-
+    /// Spoken-exercise-list path. The backend model extracts only phrases that
+    /// plausibly name exercises (filler/hype never comes back as an entry);
+    /// `VoiceImportGate` then keeps an entry when it resolves against the
+    /// library or was heard clearly, and sets the rest aside as rescuable
+    /// filtered phrases instead of polluting the routine.
+    private func buildListDraft(from transcript: String, exercises: [Exercise]) async throws -> ImportedWorkoutDraft {
+        let parsed = try await parseClient.parseTranscript(transcript)
         let routineTitle = parser.suggestedTitle(from: transcript)
-        let drafts = phrases.map { phrase in
-            draftForExerciseName(
-                phrase,
-                sourceText: phrase,
+
+        let entries = parsed.exercises.map { payload -> (payload: VoiceWorkoutParsedExercisePayload, draft: ImportedExerciseDraft) in
+            let draft = draftForExerciseName(
+                payload.name,
+                sourceText: payload.sourceText.nonEmptyOrFallback(payload.name),
                 dayName: routineTitle,
-                setCount: nil,
-                repText: nil,
+                setCount: payload.setCount,
+                repText: payload.repText,
                 notes: nil,
                 exercises: exercises
             )
+            return (payload, draft)
         }
 
-        let draft = ImportedWorkoutDraft(
+        let (kept, filtered) = VoiceImportGate.partition(
+            entries,
+            resolvedInLibrary: { !$0.draft.isCustomExercise },
+            confidence: { $0.payload.confidence ?? .low }
+        )
+
+        let filteredEntries = filtered.map { entry in
+            VoiceFilteredPhrase(
+                sourceText: entry.draft.sourceText,
+                suggestedName: entry.draft.exerciseName,
+                matchCandidates: entry.draft.matchCandidates,
+                setCount: entry.draft.setCount,
+                repText: entry.draft.repText
+            )
+        }
+
+        let skippedEntries = VoiceImportGate.normalizedSkippedPhrases(
+            parsed.skipped ?? [],
+            excluding: filteredEntries.map(\.sourceText)
+        ).map { phrase in
+            VoiceFilteredPhrase(sourceText: phrase, suggestedName: phrase.titleCasedHeadline())
+        }
+
+        let filteredPhrases = filteredEntries + skippedEntries
+
+        guard !kept.isEmpty || !filteredPhrases.isEmpty else {
+            throw VoiceWorkoutImportError.noExercisesDetected
+        }
+
+        var draft = ImportedWorkoutDraft(
             sourceText: transcript,
             sourceKind: "voice",
             days: [
                 ImportedWorkoutDayDraft(
                     name: routineTitle,
                     sourceHeading: transcript,
-                    notes: ["Built from a spoken exercise list."],
-                    exercises: drafts
+                    notes: kept.isEmpty ? [] : ["Built from a spoken exercise list."],
+                    exercises: kept.map(\.draft)
                 )
             ]
         )
-
-        return draft.parsingResult(routineTitle: routineTitle)
+        draft.filteredPhrases = filteredPhrases.isEmpty ? nil : filteredPhrases
+        return draft
     }
 
     private func buildGeneratedParsingResult(from transcript: String, exercises: [Exercise]) async throws -> AIWorkoutParsingResult {
@@ -497,6 +518,55 @@ private struct VoiceWorkoutTranscriptionClient {
             return "application/octet-stream"
         }
     }
+}
+
+private struct VoiceWorkoutParseClient {
+    func parseTranscript(_ transcript: String) async throws -> VoiceWorkoutParsePayload {
+        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
+            throw VoiceWorkoutImportError.invalidBackendURL
+        }
+
+        let (data, response): (Data, URLResponse)
+
+        do {
+            let result = try await sendAIBackendRequest(
+                path: "api/ai/voice-to-workout/parse",
+                timeout: 90,
+                body: try JSONEncoder().encode(VoiceWorkoutParseRequest(transcript: transcript))
+            )
+            (data, response) = (result.data, result.response)
+        } catch {
+            throw VoiceWorkoutImportError.requestFailed(
+                "I could not reach the voice import backend to read your exercises. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+            )
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VoiceWorkoutImportError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if let decodedError = try? JSONDecoder().decode(VoiceWorkoutTranscriptionErrorEnvelope.self, from: data) {
+                throw VoiceWorkoutImportError.requestFailed(decodedError.error)
+            }
+
+            throw VoiceWorkoutImportError.requestFailed(
+                "The voice import backend returned an error (\(httpResponse.statusCode))."
+            )
+        }
+
+        guard let decoded = try? JSONDecoder().decode(VoiceWorkoutParseResponseEnvelope.self, from: data) else {
+            throw VoiceWorkoutImportError.invalidResponse
+        }
+
+        return decoded.parse
+    }
+}
+
+private struct VoiceWorkoutParseResponseEnvelope: Codable {
+    var parse: VoiceWorkoutParsePayload
+    var requestId: String?
+    var model: String?
 }
 
 private enum VoiceWorkoutIntent {

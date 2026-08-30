@@ -5,6 +5,17 @@ set -uo pipefail
 BASE="http://127.0.0.1:8787"
 FAIL=0
 
+# The deployed-hardened backend gates /api/* behind an x-app-token header.
+# Read the shared token from the gitignored app-side secret (mirror of .env —
+# never read .env itself). No token found = token-less local dev, no header.
+SECRETS="$(dirname "$0")/../LockIn Set Tracker/AIBackendSecrets.swift"
+TOKEN=""
+if [ -f "$SECRETS" ]; then
+  TOKEN=$(sed -n 's/.*appToken: String? = "\([^"]*\)".*/\1/p' "$SECRETS" | head -1)
+fi
+AUTH=()
+[ -n "$TOKEN" ] && AUTH=(-H "x-app-token: $TOKEN")
+
 HEALTH=$(curl -s -m 5 "$BASE/health")
 if echo "$HEALTH" | grep -q '"ok":true'; then
   echo "  PASS  /health ok ($(echo "$HEALTH" | head -c 60)...)"
@@ -14,18 +25,23 @@ else
   exit 1
 fi
 
-# Validation probes — must 400 without touching OpenAI.
+# Validation probes — must 400 without touching OpenAI. (A 401 here means the
+# app token from AIBackendSecrets.swift doesn't match the running backend.)
 CODE=$(curl -s -m 10 -o /dev/null -w "%{http_code}" -X POST "$BASE/api/ai/workout-generator" \
-  -H "Content-Type: application/json" -d '{"prompt":"hi"}')
+  ${AUTH[@]+"${AUTH[@]}"} -H "Content-Type: application/json" -d '{"prompt":"hi"}')
 [ "$CODE" = "400" ] && echo "  PASS  generator rejects short prompt (400)" || { echo "  FAIL  generator short-prompt: got $CODE, want 400"; FAIL=1; }
 
 CODE=$(curl -s -m 10 -o /dev/null -w "%{http_code}" -X POST "$BASE/api/ai/exercise-coach/explain" \
-  -H "Content-Type: application/json" -d '{"exercise":{"name":"Push-Up"},"mode":"bogus"}')
+  ${AUTH[@]+"${AUTH[@]}"} -H "Content-Type: application/json" -d '{"exercise":{"name":"Push-Up"},"mode":"bogus"}')
 [ "$CODE" = "400" ] && echo "  PASS  explain rejects invalid mode (400)" || { echo "  FAIL  explain invalid-mode: got $CODE, want 400"; FAIL=1; }
 
 CODE=$(curl -s -m 10 -o /dev/null -w "%{http_code}" -X POST "$BASE/api/ai/workout-generator/explain" \
-  -H "Content-Type: application/json" -d '{"routine":{}}')
+  ${AUTH[@]+"${AUTH[@]}"} -H "Content-Type: application/json" -d '{"routine":{}}')
 [ "$CODE" = "400" ] && echo "  PASS  routine-explain rejects empty routine (400)" || { echo "  FAIL  routine-explain empty: got $CODE, want 400"; FAIL=1; }
+
+CODE=$(curl -s -m 10 -o /dev/null -w "%{http_code}" -X POST "$BASE/api/ai/voice-to-workout/parse" \
+  ${AUTH[@]+"${AUTH[@]}"} -H "Content-Type: application/json" -d '{}')
+[ "$CODE" = "400" ] && echo "  PASS  voice-parse rejects missing transcript (400)" || { echo "  FAIL  voice-parse empty: got $CODE, want 400"; FAIL=1; }
 
 [ $FAIL -eq 0 ] && echo "BACKEND CHECKS PASSED"
 PASSBOOL=$([ $FAIL -eq 0 ] && echo true || echo false)

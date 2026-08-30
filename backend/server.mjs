@@ -337,6 +337,48 @@ const photoWorkoutRevisionSchema = {
   }
 };
 
+const voiceWorkoutParseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["exercises", "skipped"],
+  properties: {
+    exercises: {
+      type: "array",
+      maxItems: 20,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["sourceText", "name", "setCount", "repText", "confidence"],
+        properties: {
+          sourceText: { type: "string" },
+          name: { type: "string" },
+          setCount: {
+            anyOf: [
+              { type: "integer", minimum: 1, maximum: 20 },
+              { type: "null" }
+            ]
+          },
+          repText: {
+            anyOf: [
+              { type: "string" },
+              { type: "null" }
+            ]
+          },
+          confidence: {
+            type: "string",
+            enum: ["high", "low"]
+          }
+        }
+      }
+    },
+    skipped: {
+      type: "array",
+      maxItems: 12,
+      items: { type: "string" }
+    }
+  }
+};
+
 const coachChatSchema = {
   type: "object",
   additionalProperties: false,
@@ -454,6 +496,24 @@ const photoImportInstructions = [
   "When a field is unclear, leave it null or empty instead of guessing.",
   preferenceInstructions,
   "Ignore unrelated decorative UI text that is clearly not part of the workout plan.",
+  "Do not include markdown or commentary outside the JSON schema."
+].join(" ");
+
+const voiceWorkoutParseInstructions = [
+  "You extract exercise names from a spoken workout transcript for a gym tracking app.",
+  "The transcript is casual speech, often full of filler and hype. Your only job is to find the phrases that plausibly name a physical exercise and list them in spoken order.",
+  "Extract a phrase ONLY when it plausibly names a real physical exercise or movement, such as bench press, dumbbell curl, plank, lat pulldown, or box jump.",
+  "IGNORE filler such as um, uh, like, you know, okay, so, I mean.",
+  "IGNORE hype and buzzwords such as crush it, beast mode, pump, pump city, superset vibes, let's go, no excuses.",
+  "IGNORE greetings, sign-offs, self-talk, and commentary about how the workout will feel.",
+  "IGNORE goals, adjectives, and vague intentions such as something heavy, for chest, maybe abs, a little cardio. A bare body part or muscle group is NOT an exercise name.",
+  "IGNORE set and rep chatter that is not attached to a specific exercise.",
+  "NEVER invent, substitute, or guess an exercise to represent a non-exercise phrase. If a phrase is not plausibly an exercise name, it must not appear in exercises.",
+  "Put the notable non-exercise phrases you deliberately left out into skipped, shortened to a few words each. Pure filler like um or okay does not belong in either list.",
+  "For each extracted exercise, sourceText is the exact words heard and name is the cleaned exercise name with no sets, reps, numbering, or prescription text.",
+  "When the speaker attaches sets or reps to an exercise, such as three sets of ten, fill that exercise's setCount and repText. Otherwise leave them null.",
+  "Set confidence to high when the phrase clearly and unambiguously names an exercise. Set confidence to low when it is garbled, partial, or you are unsure it really names an exercise.",
+  "If the transcript names no exercises, return an empty exercises list. Never pad it.",
   "Do not include markdown or commentary outside the JSON schema."
 ].join(" ");
 
@@ -1089,6 +1149,40 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       sendJson(response, 502, {
         error: error instanceof Error ? error.message : "Failed to transcribe the recording."
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/ai/voice-to-workout/parse") {
+    try {
+      if (!apiKey) {
+        sendJson(response, 500, {
+          error: "OPENAI_API_KEY is missing on the backend."
+        });
+        return;
+      }
+
+      const body = await readJsonBody(request, response);
+      const transcript = typeof body?.transcript === "string" ? body.transcript.trim() : "";
+
+      if (transcript.length < 3) {
+        sendJson(response, 400, {
+          error: "Transcript is required."
+        });
+        return;
+      }
+
+      const parseResult = await parseVoiceWorkoutTranscript(transcript.slice(0, 20_000));
+
+      sendJson(response, 200, {
+        parse: parseResult.parse,
+        requestId: parseResult.requestId,
+        model: photoImportModel
+      });
+    } catch (error) {
+      sendJson(response, 502, {
+        error: error instanceof Error ? error.message : "Failed to parse the transcript into exercises."
       });
     }
     return;
@@ -1852,6 +1946,98 @@ async function transcribeVoiceRecording({ audioBase64, fileName, mimeType }) {
     model: transcriptionModel,
     durationSeconds: Number.isFinite(payload?.duration) ? payload.duration : null
   };
+}
+
+async function parseVoiceWorkoutTranscript(transcript) {
+  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: photoImportModel,
+      store: false,
+      instructions: voiceWorkoutParseInstructions,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                "Spoken workout transcript:",
+                transcript
+              ].join("\n")
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "voice_workout_parse",
+          strict: true,
+          schema: voiceWorkoutParseSchema
+        }
+      }
+    })
+  });
+
+  const payload = await apiResponse.json();
+
+  if (!apiResponse.ok) {
+    throw new Error(payload?.error?.message ?? "OpenAI transcript parsing failed.");
+  }
+
+  const outputText = extractOutputText(payload);
+  if (!outputText) {
+    throw new Error("OpenAI returned a response without structured parse output.");
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    throw new Error("OpenAI returned malformed parse JSON.");
+  }
+
+  return {
+    requestId: payload.id ?? null,
+    parse: sanitizeVoiceWorkoutParse(parsed)
+  };
+}
+
+function sanitizeVoiceWorkoutParse(parsed) {
+  const exercises = Array.isArray(parsed?.exercises)
+    ? parsed.exercises
+        .map((exercise) => {
+          const name = String(exercise?.name ?? "").trim().slice(0, 80);
+          const sourceText = String(exercise?.sourceText ?? "").trim().slice(0, 160);
+
+          return {
+            sourceText: sourceText || name,
+            name: name || sourceText,
+            setCount: Number.isFinite(exercise?.setCount) ? clampNumber(exercise.setCount, 1, 20) : null,
+            repText: typeof exercise?.repText === "string" && exercise.repText.trim()
+              ? exercise.repText.trim().slice(0, 24)
+              : null,
+            confidence: exercise?.confidence === "high" ? "high" : "low"
+          };
+        })
+        .filter((exercise) => exercise.name)
+        .slice(0, 20)
+    : [];
+
+  const skipped = Array.isArray(parsed?.skipped)
+    ? parsed.skipped
+        .map((phrase) => String(phrase).trim().slice(0, 80))
+        .filter(Boolean)
+        .slice(0, 12)
+    : [];
+
+  return { exercises, skipped };
 }
 
 function extractOutputText(payload) {

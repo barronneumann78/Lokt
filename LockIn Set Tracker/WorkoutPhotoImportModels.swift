@@ -150,6 +150,11 @@ struct ImportedWorkoutDraft: Identifiable, Hashable, Codable {
     var sourceText: String
     var sourceKind: String
     var days: [ImportedWorkoutDayDraft]
+    /// Voice-import only: phrases the parse left out of the routine
+    /// (non-exercise talk or unresolved low-confidence mentions), kept so
+    /// review can offer a rescue. Optional/defaulted — photo extractions and
+    /// older payloads decode unchanged.
+    var filteredPhrases: [VoiceFilteredPhrase]? = nil
 
     var allExercises: [ImportedExerciseDraft] {
         days.flatMap(\.exercises)

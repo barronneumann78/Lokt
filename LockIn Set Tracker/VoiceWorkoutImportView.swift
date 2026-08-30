@@ -20,6 +20,7 @@ struct VoiceWorkoutImportView: View {
     /// Imported exercise ids whose tip line is open. New extractions and
     /// revisions decode fresh ids, so rows naturally start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
+    @State private var showFilteredPhrases = false
 
     private let reviewSecondaryText = AppTheme.textSecondary
     private let reviewMutedText = AppTheme.textSecondary
@@ -213,6 +214,7 @@ struct VoiceWorkoutImportView: View {
                     revisionSection(for: importedWorkout)
                     transcriptSection(for: importedWorkout)
                     daySection(for: importedWorkout)
+                    filteredSection(for: importedWorkout)
                     reviewActions(for: importedWorkout)
                 }
             }
@@ -458,6 +460,87 @@ struct VoiceWorkoutImportView: View {
         .surfaceCard(border: AppTheme.cardBorder.opacity(0.75))
     }
 
+    /// One compact row for phrases the parse left out (non-exercise talk or
+    /// unresolved low-confidence mentions). Collapsed by default; expanding
+    /// offers a per-phrase Add so a mishearing can be rescued.
+    @ViewBuilder
+    private func filteredSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
+        if let phrases = importedWorkout.filteredPhrases, !phrases.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showFilteredPhrases.toggle()
+                    }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Didn't sound like exercises: \(phrases.map(\.sourceText).joined(separator: ", "))")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(showFilteredPhrases ? nil : 1)
+
+                        Spacer(minLength: 8)
+
+                        Image(systemName: showFilteredPhrases ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if showFilteredPhrases {
+                    ForEach(phrases) { phrase in
+                        HStack(spacing: 10) {
+                            Text(phrase.suggestedName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+
+                            Spacer()
+
+                            Button("Add") {
+                                rescueFilteredPhrase(phrase)
+                            }
+                            .buttonStyle(SecondaryButtonStyle())
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .surfaceCard()
+        }
+    }
+
+    private func rescueFilteredPhrase(_ phrase: VoiceFilteredPhrase) {
+        guard var importedWorkout else { return }
+
+        let draft = ImportedExerciseDraft(
+            sourceText: phrase.sourceText,
+            exerciseName: phrase.suggestedName,
+            matchedExerciseName: nil,
+            matchCandidates: phrase.matchCandidates,
+            setCount: phrase.setCount,
+            repText: phrase.repText,
+            notes: "",
+            restSeconds: nil,
+            intensityNotes: [],
+            confidence: .low,
+            isCustomExercise: true,
+            customExercise: nil
+        )
+
+        if importedWorkout.days.isEmpty {
+            importedWorkout.days = [
+                ImportedWorkoutDayDraft(name: "Voice Workout", sourceHeading: nil, notes: [], exercises: [draft])
+            ]
+        } else {
+            importedWorkout.days[0].exercises.append(draft)
+        }
+
+        let remaining = (importedWorkout.filteredPhrases ?? []).filter { $0.id != phrase.id }
+        importedWorkout.filteredPhrases = remaining.isEmpty ? nil : remaining
+        self.importedWorkout = importedWorkout
+    }
+
     private func reviewActions(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Button("Save Routine") {
@@ -518,6 +601,7 @@ struct VoiceWorkoutImportView: View {
 
         errorMessage = nil
         conversationMessages = []
+        showFilteredPhrases = false
         stage = .processing
         processingMessage = "Uploading your recording..."
 
@@ -636,6 +720,7 @@ struct VoiceWorkoutImportView: View {
         revisionPrompt = ""
         isApplyingRevision = false
         expandedDetailIDs = []
+        showFilteredPhrases = false
         stage = .input
     }
 
@@ -661,7 +746,12 @@ struct VoiceWorkoutImportView: View {
                 )
 
                 if revisionResult.action.changedDraft {
-                    self.importedWorkout = revisionResult.draft
+                    // Revisions rebuild the draft from the backend extraction;
+                    // carry the filtered (rescuable) phrases across so they
+                    // stay available after a coach edit.
+                    var revisedDraft = revisionResult.draft
+                    revisedDraft.filteredPhrases = self.importedWorkout?.filteredPhrases
+                    self.importedWorkout = revisedDraft
                 }
                 latestCoachChangeSummary = revisionResult.changeSummary?.nilIfEmpty
                 conversationMessages.append(.assistant(revisionAssistantReply(for: revisionResult)))
