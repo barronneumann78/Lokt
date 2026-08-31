@@ -25,10 +25,15 @@ if [ -n "$LITERALS" ]; then fail "Color(red:) literal outside Theme.swift:"; ech
 else pass "all color literals live in Theme.swift"; fi
 
 # 3. exercises.json must be valid JSON (a 1-char corruption once nearly shipped —
-#    it would have silently emptied the entire 1,036-exercise library).
+#    it would have silently emptied the entire 1k+-exercise library).
 if python3 -c "import json;json.load(open('$SRC/exercises.json'))" 2>/dev/null
 then pass "exercises.json is valid JSON"
 else fail "exercises.json is INVALID JSON — the exercise library would load empty"; fi
+
+# 3b. Deep dataset lint (schema, decoder enums, unique ids/names, content floor).
+#     Added with the researched dataset expansion; prints its own PASS/FAIL line.
+#     Duplicate names that predate the lint are grandfathered inside the script.
+if ! python3 harness/dataset-lint.py; then FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); fi
 
 # 4. Exactly one ExerciseStore() construction (app root). Per-view copies each
 #    re-decoded 2MB of JSON (fixed in f4d6798).

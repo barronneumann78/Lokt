@@ -188,6 +188,9 @@ enum ExerciseMuscleRoles {
         "abductors": "drives the legs apart",
         "forearms": "grips the load",
         "full body": "shares the load head to toe",
+        "obliques": "resists and drives trunk rotation",
+        "tibialis anterior": "lifts the toes toward the shins",
+        "rotator cuff": "rotates and steadies the upper arm",
         // Dataset pseudo-muscles: stretches/SMR, conditioning work, neck moves.
         "mobility": "frees up range of motion",
         "conditioning": "sustains a high work rate",

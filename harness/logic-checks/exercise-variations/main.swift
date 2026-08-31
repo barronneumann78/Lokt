@@ -146,7 +146,7 @@ guard let data = try? Data(contentsOf: datasetURL),
     exit(1)
 }
 
-check("bundled library decodes (1036 exercises)", library.count == 1036)
+check("bundled library decodes (1094 exercises)", library.count == 1094)
 
 var violations: [String] = []
 var withVariations = 0

@@ -61702,5 +61702,3671 @@
       "Keep pressure through the midfoot",
       "Stand up hard but controlled"
     ]
+  },
+  {
+    "id": "stiff-leg-deadlift",
+    "name": "Stiff-Leg Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Barbell",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Back"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A barbell hinge done with nearly straight knees so the hamstrings stretch and work through a longer range than a conventional deadlift.",
+    "metadata": {
+      "primaryMuscles": [
+        "hamstrings"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "spinal erectors",
+        "forearms"
+      ],
+      "movementPattern": "hip hinge",
+      "equipment": [
+        "barbell"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "hinge",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated or mixed",
+      "stance": "standing, feet hip width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "hamstrings",
+        "glutes",
+        "spinal erectors",
+        "forearms",
+        "hinge",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "barbell",
+        "bilateral",
+        "posterior-chain"
+      ]
+    },
+    "description": "A barbell hinge done with nearly straight knees so the hamstrings stretch and work through a longer range than a conventional deadlift.",
+    "howTo": [
+      "Stand with your mid-foot under the bar and grip it just outside your legs.",
+      "Set a flat back, then stand up with the bar keeping your knees almost straight.",
+      "Push your hips back and lower the bar down your legs until your hamstrings reach a deep stretch.",
+      "Drive your hips forward to stand tall, keeping the bar close the whole way."
+    ],
+    "cues": [
+      "Keep the bar brushing your thighs on every rep.",
+      "Hinge until your hamstrings hit a deep stretch, knees barely bent.",
+      "Don't round your lower back, it shifts the load onto your spine."
+    ]
+  },
+  {
+    "id": "dumbbell-stiff-leg-deadlift",
+    "name": "Dumbbell Stiff-Leg Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Dumbbell",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A dumbbell version of the stiff-leg deadlift that trains the hamstring stretch with a simple setup and a long range of motion.",
+    "metadata": {
+      "primaryMuscles": [
+        "hamstrings"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "spinal erectors"
+      ],
+      "movementPattern": "hip hinge",
+      "equipment": [
+        "dumbbell"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "hinge",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy",
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "standing, feet hip width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "hamstrings",
+        "glutes",
+        "spinal erectors",
+        "hinge",
+        "compound",
+        "hypertrophy",
+        "strength",
+        "dumbbell",
+        "bilateral",
+        "posterior-chain"
+      ]
+    },
+    "description": "A dumbbell version of the stiff-leg deadlift that trains the hamstring stretch with a simple setup and a long range of motion.",
+    "howTo": [
+      "Hold a dumbbell in each hand resting against the front of your thighs.",
+      "With knees almost straight and back flat, push your hips back to lower the dumbbells.",
+      "Stop when your hamstrings reach a deep stretch, around mid-shin.",
+      "Squeeze your glutes and drive your hips forward to stand back up."
+    ],
+    "cues": [
+      "Keep the dumbbells brushing the front of your legs.",
+      "Push your hips straight back until your hamstrings pull tight.",
+      "Don't bend your knees deeper, it turns the lift into a squat."
+    ]
+  },
+  {
+    "id": "trap-bar-deadlift",
+    "name": "Trap Bar Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Barbell",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Back"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A deadlift done inside a trap bar with neutral handles, keeping the load centered so it is easier on the lower back and simple to learn.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "hamstrings",
+        "spinal erectors",
+        "traps",
+        "forearms"
+      ],
+      "movementPattern": "hip hinge",
+      "equipment": [
+        "trap bar"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "hinge",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "standing inside the bar",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "hamstrings",
+        "spinal erectors",
+        "traps",
+        "forearms",
+        "hinge",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "trap bar",
+        "bilateral",
+        "beginner-friendly"
+      ]
+    },
+    "description": "A deadlift done inside a trap bar with neutral handles, keeping the load centered so it is easier on the lower back and simple to learn.",
+    "howTo": [
+      "Stand in the middle of the trap bar with your feet hip-width apart.",
+      "Hinge down and grab the handles at your sides with a flat back.",
+      "Push the floor away and stand tall, keeping your chest up throughout.",
+      "Lower the bar back down under control by pushing your hips back."
+    ],
+    "cues": [
+      "Line your shoulders up directly over the handles at the start.",
+      "Keep your chest up so your back stays flat.",
+      "Don't let your hips shoot up first, it dumps the load forward."
+    ]
+  },
+  {
+    "id": "kettlebell-deadlift",
+    "name": "Kettlebell Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Kettlebell",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A hip hinge lifting a kettlebell from the floor, the simplest way to learn deadlift mechanics before loading a barbell.",
+    "metadata": {
+      "primaryMuscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "spinal erectors",
+        "forearms"
+      ],
+      "movementPattern": "hip hinge",
+      "equipment": [
+        "kettlebell"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "hinge",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated",
+      "stance": "standing, feet hip width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "glutes",
+        "hamstrings",
+        "quads",
+        "spinal erectors",
+        "forearms",
+        "hinge",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "kettlebell",
+        "bilateral",
+        "beginner-friendly"
+      ]
+    },
+    "description": "A hip hinge lifting a kettlebell from the floor, the simplest way to learn deadlift mechanics before loading a barbell.",
+    "howTo": [
+      "Stand over the kettlebell with it centered between your mid-feet.",
+      "Push your hips back and grip the handle with both hands, back flat.",
+      "Drive through your heels and stand tall, squeezing your glutes at the top.",
+      "Hinge back down and set the bell on the floor under control."
+    ],
+    "cues": [
+      "Start with the handle directly under your shoulders.",
+      "Keep your weight in your heels as you drive up.",
+      "Don't jerk the bell off the floor, it pulls your back round."
+    ]
+  },
+  {
+    "id": "single-leg-romanian-deadlift",
+    "name": "Single-Leg Romanian Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Dumbbell",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A one-leg hip hinge that trains the hamstrings and glutes while forcing the hips to stay square and balanced.",
+    "metadata": {
+      "primaryMuscles": [
+        "hamstrings",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "spinal erectors",
+        "calves"
+      ],
+      "movementPattern": "hip hinge",
+      "equipment": [
+        "dumbbell"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "hinge",
+      "laterality": "unilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy",
+        "stability"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "single leg",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "hamstrings",
+        "glutes",
+        "spinal erectors",
+        "calves",
+        "hinge",
+        "compound",
+        "hypertrophy",
+        "stability",
+        "dumbbell",
+        "unilateral",
+        "balance"
+      ]
+    },
+    "description": "A one-leg hip hinge that trains the hamstrings and glutes while forcing the hips to stay square and balanced.",
+    "howTo": [
+      "Stand on one leg holding a dumbbell in the opposite hand.",
+      "Hinge at the hip, letting your free leg travel straight back as the weight lowers.",
+      "Stop when your torso is near parallel and your standing hamstring is stretched.",
+      "Drive your hips forward to return to standing without touching the free foot down."
+    ],
+    "cues": [
+      "Keep your hips level, both hip bones facing the floor.",
+      "Make a straight line from your head to your back heel.",
+      "Don't let your back knee rotate open, it twists the hips."
+    ]
+  },
+  {
+    "id": "nordic-hamstring-curl",
+    "name": "Nordic Hamstring Curl",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "A kneeling bodyweight curl where you lower your torso forward under control, one of the hardest and most effective hamstring exercises.",
+    "metadata": {
+      "primaryMuscles": [
+        "hamstrings"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "calves",
+        "spinal erectors"
+      ],
+      "movementPattern": "knee flexion",
+      "equipment": [
+        "bodyweight",
+        "ankle anchor"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "athleticism"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": null,
+      "stance": "kneeling, ankles anchored",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "hamstrings",
+        "glutes",
+        "calves",
+        "spinal erectors",
+        "pull",
+        "isolation",
+        "strength",
+        "athleticism",
+        "bodyweight",
+        "bilateral",
+        "eccentric-focus"
+      ]
+    },
+    "description": "A kneeling bodyweight curl where you lower your torso forward under control, one of the hardest and most effective hamstring exercises.",
+    "howTo": [
+      "Kneel on a pad with your ankles anchored under something solid or held by a partner.",
+      "Keep your hips extended so your body is a straight line from knees to head.",
+      "Lower your torso toward the floor as slowly as your hamstrings allow.",
+      "Catch yourself with your hands, then push back lightly and curl back up."
+    ],
+    "cues": [
+      "Hold a straight line from your knees to your shoulders.",
+      "Lower so slowly you could pause at any point.",
+      "Don't break at the hips, it takes the hamstrings out of it."
+    ]
+  },
+  {
+    "id": "45-degree-back-extension",
+    "name": "45-Degree Back Extension",
+    "muscleGroup": "Legs",
+    "equipment": "Other",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Back"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A hip hinge on the 45-degree bench that strengthens the glutes, hamstrings, and lower back through a controlled arc.",
+    "metadata": {
+      "primaryMuscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondaryMuscles": [
+        "spinal erectors"
+      ],
+      "movementPattern": "hip hinge",
+      "equipment": [
+        "back extension bench"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "hinge",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy",
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "prone on 45-degree bench",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "glutes",
+        "hamstrings",
+        "spinal erectors",
+        "hinge",
+        "compound",
+        "hypertrophy",
+        "strength",
+        "back extension bench",
+        "bilateral",
+        "posterior-chain"
+      ]
+    },
+    "description": "A hip hinge on the 45-degree bench that strengthens the glutes, hamstrings, and lower back through a controlled arc.",
+    "howTo": [
+      "Set the pad so it sits just below your hip bones and hook your ankles in.",
+      "Cross your arms over your chest and lower your torso until your hamstrings stretch.",
+      "Squeeze your glutes to raise your torso until your body forms a straight line.",
+      "Pause briefly at the top without arching past straight."
+    ],
+    "cues": [
+      "Set the pad just below your hip bones to hinge freely.",
+      "Stop at a straight body line at the top.",
+      "Don't hyperextend past straight, it pinches the lower back."
+    ]
+  },
+  {
+    "id": "machine-hip-thrust",
+    "name": "Machine Hip Thrust",
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A hip thrust on a dedicated machine that loads the glutes through full hip extension without the setup hassle of a barbell.",
+    "metadata": {
+      "primaryMuscles": [
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "hamstrings",
+        "quads"
+      ],
+      "movementPattern": "hip extension",
+      "equipment": [
+        "hip thrust machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "lower-body",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy",
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "seated, upper back on pad",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "glutes",
+        "hamstrings",
+        "quads",
+        "lower-body",
+        "compound",
+        "hypertrophy",
+        "strength",
+        "hip thrust machine",
+        "bilateral",
+        "glute-focus"
+      ]
+    },
+    "description": "A hip thrust on a dedicated machine that loads the glutes through full hip extension without the setup hassle of a barbell.",
+    "howTo": [
+      "Sit with your upper back on the pad and the belt or lever secured over your hips.",
+      "Plant your feet flat so your shins are vertical at the top position.",
+      "Drive through your heels and extend your hips until your thighs are level.",
+      "Lower your hips under control until you feel a stretch in the glutes."
+    ],
+    "cues": [
+      "Finish with your shins vertical and thighs level with the floor.",
+      "Tuck your chin and keep your ribs down at lockout.",
+      "Don't arch your back at the top, it steals from the glutes."
+    ]
+  },
+  {
+    "id": "cable-glute-kickback",
+    "name": "Cable Glute Kickback",
+    "muscleGroup": "Legs",
+    "equipment": "Cable",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A standing cable kickback that isolates one glute at a time with smooth, constant tension through full hip extension.",
+    "metadata": {
+      "primaryMuscles": [
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "hamstrings"
+      ],
+      "movementPattern": "hip extension",
+      "equipment": [
+        "cable machine",
+        "ankle cuff"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "push",
+      "laterality": "unilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "standing hinge, holding frame",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "glutes",
+        "hamstrings",
+        "push",
+        "isolation",
+        "hypertrophy",
+        "cable machine",
+        "unilateral",
+        "glute-focus"
+      ]
+    },
+    "description": "A standing cable kickback that isolates one glute at a time with smooth, constant tension through full hip extension.",
+    "howTo": [
+      "Attach an ankle cuff to a low pulley and strap it to one ankle.",
+      "Hinge slightly forward and hold the machine for balance.",
+      "Kick your leg straight back and up until your glute is fully squeezed.",
+      "Return your knee under your hip slowly, keeping tension on the cable."
+    ],
+    "cues": [
+      "Kick back in a straight line, foot finishing behind your hip.",
+      "Keep your hips square to the machine the whole set.",
+      "Don't swing from the lower back, it fakes the range."
+    ]
+  },
+  {
+    "id": "zercher-squat",
+    "name": "Zercher Squat",
+    "muscleGroup": "Legs",
+    "equipment": "Barbell",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Core"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "A squat with the bar cradled in the crooks of your elbows, forcing a brutally upright torso and heavy core and upper-back work.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "core",
+        "spinal erectors",
+        "biceps"
+      ],
+      "movementPattern": "squat",
+      "equipment": [
+        "barbell",
+        "squat rack"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "compound",
+      "forceType": "squat",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "athleticism"
+      ],
+      "exerciseType": "strength",
+      "gripType": "bar in elbow crooks",
+      "stance": "shoulder-width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "core",
+        "spinal erectors",
+        "biceps",
+        "squat",
+        "compound",
+        "strength",
+        "athleticism",
+        "barbell",
+        "bilateral",
+        "upright-torso"
+      ]
+    },
+    "description": "A squat with the bar cradled in the crooks of your elbows, forcing a brutally upright torso and heavy core and upper-back work.",
+    "howTo": [
+      "Set the bar in a rack at elbow height and cradle it in the crooks of your elbows.",
+      "Clasp your hands together and step back with your feet shoulder-width apart.",
+      "Squat down between your elbows until your elbows nearly touch your thighs.",
+      "Drive up through your mid-foot while keeping your chest tall."
+    ],
+    "cues": [
+      "Cradle the bar tight against your ribs, hands clasped.",
+      "Squat until your elbows meet the inside of your thighs.",
+      "Don't drop your chest, it rolls the bar out of your arms."
+    ]
+  },
+  {
+    "id": "sissy-squat",
+    "name": "Sissy Squat",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "A bodyweight squat where you lean back and drive the knees forward, isolating the quads through an extreme stretch.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads"
+      ],
+      "secondaryMuscles": [
+        "core"
+      ],
+      "movementPattern": "knee flexion",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "isolation",
+      "forceType": "squat",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": null,
+      "stance": "standing on toes",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "core",
+        "squat",
+        "isolation",
+        "hypertrophy",
+        "bodyweight",
+        "bilateral",
+        "quad-focus",
+        "deep-stretch"
+      ]
+    },
+    "description": "A bodyweight squat where you lean back and drive the knees forward, isolating the quads through an extreme stretch.",
+    "howTo": [
+      "Stand tall holding a post or rack lightly for balance.",
+      "Rise onto your toes and push your knees forward as you lean your torso back.",
+      "Lower until your knees are well past your toes and your quads are fully stretched.",
+      "Squeeze your quads to pull your body back up to standing."
+    ],
+    "cues": [
+      "Keep a straight line from your knees to your shoulders.",
+      "Let your knees travel far past your toes on purpose.",
+      "Don't bend at the hips, it unloads the quad stretch."
+    ]
+  },
+  {
+    "id": "belt-squat",
+    "name": "Belt Squat",
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A squat loaded through a belt at the hips, training the legs hard while keeping the spine and shoulders unloaded.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "hamstrings",
+        "adductors"
+      ],
+      "movementPattern": "squat",
+      "equipment": [
+        "belt squat machine"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "squat",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy",
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "shoulder-width on platform",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "hamstrings",
+        "adductors",
+        "squat",
+        "compound",
+        "hypertrophy",
+        "strength",
+        "belt squat machine",
+        "bilateral",
+        "spine-friendly"
+      ]
+    },
+    "description": "A squat loaded through a belt at the hips, training the legs hard while keeping the spine and shoulders unloaded.",
+    "howTo": [
+      "Stand on the platform and clip the belt around your hips.",
+      "Release the machine's support and set your feet shoulder-width apart.",
+      "Squat down until your thighs are at least parallel to the platform.",
+      "Drive through your mid-foot to stand, keeping your chest up."
+    ],
+    "cues": [
+      "Let the belt pull straight down from your hips.",
+      "Squat to at least parallel with your chest tall.",
+      "Don't lean forward into the frame, it unloads your legs."
+    ]
+  },
+  {
+    "id": "safety-bar-squat",
+    "name": "Safety Bar Squat",
+    "muscleGroup": "Legs",
+    "equipment": "Barbell",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A squat with the cambered safety bar, whose forward handles and padded yoke spare the shoulders and keep the torso more upright.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "spinal erectors",
+        "core",
+        "hamstrings"
+      ],
+      "movementPattern": "squat",
+      "equipment": [
+        "safety squat bar",
+        "squat rack"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "squat",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral on handles",
+      "stance": "shoulder-width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "spinal erectors",
+        "core",
+        "hamstrings",
+        "squat",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "safety squat bar",
+        "bilateral",
+        "shoulder-friendly"
+      ]
+    },
+    "description": "A squat with the cambered safety bar, whose forward handles and padded yoke spare the shoulders and keep the torso more upright.",
+    "howTo": [
+      "Set the safety bar on your upper back with the pad resting on your traps.",
+      "Grip the forward handles and unrack, stepping back with feet shoulder-width apart.",
+      "Squat down until your hips drop below your knees, torso staying tall.",
+      "Drive up through your mid-foot, resisting the bar's pull to tip you forward."
+    ],
+    "cues": [
+      "Keep the handles level, elbows pointing down.",
+      "Stay tall against the bar's forward pull.",
+      "Don't drift onto your toes, it tips the bar forward."
+    ]
+  },
+  {
+    "id": "pause-squat",
+    "name": "Pause Squat",
+    "muscleGroup": "Legs",
+    "equipment": "Barbell",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A barbell squat with a dead stop in the bottom position, killing the stretch reflex to build strength out of the hole.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "hamstrings",
+        "spinal erectors",
+        "core"
+      ],
+      "movementPattern": "squat",
+      "equipment": [
+        "barbell",
+        "squat rack"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "squat",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated on bar",
+      "stance": "shoulder-width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "hamstrings",
+        "spinal erectors",
+        "core",
+        "squat",
+        "compound",
+        "strength",
+        "barbell",
+        "bilateral",
+        "tempo-work"
+      ]
+    },
+    "description": "A barbell squat with a dead stop in the bottom position, killing the stretch reflex to build strength out of the hole.",
+    "howTo": [
+      "Set up exactly as you would for a regular barbell back squat.",
+      "Descend under control until you reach your full depth.",
+      "Hold the bottom position for a strict two to three count without relaxing.",
+      "Drive up hard through your mid-foot with no bounce."
+    ],
+    "cues": [
+      "Count the full pause at the bottom, staying tight.",
+      "Keep the bar over your mid-foot during the hold.",
+      "Don't relax in the hole, it collapses your chest forward."
+    ]
+  },
+  {
+    "id": "cossack-squat",
+    "name": "Cossack Squat",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A wide-stance side-to-side squat that builds single-leg strength while opening the hips and stretching the inner thighs.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "adductors"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "movementPattern": "lateral squat",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "squat",
+      "laterality": "alternating",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "mobility",
+        "strength"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": null,
+      "stance": "very wide",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "quads",
+        "adductors",
+        "glutes",
+        "hamstrings",
+        "squat",
+        "compound",
+        "mobility",
+        "strength",
+        "bodyweight",
+        "alternating",
+        "hip-mobility"
+      ]
+    },
+    "description": "A wide-stance side-to-side squat that builds single-leg strength while opening the hips and stretching the inner thighs.",
+    "howTo": [
+      "Stand with your feet much wider than shoulder-width, toes slightly out.",
+      "Shift your weight over one leg and squat down over that foot.",
+      "Let the other leg straighten fully with its toes pointing up.",
+      "Push back up to the middle and repeat toward the other side."
+    ],
+    "cues": [
+      "Keep the heel of the working foot flat on the floor.",
+      "Point the straight leg's toes toward the ceiling.",
+      "Don't let the working knee cave inward, it strains the knee."
+    ]
+  },
+  {
+    "id": "wall-sit",
+    "name": "Wall Sit",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "An isometric hold with your back against a wall and thighs parallel, building quad endurance with zero equipment.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "calves"
+      ],
+      "movementPattern": "isometric squat",
+      "equipment": [
+        "bodyweight",
+        "wall"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isometric",
+      "forceType": "squat",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "endurance"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": null,
+      "stance": "back against wall",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "calves",
+        "squat",
+        "isometric",
+        "endurance",
+        "bodyweight",
+        "bilateral",
+        "beginner-friendly"
+      ]
+    },
+    "description": "An isometric hold with your back against a wall and thighs parallel, building quad endurance with zero equipment.",
+    "howTo": [
+      "Lean your back flat against a wall and walk your feet out.",
+      "Slide down until your thighs are parallel and knees bent to ninety degrees.",
+      "Keep your knees stacked over your ankles and hold the position.",
+      "Breathe steadily and hold for the planned time before standing up."
+    ],
+    "cues": [
+      "Set your thighs parallel with knees over your ankles.",
+      "Press your whole back flat into the wall.",
+      "Don't rest your hands on your thighs, it unloads the quads."
+    ]
+  },
+  {
+    "id": "lateral-lunge",
+    "name": "Lateral Lunge",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A sideways lunge that trains the legs in the frontal plane, strengthening the glutes and inner thighs most lunges miss.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "adductors"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "movementPattern": "lateral lunge",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "squat",
+      "laterality": "alternating",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "athleticism",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "standing, stepping sideways",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "quads",
+        "adductors",
+        "glutes",
+        "hamstrings",
+        "squat",
+        "compound",
+        "athleticism",
+        "hypertrophy",
+        "bodyweight",
+        "alternating",
+        "frontal-plane"
+      ]
+    },
+    "description": "A sideways lunge that trains the legs in the frontal plane, strengthening the glutes and inner thighs most lunges miss.",
+    "howTo": [
+      "Stand tall, then take a long step directly out to one side.",
+      "Push your hips back and bend the stepping knee, keeping the other leg straight.",
+      "Lower until the stepping thigh is near parallel with your chest up.",
+      "Push off that foot to return to standing and switch sides."
+    ],
+    "cues": [
+      "Step wide enough that the trailing leg stays fully straight.",
+      "Keep both heels flat while you sit into the hip.",
+      "Don't let your knee dive past your toes, it overloads the knee."
+    ]
+  },
+  {
+    "id": "tibialis-raise",
+    "name": "Tibialis Raise",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A shin-strengthening raise that lifts the toes against gravity, building the tibialis for knee health and bulletproof ankles.",
+    "metadata": {
+      "primaryMuscles": [
+        "tibialis anterior"
+      ],
+      "secondaryMuscles": [],
+      "movementPattern": "dorsiflexion",
+      "equipment": [
+        "bodyweight",
+        "wall"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "strength",
+        "stability"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": null,
+      "stance": "leaning against wall",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "tibialis anterior",
+        "pull",
+        "isolation",
+        "strength",
+        "stability",
+        "bodyweight",
+        "bilateral",
+        "knee-health",
+        "shin"
+      ]
+    },
+    "description": "A shin-strengthening raise that lifts the toes against gravity, building the tibialis for knee health and bulletproof ankles.",
+    "howTo": [
+      "Lean your back against a wall with your feet a foot-length away from it.",
+      "Keep your legs straight and lift the balls of both feet toward your shins.",
+      "Raise your toes as high as possible while your heels stay planted.",
+      "Lower your forefeet back down slowly until they nearly touch the floor."
+    ],
+    "cues": [
+      "Pull your toes up toward your shins as far as they go.",
+      "Keep your knees locked so only the ankles move.",
+      "Don't rush the lowering, it wastes the strengthening half."
+    ]
+  },
+  {
+    "id": "machine-hip-abduction",
+    "name": "Machine Hip Abduction",
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A seated machine that presses the knees outward against pads, targeting the glute medius and outer hips.",
+    "metadata": {
+      "primaryMuscles": [
+        "abductors"
+      ],
+      "secondaryMuscles": [
+        "glutes"
+      ],
+      "movementPattern": "hip abduction",
+      "equipment": [
+        "abduction machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy",
+        "stability"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "seated",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "abductors",
+        "glutes",
+        "push",
+        "isolation",
+        "hypertrophy",
+        "stability",
+        "abduction machine",
+        "bilateral",
+        "glute-focus"
+      ]
+    },
+    "description": "A seated machine that presses the knees outward against pads, targeting the glute medius and outer hips.",
+    "howTo": [
+      "Sit in the machine with the pads resting against the outside of your knees.",
+      "Grip the handles and sit tall with your back against the pad.",
+      "Press your knees apart as far as the machine allows.",
+      "Return your legs together slowly, stopping just before the stack touches down."
+    ],
+    "cues": [
+      "Push out until you feel the sides of your hips squeeze.",
+      "Keep your back planted on the pad throughout.",
+      "Don't let the stack slam home, it drops all the tension."
+    ]
+  },
+  {
+    "id": "machine-hip-adduction",
+    "name": "Machine Hip Adduction",
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A seated machine that squeezes the knees together against pads, isolating the inner-thigh adductors.",
+    "metadata": {
+      "primaryMuscles": [
+        "adductors"
+      ],
+      "secondaryMuscles": [],
+      "movementPattern": "hip adduction",
+      "equipment": [
+        "adduction machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": null,
+      "stance": "seated",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "adductors",
+        "pull",
+        "isolation",
+        "hypertrophy",
+        "adduction machine",
+        "bilateral",
+        "inner-thigh"
+      ]
+    },
+    "description": "A seated machine that squeezes the knees together against pads, isolating the inner-thigh adductors.",
+    "howTo": [
+      "Sit in the machine with the pads against the inside of your knees.",
+      "Use the release to set a starting width that gives a light inner-thigh stretch.",
+      "Squeeze your knees together until the pads meet in the middle.",
+      "Open back up slowly to the stretched position without bouncing."
+    ],
+    "cues": [
+      "Start from a width where your inner thighs feel a stretch.",
+      "Squeeze until the pads touch in the middle.",
+      "Don't open past a mild stretch, it strains the groin."
+    ]
+  },
+  {
+    "id": "pause-bench-press",
+    "name": "Pause Bench Press",
+    "muscleGroup": "Chest",
+    "equipment": "Barbell",
+    "movementPattern": "Horizontal Push",
+    "primaryMuscleGroups": [
+      "Chest",
+      "Triceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A bench press with a full stop on the chest, removing the bounce to build honest pressing strength off the chest.",
+    "metadata": {
+      "primaryMuscles": [
+        "mid chest"
+      ],
+      "secondaryMuscles": [
+        "front delts",
+        "triceps"
+      ],
+      "movementPattern": "horizontal press",
+      "equipment": [
+        "barbell",
+        "flat bench"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated",
+      "stance": "supine on flat bench",
+      "planeOfMotion": "transverse",
+      "tags": [
+        "mid chest",
+        "front delts",
+        "triceps",
+        "push",
+        "compound",
+        "strength",
+        "barbell",
+        "bilateral",
+        "tempo-work"
+      ]
+    },
+    "description": "A bench press with a full stop on the chest, removing the bounce to build honest pressing strength off the chest.",
+    "howTo": [
+      "Set up as for a regular bench press with your shoulder blades pinned.",
+      "Lower the bar under control until it touches your lower chest.",
+      "Hold it motionless on your chest for a strict one to two count.",
+      "Press the bar back up without letting it sink or bounce."
+    ],
+    "cues": [
+      "Let the bar settle still on your chest before pressing.",
+      "Keep your forearms vertical at the pause.",
+      "Don't sink the bar into your chest, it kills your leg drive."
+    ]
+  },
+  {
+    "id": "machine-chest-fly",
+    "name": "Machine Chest Fly",
+    "muscleGroup": "Chest",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Chest"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A seated fly on the pec deck machine that sweeps the arms together, isolating the chest with a fixed, safe arc.",
+    "metadata": {
+      "primaryMuscles": [
+        "chest"
+      ],
+      "secondaryMuscles": [
+        "front delts"
+      ],
+      "movementPattern": "chest fly",
+      "equipment": [
+        "pec deck machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "seated",
+      "planeOfMotion": "transverse",
+      "tags": [
+        "chest",
+        "front delts",
+        "push",
+        "isolation",
+        "hypertrophy",
+        "pec deck machine",
+        "bilateral",
+        "chest-isolation"
+      ]
+    },
+    "description": "A seated fly on the pec deck machine that sweeps the arms together, isolating the chest with a fixed, safe arc.",
+    "howTo": [
+      "Set the seat so the handles sit level with the middle of your chest.",
+      "Grip the handles with a slight bend in your elbows.",
+      "Sweep your arms together until the handles meet in front of your chest.",
+      "Open back up slowly until you feel a stretch across your chest."
+    ],
+    "cues": [
+      "Set the handles level with mid-chest before you start.",
+      "Keep the same slight elbow bend through the whole arc.",
+      "Don't open past a comfortable stretch, it strains the shoulder."
+    ]
+  },
+  {
+    "id": "machine-rear-delt-fly",
+    "name": "Machine Rear Delt Fly",
+    "muscleGroup": "Shoulders",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Shoulders"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "The pec deck used in reverse, sweeping the arms backward to isolate the rear delts and upper back.",
+    "metadata": {
+      "primaryMuscles": [
+        "rear delts"
+      ],
+      "secondaryMuscles": [
+        "upper back",
+        "traps"
+      ],
+      "movementPattern": "reverse fly",
+      "equipment": [
+        "pec deck machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "seated facing pad",
+      "planeOfMotion": "transverse",
+      "tags": [
+        "rear delts",
+        "upper back",
+        "traps",
+        "pull",
+        "isolation",
+        "hypertrophy",
+        "pec deck machine",
+        "bilateral",
+        "rear-delt-focus"
+      ]
+    },
+    "description": "The pec deck used in reverse, sweeping the arms backward to isolate the rear delts and upper back.",
+    "howTo": [
+      "Sit facing the pad with the handles set in the rear-delt position.",
+      "Grip the handles at shoulder height with nearly straight arms.",
+      "Sweep your arms back and out until they are in line with your shoulders.",
+      "Return slowly until your hands are just in front of your shoulders."
+    ],
+    "cues": [
+      "Finish with your arms in line with your shoulders, no further.",
+      "Keep your chest glued to the pad the whole set.",
+      "Don't shrug as you pull, it hands the work to your traps."
+    ]
+  },
+  {
+    "id": "machine-lateral-raise",
+    "name": "Machine Lateral Raise",
+    "muscleGroup": "Shoulders",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Shoulders"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A lateral raise on a machine whose pads guide the arc, keeping tension on the side delts without momentum.",
+    "metadata": {
+      "primaryMuscles": [
+        "lateral delts"
+      ],
+      "secondaryMuscles": [
+        "front delts",
+        "traps"
+      ],
+      "movementPattern": "shoulder abduction",
+      "equipment": [
+        "lateral raise machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "seated",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "lateral delts",
+        "front delts",
+        "traps",
+        "push",
+        "isolation",
+        "hypertrophy",
+        "lateral raise machine",
+        "bilateral",
+        "side-delt-focus"
+      ]
+    },
+    "description": "A lateral raise on a machine whose pads guide the arc, keeping tension on the side delts without momentum.",
+    "howTo": [
+      "Sit in the machine with the pads resting against your upper arms.",
+      "Keep a light grip on the handles and sit tall.",
+      "Drive your elbows up and out until your upper arms are level with your shoulders.",
+      "Lower slowly until your arms return to your sides."
+    ],
+    "cues": [
+      "Lead with your elbows, driving them up to shoulder height.",
+      "Push into the pads with your upper arms, not your hands.",
+      "Don't rock your torso, it swings the weight up for you."
+    ]
+  },
+  {
+    "id": "landmine-press",
+    "name": "Landmine Press",
+    "muscleGroup": "Shoulders",
+    "equipment": "Barbell",
+    "movementPattern": "Vertical Push",
+    "primaryMuscleGroups": [
+      "Shoulders",
+      "Triceps"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A press along a barbell anchored in a landmine, whose diagonal path is friendly to cranky shoulders while training the delts and upper chest.",
+    "metadata": {
+      "primaryMuscles": [
+        "shoulders"
+      ],
+      "secondaryMuscles": [
+        "upper chest",
+        "triceps",
+        "core"
+      ],
+      "movementPattern": "incline press",
+      "equipment": [
+        "barbell",
+        "landmine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "push",
+      "laterality": "unilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "standing, staggered",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "shoulders",
+        "upper chest",
+        "triceps",
+        "core",
+        "push",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "barbell",
+        "unilateral",
+        "shoulder-friendly"
+      ]
+    },
+    "description": "A press along a barbell anchored in a landmine, whose diagonal path is friendly to cranky shoulders while training the delts and upper chest.",
+    "howTo": [
+      "Anchor one end of a barbell in a landmine sleeve or a corner.",
+      "Stand facing the bar and hold the free end at your shoulder with one hand.",
+      "Press the bar up and away until your arm is fully extended.",
+      "Lower the bar back to your shoulder under control and repeat."
+    ],
+    "cues": [
+      "Press the bar along its natural diagonal line.",
+      "Finish with your biceps close to your ear.",
+      "Don't lean away from the bar, it strains your lower back."
+    ]
+  },
+  {
+    "id": "z-press",
+    "name": "Z Press",
+    "muscleGroup": "Shoulders",
+    "equipment": "Barbell",
+    "movementPattern": "Vertical Push",
+    "primaryMuscleGroups": [
+      "Shoulders",
+      "Triceps",
+      "Core"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "An overhead press performed seated on the floor with legs straight, exposing any lean and demanding strict shoulder and core strength.",
+    "metadata": {
+      "primaryMuscles": [
+        "shoulders"
+      ],
+      "secondaryMuscles": [
+        "triceps",
+        "core",
+        "upper back"
+      ],
+      "movementPattern": "vertical press",
+      "equipment": [
+        "barbell",
+        "rack"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "compound",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated",
+      "stance": "seated on floor, legs straight",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "shoulders",
+        "triceps",
+        "core",
+        "upper back",
+        "push",
+        "compound",
+        "strength",
+        "barbell",
+        "bilateral",
+        "strict-press",
+        "core-demand"
+      ]
+    },
+    "description": "An overhead press performed seated on the floor with legs straight, exposing any lean and demanding strict shoulder and core strength.",
+    "howTo": [
+      "Sit on the floor with your legs straight out and the bar racked at shoulder height.",
+      "Grip the bar just outside your shoulders and sit as tall as possible.",
+      "Press the bar overhead until your elbows lock out over your ears.",
+      "Lower the bar back to your collarbones without letting your chest collapse."
+    ],
+    "cues": [
+      "Sit tall as if your back were against a wall.",
+      "Lock the bar out directly over your ears.",
+      "Don't lean back to press, it means the weight is too heavy."
+    ]
+  },
+  {
+    "id": "seated-barbell-overhead-press",
+    "name": "Seated Barbell Overhead Press",
+    "muscleGroup": "Shoulders",
+    "equipment": "Barbell",
+    "movementPattern": "Vertical Push",
+    "primaryMuscleGroups": [
+      "Shoulders",
+      "Triceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A strict barbell press performed seated with back support, letting you overload the shoulders without leg drive or lower-back sway.",
+    "metadata": {
+      "primaryMuscles": [
+        "shoulders"
+      ],
+      "secondaryMuscles": [
+        "triceps",
+        "upper chest"
+      ],
+      "movementPattern": "vertical press",
+      "equipment": [
+        "barbell",
+        "upright bench",
+        "rack"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated",
+      "stance": "seated, back supported",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "shoulders",
+        "triceps",
+        "upper chest",
+        "push",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "barbell",
+        "bilateral",
+        "strict-press"
+      ]
+    },
+    "description": "A strict barbell press performed seated with back support, letting you overload the shoulders without leg drive or lower-back sway.",
+    "howTo": [
+      "Set an upright bench under a rack with the bar at shoulder height.",
+      "Grip the bar just outside your shoulders and unrack it to your collarbones.",
+      "Press the bar overhead until your elbows lock out over your ears.",
+      "Lower the bar under control back to the top of your chest."
+    ],
+    "cues": [
+      "Stack the bar over your shoulders and hips at lockout.",
+      "Keep your upper back pressed into the bench pad.",
+      "Don't flare your ribs to finish, it arches your lower back."
+    ]
+  },
+  {
+    "id": "cable-external-rotation",
+    "name": "Cable External Rotation",
+    "muscleGroup": "Shoulders",
+    "equipment": "Cable",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Shoulders"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A light cable rotation that strengthens the rotator cuff, the small muscles that keep the shoulder healthy under pressing loads.",
+    "metadata": {
+      "primaryMuscles": [
+        "rotator cuff"
+      ],
+      "secondaryMuscles": [
+        "rear delts"
+      ],
+      "movementPattern": "external rotation",
+      "equipment": [
+        "cable machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "rotation",
+      "laterality": "unilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "stability",
+        "shoulder health"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "standing side-on",
+      "planeOfMotion": "transverse",
+      "tags": [
+        "rotator cuff",
+        "rear delts",
+        "rotation",
+        "isolation",
+        "stability",
+        "shoulder health",
+        "cable machine",
+        "unilateral",
+        "prehab",
+        "shoulder-health"
+      ]
+    },
+    "description": "A light cable rotation that strengthens the rotator cuff, the small muscles that keep the shoulder healthy under pressing loads.",
+    "howTo": [
+      "Set a cable at elbow height and stand side-on with the far hand gripping the handle.",
+      "Pin your elbow to your side, bent at ninety degrees across your stomach.",
+      "Rotate your forearm out and away until it points straight ahead or slightly past.",
+      "Return across your body slowly, keeping the elbow glued in place."
+    ],
+    "cues": [
+      "Keep your elbow pinned to your ribs the entire set.",
+      "Rotate only the forearm, like a gate swinging open.",
+      "Don't go heavy, it becomes a row and skips the cuff."
+    ]
+  },
+  {
+    "id": "pendlay-row",
+    "name": "Pendlay Row",
+    "muscleGroup": "Back",
+    "equipment": "Barbell",
+    "movementPattern": "Horizontal Pull",
+    "primaryMuscleGroups": [
+      "Back",
+      "Biceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A strict barbell row from a dead stop on the floor each rep, torso parallel, building explosive upper-back strength.",
+    "metadata": {
+      "primaryMuscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "biceps",
+        "rear delts",
+        "spinal erectors"
+      ],
+      "movementPattern": "bent-over row",
+      "equipment": [
+        "barbell"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "strength",
+        "power"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated",
+      "stance": "bent over, torso parallel",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "upper back",
+        "lats",
+        "biceps",
+        "rear delts",
+        "spinal erectors",
+        "pull",
+        "compound",
+        "strength",
+        "power",
+        "barbell",
+        "bilateral",
+        "dead-stop"
+      ]
+    },
+    "description": "A strict barbell row from a dead stop on the floor each rep, torso parallel, building explosive upper-back strength.",
+    "howTo": [
+      "Set up over the bar with your torso parallel to the floor and back flat.",
+      "Grip the bar slightly wider than shoulder-width with straight arms.",
+      "Row the bar explosively to your lower chest, keeping your torso still.",
+      "Lower the bar all the way back to the floor and reset before the next rep."
+    ],
+    "cues": [
+      "Start and end every rep with the bar dead on the floor.",
+      "Hold your torso parallel to the floor throughout.",
+      "Don't heave with your hips, it turns the row into a shrug."
+    ]
+  },
+  {
+    "id": "t-bar-row",
+    "name": "T-Bar Row",
+    "muscleGroup": "Back",
+    "equipment": "Barbell",
+    "movementPattern": "Horizontal Pull",
+    "primaryMuscleGroups": [
+      "Back",
+      "Biceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A row on a T-bar handle straddling a landmine barbell, letting you load the mid-back heavy with a neutral grip.",
+    "metadata": {
+      "primaryMuscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "biceps",
+        "rear delts",
+        "spinal erectors"
+      ],
+      "movementPattern": "t-bar row",
+      "equipment": [
+        "barbell",
+        "landmine",
+        "row handle"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy",
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "straddling the bar, hinged",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "upper back",
+        "lats",
+        "biceps",
+        "rear delts",
+        "spinal erectors",
+        "pull",
+        "compound",
+        "hypertrophy",
+        "strength",
+        "barbell",
+        "bilateral",
+        "mid-back"
+      ]
+    },
+    "description": "A row on a T-bar handle straddling a landmine barbell, letting you load the mid-back heavy with a neutral grip.",
+    "howTo": [
+      "Straddle the bar and hook the close-grip handle under it near the plates.",
+      "Hinge to about forty-five degrees with a flat back and let your arms hang.",
+      "Row the handle to your chest, driving your elbows back along your ribs.",
+      "Lower until your arms are fully stretched without dropping your chest."
+    ],
+    "cues": [
+      "Hold your hinge angle steady from first rep to last.",
+      "Pull the handle to your sternum, elbows tracking your ribs.",
+      "Don't stand up as you pull, it cheats with your hips."
+    ]
+  },
+  {
+    "id": "chest-supported-dumbbell-row",
+    "name": "Chest-Supported Dumbbell Row",
+    "muscleGroup": "Back",
+    "equipment": "Dumbbell",
+    "movementPattern": "Horizontal Pull",
+    "primaryMuscleGroups": [
+      "Back",
+      "Biceps"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A dumbbell row lying chest-down on an incline bench, removing all body English so the upper back does every rep.",
+    "metadata": {
+      "primaryMuscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "biceps",
+        "rear delts",
+        "forearms"
+      ],
+      "movementPattern": "chest-supported row",
+      "equipment": [
+        "dumbbell",
+        "incline bench"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "prone on incline bench",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "upper back",
+        "lats",
+        "biceps",
+        "rear delts",
+        "forearms",
+        "pull",
+        "compound",
+        "hypertrophy",
+        "dumbbell",
+        "bilateral",
+        "strict-form"
+      ]
+    },
+    "description": "A dumbbell row lying chest-down on an incline bench, removing all body English so the upper back does every rep.",
+    "howTo": [
+      "Set a bench to about thirty degrees and lie chest-down on it.",
+      "Let the dumbbells hang straight down with your arms fully extended.",
+      "Row both dumbbells up until your elbows pass your torso.",
+      "Lower them slowly until your shoulder blades spread at the bottom."
+    ],
+    "cues": [
+      "Keep your chest welded to the pad every rep.",
+      "Drive your elbows up past your ribs.",
+      "Don't lift your chest to finish reps, it fakes the range."
+    ]
+  },
+  {
+    "id": "meadows-row",
+    "name": "Meadows Row",
+    "muscleGroup": "Back",
+    "equipment": "Barbell",
+    "movementPattern": "Horizontal Pull",
+    "primaryMuscleGroups": [
+      "Back"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A one-arm row on the fat end of a landmine barbell, popularized by John Meadows for hammering the lats and upper back through a unique arc.",
+    "metadata": {
+      "primaryMuscles": [
+        "lats",
+        "upper back"
+      ],
+      "secondaryMuscles": [
+        "biceps",
+        "rear delts",
+        "forearms"
+      ],
+      "movementPattern": "single-arm row",
+      "equipment": [
+        "barbell",
+        "landmine"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "unilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated on sleeve",
+      "stance": "staggered, hinged",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "lats",
+        "upper back",
+        "biceps",
+        "rear delts",
+        "forearms",
+        "pull",
+        "compound",
+        "hypertrophy",
+        "barbell",
+        "unilateral",
+        "grip-demand"
+      ]
+    },
+    "description": "A one-arm row on the fat end of a landmine barbell, popularized by John Meadows for hammering the lats and upper back through a unique arc.",
+    "howTo": [
+      "Stand side-on to a landmine bar and hinge with a staggered stance.",
+      "Grip the thick end of the sleeve with an overhand grip.",
+      "Row your elbow up and back until your hand reaches your ribs.",
+      "Lower until your shoulder blade rolls forward into a full stretch."
+    ],
+    "cues": [
+      "Brace your free forearm on your lead thigh.",
+      "Let your shoulder blade slide fully forward at the bottom.",
+      "Don't twist your torso open, it robs the lat stretch."
+    ]
+  },
+  {
+    "id": "seated-machine-row",
+    "name": "Seated Machine Row",
+    "muscleGroup": "Back",
+    "equipment": "Machine",
+    "movementPattern": "Horizontal Pull",
+    "primaryMuscleGroups": [
+      "Back",
+      "Biceps"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A chest-supported row machine that guides the pulling arc, making it easy to load the mid-back safely and squeeze hard.",
+    "metadata": {
+      "primaryMuscles": [
+        "upper back",
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "biceps",
+        "rear delts"
+      ],
+      "movementPattern": "machine row",
+      "equipment": [
+        "row machine"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "seated, chest on pad",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "upper back",
+        "lats",
+        "biceps",
+        "rear delts",
+        "pull",
+        "compound",
+        "hypertrophy",
+        "row machine",
+        "bilateral",
+        "beginner-friendly"
+      ]
+    },
+    "description": "A chest-supported row machine that guides the pulling arc, making it easy to load the mid-back safely and squeeze hard.",
+    "howTo": [
+      "Set the seat so the handles sit level with your mid-chest.",
+      "Press your chest into the pad and grab the handles.",
+      "Pull the handles to your ribs, squeezing your shoulder blades together.",
+      "Return until your arms are fully stretched, keeping your chest on the pad."
+    ],
+    "cues": [
+      "Keep your chest on the pad from stretch to squeeze.",
+      "Finish with your shoulder blades pinched together.",
+      "Don't lean back as you pull, it shortens the range."
+    ]
+  },
+  {
+    "id": "wide-grip-lat-pulldown",
+    "name": "Wide-Grip Lat Pulldown",
+    "muscleGroup": "Back",
+    "equipment": "Cable",
+    "movementPattern": "Vertical Pull",
+    "primaryMuscleGroups": [
+      "Back"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A lat pulldown taken well outside shoulder-width, biasing the outer lats and upper back for a wider look.",
+    "metadata": {
+      "primaryMuscles": [
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "upper back",
+        "biceps",
+        "rear delts"
+      ],
+      "movementPattern": "vertical pull",
+      "equipment": [
+        "cable machine",
+        "lat bar"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "wide pronated",
+      "stance": "seated, thighs braced",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "lats",
+        "upper back",
+        "biceps",
+        "rear delts",
+        "pull",
+        "compound",
+        "hypertrophy",
+        "cable machine",
+        "bilateral",
+        "lat-width"
+      ]
+    },
+    "description": "A lat pulldown taken well outside shoulder-width, biasing the outer lats and upper back for a wider look.",
+    "howTo": [
+      "Grip the wide bar several inches outside each shoulder.",
+      "Sit with your thighs locked under the pads and lean back slightly.",
+      "Pull the bar down to your upper chest, driving your elbows down and out.",
+      "Let the bar rise until your arms are fully stretched overhead."
+    ],
+    "cues": [
+      "Pull the bar to your collarbones, elbows driving down.",
+      "Let your shoulder blades rise fully at the top.",
+      "Don't lean way back, it turns the pulldown into a row."
+    ]
+  },
+  {
+    "id": "neutral-grip-pull-up",
+    "name": "Neutral-Grip Pull-Up",
+    "muscleGroup": "Back",
+    "equipment": "Bodyweight",
+    "movementPattern": "Vertical Pull",
+    "primaryMuscleGroups": [
+      "Back",
+      "Biceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A pull-up on parallel handles with palms facing each other, the strongest and most joint-friendly pulling grip for most lifters.",
+    "metadata": {
+      "primaryMuscles": [
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "biceps",
+        "upper back",
+        "forearms"
+      ],
+      "movementPattern": "vertical pull",
+      "equipment": [
+        "pull-up bar with neutral handles"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "compound",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "strength",
+        "hypertrophy"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": "neutral",
+      "stance": "hanging",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "lats",
+        "biceps",
+        "upper back",
+        "forearms",
+        "pull",
+        "compound",
+        "strength",
+        "hypertrophy",
+        "pull-up bar with neutral handles",
+        "bilateral",
+        "elbow-friendly"
+      ]
+    },
+    "description": "A pull-up on parallel handles with palms facing each other, the strongest and most joint-friendly pulling grip for most lifters.",
+    "howTo": [
+      "Hang from parallel handles with your palms facing each other.",
+      "Pull your shoulder blades down, then drive your elbows toward your ribs.",
+      "Pull until your chin clears your hands.",
+      "Lower yourself under control to a full hang."
+    ],
+    "cues": [
+      "Start each rep from a dead hang, arms fully straight.",
+      "Pull your chin over the level of your hands.",
+      "Don't kip your legs, it steals reps from your lats."
+    ]
+  },
+  {
+    "id": "dumbbell-shrug",
+    "name": "Dumbbell Shrug",
+    "muscleGroup": "Back",
+    "equipment": "Dumbbell",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Back"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A shrug with dumbbells at your sides, letting the traps move through a longer, freer arc than a barbell allows.",
+    "metadata": {
+      "primaryMuscles": [
+        "traps"
+      ],
+      "secondaryMuscles": [
+        "forearms",
+        "upper back"
+      ],
+      "movementPattern": "scapular elevation",
+      "equipment": [
+        "dumbbell"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "neutral",
+      "stance": "standing",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "traps",
+        "forearms",
+        "upper back",
+        "pull",
+        "isolation",
+        "hypertrophy",
+        "dumbbell",
+        "bilateral",
+        "trap-focus"
+      ]
+    },
+    "description": "A shrug with dumbbells at your sides, letting the traps move through a longer, freer arc than a barbell allows.",
+    "howTo": [
+      "Stand tall with a heavy dumbbell hanging at each side.",
+      "Shrug your shoulders straight up toward your ears as high as they go.",
+      "Pause for a beat at the top with your traps fully squeezed.",
+      "Lower your shoulders all the way down into a full stretch."
+    ],
+    "cues": [
+      "Lift your shoulders straight up toward your ears.",
+      "Pause a full beat at the very top.",
+      "Don't roll your shoulders in circles, it grinds the joint."
+    ]
+  },
+  {
+    "id": "dumbbell-pullover",
+    "name": "Dumbbell Pullover",
+    "muscleGroup": "Chest",
+    "equipment": "Dumbbell",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Chest",
+      "Back"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A classic lying arc with one dumbbell over the chest and back overhead, stretching and loading the lats and chest together.",
+    "metadata": {
+      "primaryMuscles": [
+        "lats",
+        "chest"
+      ],
+      "secondaryMuscles": [
+        "triceps",
+        "core"
+      ],
+      "movementPattern": "pullover",
+      "equipment": [
+        "dumbbell",
+        "flat bench"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "both palms under one dumbbell",
+      "stance": "supine on flat bench",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "lats",
+        "chest",
+        "triceps",
+        "core",
+        "pull",
+        "isolation",
+        "hypertrophy",
+        "dumbbell",
+        "bilateral",
+        "deep-stretch"
+      ]
+    },
+    "description": "A classic lying arc with one dumbbell over the chest and back overhead, stretching and loading the lats and chest together.",
+    "howTo": [
+      "Lie across or along a flat bench holding one dumbbell over your chest.",
+      "Keep a slight, fixed bend in your elbows.",
+      "Lower the dumbbell in an arc behind your head until your lats stretch deeply.",
+      "Pull the dumbbell back over your chest along the same arc."
+    ],
+    "cues": [
+      "Keep the same slight elbow bend the whole arc.",
+      "Lower until you feel a deep stretch down your lats.",
+      "Don't let your ribs flare at the bottom, it arches your back."
+    ]
+  },
+  {
+    "id": "dead-hang",
+    "name": "Dead Hang",
+    "muscleGroup": "Back",
+    "equipment": "Bodyweight",
+    "movementPattern": "Vertical Pull",
+    "primaryMuscleGroups": [
+      "Back"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A timed hang from a bar that builds grip, decompresses the spine, and restores overhead shoulder range.",
+    "metadata": {
+      "primaryMuscles": [
+        "forearms",
+        "lats"
+      ],
+      "secondaryMuscles": [
+        "upper back",
+        "core"
+      ],
+      "movementPattern": "isometric hang",
+      "equipment": [
+        "pull-up bar"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isometric",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "endurance",
+        "mobility"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": "pronated",
+      "stance": "hanging",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "forearms",
+        "lats",
+        "upper back",
+        "core",
+        "pull",
+        "isometric",
+        "endurance",
+        "mobility",
+        "pull-up bar",
+        "bilateral",
+        "grip"
+      ]
+    },
+    "description": "A timed hang from a bar that builds grip, decompresses the spine, and restores overhead shoulder range.",
+    "howTo": [
+      "Grip a pull-up bar with both hands about shoulder-width apart.",
+      "Step off the support and hang with your arms fully straight.",
+      "Let your shoulders and spine lengthen while your grip stays firm.",
+      "Hang for the planned time, then step down rather than dropping."
+    ],
+    "cues": [
+      "Hang with your arms completely straight.",
+      "Breathe slowly and let your ribs sink away from your ears.",
+      "Don't swing, it burns your grip time for nothing."
+    ]
+  },
+  {
+    "id": "skull-crusher",
+    "name": "Skull Crusher",
+    "muscleGroup": "Arms",
+    "equipment": "Barbell",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Triceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A lying triceps extension lowering an EZ bar to the forehead, the classic mass-builder for the long head of the triceps.",
+    "metadata": {
+      "primaryMuscles": [
+        "triceps"
+      ],
+      "secondaryMuscles": [
+        "forearms"
+      ],
+      "movementPattern": "elbow extension",
+      "equipment": [
+        "ez bar",
+        "flat bench"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "isolation",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "narrow pronated",
+      "stance": "supine on flat bench",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "triceps",
+        "forearms",
+        "push",
+        "isolation",
+        "hypertrophy",
+        "ez bar",
+        "bilateral",
+        "long-head-focus"
+      ]
+    },
+    "description": "A lying triceps extension lowering an EZ bar to the forehead, the classic mass-builder for the long head of the triceps.",
+    "howTo": [
+      "Lie on a flat bench holding an EZ bar over your chest with a narrow grip.",
+      "Keep your upper arms vertical and bend only at the elbows.",
+      "Lower the bar under control until it nearly touches your forehead.",
+      "Drive the bar back up until your elbows lock out over your chest."
+    ],
+    "cues": [
+      "Freeze your upper arms vertical, only forearms moving.",
+      "Lower the bar to the top of your forehead.",
+      "Don't flare your elbows out, it shifts work to your shoulders."
+    ]
+  },
+  {
+    "id": "zottman-curl",
+    "name": "Zottman Curl",
+    "muscleGroup": "Arms",
+    "equipment": "Dumbbell",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Biceps"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A dumbbell curl lifted palms-up and lowered palms-down, training the biceps on the way up and the forearms on the way down.",
+    "metadata": {
+      "primaryMuscles": [
+        "biceps"
+      ],
+      "secondaryMuscles": [
+        "forearms",
+        "brachialis"
+      ],
+      "movementPattern": "curl",
+      "equipment": [
+        "dumbbell"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "rotating supinated to pronated",
+      "stance": "standing",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "biceps",
+        "forearms",
+        "brachialis",
+        "pull",
+        "isolation",
+        "hypertrophy",
+        "dumbbell",
+        "bilateral",
+        "forearm-focus",
+        "eccentric-focus"
+      ]
+    },
+    "description": "A dumbbell curl lifted palms-up and lowered palms-down, training the biceps on the way up and the forearms on the way down.",
+    "howTo": [
+      "Stand with a dumbbell in each hand, palms facing forward.",
+      "Curl the dumbbells to shoulder height with your elbows pinned at your sides.",
+      "At the top, rotate your palms to face down.",
+      "Lower slowly with palms down, then rotate back at the bottom."
+    ],
+    "cues": [
+      "Flip your palms down only at the very top.",
+      "Take twice as long to lower as to lift.",
+      "Don't drop the lowering phase, it wastes the forearm work."
+    ]
+  },
+  {
+    "id": "bayesian-curl",
+    "name": "Bayesian Curl",
+    "muscleGroup": "Arms",
+    "equipment": "Cable",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Biceps"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A cable curl performed facing away with the arm stretched behind the body, loading the biceps hardest in its lengthened position.",
+    "metadata": {
+      "primaryMuscles": [
+        "biceps"
+      ],
+      "secondaryMuscles": [
+        "forearms"
+      ],
+      "movementPattern": "curl",
+      "equipment": [
+        "cable machine"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "unilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "hypertrophy"
+      ],
+      "exerciseType": "strength",
+      "gripType": "supinated",
+      "stance": "standing, facing away from stack",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "biceps",
+        "forearms",
+        "pull",
+        "isolation",
+        "hypertrophy",
+        "cable machine",
+        "unilateral",
+        "lengthened-position"
+      ]
+    },
+    "description": "A cable curl performed facing away with the arm stretched behind the body, loading the biceps hardest in its lengthened position.",
+    "howTo": [
+      "Set a cable at the bottom and grab the handle, then face away from the stack.",
+      "Step forward into a staggered stance so your arm is pulled behind your torso.",
+      "Curl the handle up while your elbow stays behind your body.",
+      "Lower slowly until your arm is fully stretched behind you."
+    ],
+    "cues": [
+      "Keep your elbow behind your torso the whole set.",
+      "Reach a full stretch at the bottom of every rep.",
+      "Don't let your elbow drift forward, it becomes a normal curl."
+    ]
+  },
+  {
+    "id": "wrist-roller",
+    "name": "Wrist Roller",
+    "muscleGroup": "Arms",
+    "equipment": "Other",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Biceps"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A handle wound on a rope with a hanging plate, rolled up and down to torch the forearms and build serious grip endurance.",
+    "metadata": {
+      "primaryMuscles": [
+        "forearms"
+      ],
+      "secondaryMuscles": [
+        "shoulders"
+      ],
+      "movementPattern": "wrist roll",
+      "equipment": [
+        "wrist roller"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "pull",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "endurance",
+        "strength"
+      ],
+      "exerciseType": "strength",
+      "gripType": "pronated",
+      "stance": "standing, arms extended",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "forearms",
+        "shoulders",
+        "pull",
+        "isolation",
+        "endurance",
+        "strength",
+        "wrist roller",
+        "bilateral",
+        "grip",
+        "forearm-focus"
+      ]
+    },
+    "description": "A handle wound on a rope with a hanging plate, rolled up and down to torch the forearms and build serious grip endurance.",
+    "howTo": [
+      "Hold the roller at shoulder height with both hands, weight hanging on the rope.",
+      "Roll the handle hand over hand to wind the rope and raise the plate.",
+      "Keep going until the plate reaches the handle.",
+      "Reverse direction and unwind the plate down with the same control."
+    ],
+    "cues": [
+      "Keep your arms at shoulder height as you roll.",
+      "Wind the plate all the way to the top.",
+      "Don't let the rope free-spin down, it skips half the work."
+    ]
+  },
+  {
+    "id": "side-plank",
+    "name": "Side Plank",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A hold on one forearm with the body in a straight line, building the obliques and the side of the trunk most planks miss.",
+    "metadata": {
+      "primaryMuscles": [
+        "obliques"
+      ],
+      "secondaryMuscles": [
+        "abs",
+        "glutes",
+        "shoulders"
+      ],
+      "movementPattern": "anti-lateral flexion",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isometric",
+      "forceType": "brace",
+      "laterality": "unilateral",
+      "bodyRegion": "core",
+      "trainingGoal": [
+        "core strength",
+        "stability"
+      ],
+      "exerciseType": "core stability",
+      "gripType": null,
+      "stance": "side-lying on forearm",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "obliques",
+        "abs",
+        "glutes",
+        "shoulders",
+        "brace",
+        "isometric",
+        "core strength",
+        "stability",
+        "bodyweight",
+        "unilateral",
+        "oblique-focus"
+      ]
+    },
+    "description": "A hold on one forearm with the body in a straight line, building the obliques and the side of the trunk most planks miss.",
+    "howTo": [
+      "Lie on your side with your elbow directly under your shoulder.",
+      "Stack your feet and lift your hips until your body forms a straight line.",
+      "Hold the line from ankles to head, breathing steadily.",
+      "Hold for the planned time, then lower and switch sides."
+    ],
+    "cues": [
+      "Stack your elbow directly under your shoulder.",
+      "Keep your hips lifted in line with ankles and shoulders.",
+      "Don't let your hips sag, it dumps the load into your shoulder."
+    ]
+  },
+  {
+    "id": "bicycle-crunch",
+    "name": "Bicycle Crunch",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A crunch with an alternating elbow-to-knee twist, hitting the abs and obliques in one continuous pedaling rhythm.",
+    "metadata": {
+      "primaryMuscles": [
+        "abs"
+      ],
+      "secondaryMuscles": [
+        "obliques"
+      ],
+      "movementPattern": "rotational crunch",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "brace",
+      "laterality": "alternating",
+      "bodyRegion": "core",
+      "trainingGoal": [
+        "core strength"
+      ],
+      "exerciseType": "core strength",
+      "gripType": null,
+      "stance": "supine",
+      "planeOfMotion": "transverse",
+      "tags": [
+        "abs",
+        "obliques",
+        "brace",
+        "isolation",
+        "core strength",
+        "bodyweight",
+        "alternating",
+        "oblique-focus"
+      ]
+    },
+    "description": "A crunch with an alternating elbow-to-knee twist, hitting the abs and obliques in one continuous pedaling rhythm.",
+    "howTo": [
+      "Lie on your back with your hands lightly behind your head and legs lifted.",
+      "Pull one knee in while you extend the other leg straight.",
+      "Rotate your torso to bring the opposite elbow toward the bent knee.",
+      "Switch sides in a smooth pedaling motion without dropping your shoulders."
+    ],
+    "cues": [
+      "Bring your shoulder across, not just your elbow.",
+      "Keep the straight leg hovering off the floor.",
+      "Don't yank on your neck, it strains it and skips the abs."
+    ]
+  },
+  {
+    "id": "hollow-hold",
+    "name": "Hollow Hold",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Intermediate",
+    "instructions": "A gymnastics hold with the lower back pressed into the floor and limbs extended, teaching the ribs-down brace behind every big lift.",
+    "metadata": {
+      "primaryMuscles": [
+        "abs"
+      ],
+      "secondaryMuscles": [
+        "quads"
+      ],
+      "movementPattern": "anti-extension",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "intermediate",
+      "mechanic": "isometric",
+      "forceType": "brace",
+      "laterality": "bilateral",
+      "bodyRegion": "core",
+      "trainingGoal": [
+        "core strength",
+        "skill"
+      ],
+      "exerciseType": "core stability",
+      "gripType": null,
+      "stance": "supine",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "abs",
+        "quads",
+        "brace",
+        "isometric",
+        "core strength",
+        "skill",
+        "bodyweight",
+        "bilateral",
+        "gymnastics"
+      ]
+    },
+    "description": "A gymnastics hold with the lower back pressed into the floor and limbs extended, teaching the ribs-down brace behind every big lift.",
+    "howTo": [
+      "Lie on your back and press your lower back flat into the floor.",
+      "Lift your shoulders and legs a few inches off the ground.",
+      "Reach your arms overhead while keeping your lower back glued down.",
+      "Hold the banana shape, breathing shallowly, for the planned time."
+    ],
+    "cues": [
+      "Press your lower back into the floor the entire hold.",
+      "Hold your shoulder blades and heels just off the ground.",
+      "Don't let your back arch off the floor, it strains the spine."
+    ]
+  },
+  {
+    "id": "superman",
+    "name": "Superman",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A prone lift of the arms and legs off the floor, strengthening the spinal erectors and glutes with zero equipment.",
+    "metadata": {
+      "primaryMuscles": [
+        "spinal erectors"
+      ],
+      "secondaryMuscles": [
+        "glutes",
+        "hamstrings",
+        "rear delts"
+      ],
+      "movementPattern": "spinal extension",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "brace",
+      "laterality": "bilateral",
+      "bodyRegion": "core",
+      "trainingGoal": [
+        "core strength"
+      ],
+      "exerciseType": "core strength",
+      "gripType": null,
+      "stance": "prone",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "spinal erectors",
+        "glutes",
+        "hamstrings",
+        "rear delts",
+        "brace",
+        "isolation",
+        "core strength",
+        "bodyweight",
+        "bilateral",
+        "lower-back",
+        "beginner-friendly"
+      ]
+    },
+    "description": "A prone lift of the arms and legs off the floor, strengthening the spinal erectors and glutes with zero equipment.",
+    "howTo": [
+      "Lie face down with your arms extended overhead.",
+      "Lift your arms, chest, and legs off the floor at the same time.",
+      "Squeeze your glutes and hold the top position briefly.",
+      "Lower back down with control and repeat."
+    ],
+    "cues": [
+      "Lift your thighs and chest clear of the floor together.",
+      "Keep your eyes down so your neck stays neutral.",
+      "Don't crank your head up, it strains your neck."
+    ]
+  },
+  {
+    "id": "toes-to-bar",
+    "name": "Toes-to-Bar",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "movementPattern": "Vertical Pull",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "A hanging raise that brings the toes all the way to the bar, demanding serious ab strength, lat control, and grip.",
+    "metadata": {
+      "primaryMuscles": [
+        "abs"
+      ],
+      "secondaryMuscles": [
+        "lats",
+        "forearms"
+      ],
+      "movementPattern": "hanging hip flexion",
+      "equipment": [
+        "pull-up bar"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "compound",
+      "forceType": "brace",
+      "laterality": "bilateral",
+      "bodyRegion": "core",
+      "trainingGoal": [
+        "core strength",
+        "skill"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": "pronated",
+      "stance": "hanging",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "abs",
+        "lats",
+        "forearms",
+        "brace",
+        "compound",
+        "core strength",
+        "skill",
+        "pull-up bar",
+        "bilateral",
+        "gymnastics",
+        "grip"
+      ]
+    },
+    "description": "A hanging raise that brings the toes all the way to the bar, demanding serious ab strength, lat control, and grip.",
+    "howTo": [
+      "Hang from a pull-up bar with your hands shoulder-width apart.",
+      "Press down on the bar with straight arms as you tuck your knees.",
+      "Fold at the hips and bring your toes up to touch the bar.",
+      "Lower your legs under control back to a hollow hang."
+    ],
+    "cues": [
+      "Touch the bar with both feet between your hands.",
+      "Push the bar down with straight arms as you fold.",
+      "Don't swing wildly, it tears your grip and hides weak abs."
+    ]
+  },
+  {
+    "id": "l-sit",
+    "name": "L-Sit",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "A hold on straight arms with the legs extended out at ninety degrees, a gymnastics staple for iron abs and hip flexors.",
+    "metadata": {
+      "primaryMuscles": [
+        "abs"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "triceps",
+        "shoulders"
+      ],
+      "movementPattern": "isometric compression",
+      "equipment": [
+        "parallettes or floor"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "isometric",
+      "forceType": "brace",
+      "laterality": "bilateral",
+      "bodyRegion": "core",
+      "trainingGoal": [
+        "core strength",
+        "skill"
+      ],
+      "exerciseType": "bodyweight strength",
+      "gripType": null,
+      "stance": "supported on hands",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "abs",
+        "quads",
+        "triceps",
+        "shoulders",
+        "brace",
+        "isometric",
+        "core strength",
+        "skill",
+        "parallettes or floor",
+        "bilateral",
+        "gymnastics"
+      ]
+    },
+    "description": "A hold on straight arms with the legs extended out at ninety degrees, a gymnastics staple for iron abs and hip flexors.",
+    "howTo": [
+      "Support yourself on parallettes or the floor with straight arms.",
+      "Press your shoulders down away from your ears.",
+      "Lift your legs together until they point straight out at hip height.",
+      "Hold the L shape with locked knees for the planned time."
+    ],
+    "cues": [
+      "Hold your legs straight out level with your hips.",
+      "Push the ground away, shoulders pressed down.",
+      "Don't let your knees bend, it hides the real difficulty."
+    ]
+  },
+  {
+    "id": "snatch",
+    "name": "Snatch",
+    "muscleGroup": "Full Body",
+    "equipment": "Barbell",
+    "movementPattern": "Hinge",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Shoulders"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "The Olympic lift that takes the bar from floor to overhead in one motion, caught in a deep squat with wide hands.",
+    "metadata": {
+      "primaryMuscles": [
+        "glutes",
+        "hamstrings"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "traps",
+        "shoulders",
+        "spinal erectors"
+      ],
+      "movementPattern": "hinge",
+      "equipment": [
+        "barbell"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "compound",
+      "forceType": "power",
+      "laterality": "bilateral",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "power",
+        "skill",
+        "athleticism"
+      ],
+      "exerciseType": "power",
+      "gripType": "wide pronated or hook",
+      "stance": "hip-width",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "glutes",
+        "hamstrings",
+        "quads",
+        "traps",
+        "shoulders",
+        "spinal erectors",
+        "power",
+        "compound",
+        "skill",
+        "athleticism",
+        "barbell",
+        "bilateral",
+        "olympic-lift",
+        "explosive"
+      ]
+    },
+    "description": "The Olympic lift that takes the bar from floor to overhead in one motion, caught in a deep squat with wide hands.",
+    "howTo": [
+      "Grip the bar wide with your mid-foot under it and back flat.",
+      "Pull the bar from the floor, keeping it close as it passes your knees.",
+      "Explode your hips forward and shrug, pulling yourself under the bar.",
+      "Catch the bar locked out overhead in a deep squat.",
+      "Stand fully with the bar still locked out overhead."
+    ],
+    "cues": [
+      "Keep the bar brushing your body the entire pull.",
+      "Punch the bar to lockout as you sit under it.",
+      "Don't let the bar loop forward, it crashes out of the catch."
+    ]
+  },
+  {
+    "id": "wall-ball-shot",
+    "name": "Wall Ball Shot",
+    "muscleGroup": "Full Body",
+    "equipment": "Medicine Ball",
+    "movementPattern": "Squat",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Shoulders"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A front squat with a medicine ball that flows into a throw at a wall target, a conditioning staple that smokes legs and shoulders.",
+    "metadata": {
+      "primaryMuscles": [
+        "quads",
+        "glutes"
+      ],
+      "secondaryMuscles": [
+        "shoulders",
+        "triceps",
+        "core"
+      ],
+      "movementPattern": "squat to press",
+      "equipment": [
+        "medicine ball",
+        "wall target"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "power",
+      "laterality": "bilateral",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "conditioning",
+        "power"
+      ],
+      "exerciseType": "conditioning",
+      "gripType": "ball at chest",
+      "stance": "shoulder-width facing wall",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "quads",
+        "glutes",
+        "shoulders",
+        "triceps",
+        "core",
+        "power",
+        "compound",
+        "conditioning",
+        "medicine ball",
+        "bilateral",
+        "explosive",
+        "high-rep"
+      ]
+    },
+    "description": "A front squat with a medicine ball that flows into a throw at a wall target, a conditioning staple that smokes legs and shoulders.",
+    "howTo": [
+      "Hold a medicine ball at your chest facing a wall target.",
+      "Squat until your hips drop below parallel.",
+      "Drive up hard and throw the ball to the target overhead.",
+      "Catch the ball on the rebound and sink straight into the next squat."
+    ],
+    "cues": [
+      "Hit the same spot on the wall every throw.",
+      "Catch and sink in one smooth motion.",
+      "Don't cut the squat short, it costs you the rep's power."
+    ]
+  },
+  {
+    "id": "yoke-walk",
+    "name": "Yoke Walk",
+    "muscleGroup": "Full Body",
+    "equipment": "Other",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Core"
+    ],
+    "difficulty": "Advanced",
+    "instructions": "A strongman carry with a loaded yoke across the upper back, building crushing full-body stability under massive loads.",
+    "metadata": {
+      "primaryMuscles": [
+        "full body"
+      ],
+      "secondaryMuscles": [
+        "core",
+        "traps",
+        "quads",
+        "calves"
+      ],
+      "movementPattern": "loaded carry",
+      "equipment": [
+        "yoke"
+      ],
+      "difficulty": "advanced",
+      "mechanic": "compound",
+      "forceType": "carry",
+      "laterality": "bilateral",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "strength",
+        "athleticism"
+      ],
+      "exerciseType": "strongman",
+      "gripType": "hands on yoke uprights",
+      "stance": "walking",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "full body",
+        "core",
+        "traps",
+        "quads",
+        "calves",
+        "carry",
+        "compound",
+        "strength",
+        "athleticism",
+        "yoke",
+        "bilateral",
+        "loaded-carry"
+      ]
+    },
+    "description": "A strongman carry with a loaded yoke across the upper back, building crushing full-body stability under massive loads.",
+    "howTo": [
+      "Set the yoke crossbar on your upper back as if squatting.",
+      "Brace hard, stand the yoke up, and find your balance.",
+      "Take quick, short steps in a straight line for the planned distance.",
+      "Set the yoke down under control, keeping your back flat."
+    ],
+    "cues": [
+      "Take short choppy steps, heel to toe.",
+      "Brace your trunk like one solid block before you move.",
+      "Don't rush into a stumble, it dumps the yoke sideways."
+    ]
+  },
+  {
+    "id": "air-bike",
+    "name": "Air Bike",
+    "muscleGroup": "Cardio",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A fan bike driven by both arms and legs, whose resistance rises with effort, making it a brutal tool for intervals.",
+    "metadata": {
+      "primaryMuscles": [
+        "conditioning"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "shoulders",
+        "hamstrings"
+      ],
+      "movementPattern": "cyclical conditioning",
+      "equipment": [
+        "air bike"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "conditioning",
+      "laterality": "alternating",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "conditioning",
+        "endurance"
+      ],
+      "exerciseType": "conditioning",
+      "gripType": "neutral on handles",
+      "stance": "seated",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "conditioning",
+        "quads",
+        "shoulders",
+        "hamstrings",
+        "compound",
+        "endurance",
+        "air bike",
+        "alternating",
+        "intervals",
+        "low-impact"
+      ]
+    },
+    "description": "A fan bike driven by both arms and legs, whose resistance rises with effort, making it a brutal tool for intervals.",
+    "howTo": [
+      "Set the seat so your knee stays slightly bent at the bottom of the pedal stroke.",
+      "Drive the pedals and handles together, pushing and pulling with your arms.",
+      "Settle into a steady rhythm for longer pieces or sprint hard for intervals.",
+      "Keep your breathing rhythmic and your torso steady throughout."
+    ],
+    "cues": [
+      "Drive the arms and legs together on every stroke.",
+      "Keep your torso quiet while your limbs do the work.",
+      "Don't start at a sprint, the fan punishes uneven pacing."
+    ]
+  },
+  {
+    "id": "rowing-machine",
+    "name": "Rowing Machine",
+    "muscleGroup": "Cardio",
+    "equipment": "Machine",
+    "movementPattern": "Horizontal Pull",
+    "primaryMuscleGroups": [
+      "Legs",
+      "Back"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "The rowing ergometer, a full-body conditioning machine driven legs first, then hips, then arms on every stroke.",
+    "metadata": {
+      "primaryMuscles": [
+        "full body"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "lats",
+        "upper back",
+        "core"
+      ],
+      "movementPattern": "rowing",
+      "equipment": [
+        "rowing ergometer"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "conditioning",
+      "laterality": "bilateral",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "conditioning",
+        "endurance"
+      ],
+      "exerciseType": "conditioning",
+      "gripType": "pronated on handle",
+      "stance": "seated on slide",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "full body",
+        "quads",
+        "lats",
+        "upper back",
+        "core",
+        "conditioning",
+        "compound",
+        "endurance",
+        "rowing ergometer",
+        "bilateral",
+        "low-impact",
+        "intervals"
+      ]
+    },
+    "description": "The rowing ergometer, a full-body conditioning machine driven legs first, then hips, then arms on every stroke.",
+    "howTo": [
+      "Strap in and grab the handle with straight arms, shins vertical.",
+      "Drive with your legs first, then swing your torso back slightly.",
+      "Finish by pulling the handle to your lower ribs.",
+      "Reverse the order on the way back: arms away, hips hinge, knees bend."
+    ],
+    "cues": [
+      "Push with the legs before the arms ever bend.",
+      "Pull the handle to your lower ribs at the finish.",
+      "Don't hunch at the catch, it rounds your lower back."
+    ]
+  },
+  {
+    "id": "jump-rope",
+    "name": "Jump Rope",
+    "muscleGroup": "Cardio",
+    "equipment": "Other",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "Classic rope skipping that builds footwork, calf spring, and conditioning anywhere you can swing a rope.",
+    "metadata": {
+      "primaryMuscles": [
+        "conditioning"
+      ],
+      "secondaryMuscles": [
+        "calves",
+        "forearms",
+        "shoulders"
+      ],
+      "movementPattern": "cyclical conditioning",
+      "equipment": [
+        "jump rope"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "conditioning",
+      "laterality": "bilateral",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "conditioning",
+        "athleticism"
+      ],
+      "exerciseType": "conditioning",
+      "gripType": "neutral on handles",
+      "stance": "standing, small bounce",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "conditioning",
+        "calves",
+        "forearms",
+        "shoulders",
+        "compound",
+        "athleticism",
+        "jump rope",
+        "bilateral",
+        "footwork",
+        "coordination"
+      ]
+    },
+    "description": "Classic rope skipping that builds footwork, calf spring, and conditioning anywhere you can swing a rope.",
+    "howTo": [
+      "Hold the handles at hip height with elbows close to your ribs.",
+      "Swing the rope from your wrists and hop just high enough to clear it.",
+      "Land softly on the balls of your feet with knees slightly bent.",
+      "Build up time and speed while keeping the bounce small and rhythmic."
+    ],
+    "cues": [
+      "Spin the rope from your wrists, elbows pinned in.",
+      "Hop barely an inch off the floor each turn.",
+      "Don't land on flat feet, it jars your knees and shins."
+    ]
+  },
+  {
+    "id": "treadmill-run",
+    "name": "Treadmill Run",
+    "muscleGroup": "Cardio",
+    "equipment": "Machine",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "Steady running or intervals on the treadmill, the simplest way to build an aerobic base alongside lifting.",
+    "metadata": {
+      "primaryMuscles": [
+        "conditioning"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "hamstrings",
+        "calves",
+        "glutes"
+      ],
+      "movementPattern": "cyclical conditioning",
+      "equipment": [
+        "treadmill"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "compound",
+      "forceType": "conditioning",
+      "laterality": "alternating",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "conditioning",
+        "endurance"
+      ],
+      "exerciseType": "conditioning",
+      "gripType": null,
+      "stance": "running",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "conditioning",
+        "quads",
+        "hamstrings",
+        "calves",
+        "glutes",
+        "compound",
+        "endurance",
+        "treadmill",
+        "alternating",
+        "aerobic-base"
+      ]
+    },
+    "description": "Steady running or intervals on the treadmill, the simplest way to build an aerobic base alongside lifting.",
+    "howTo": [
+      "Start the belt at a walk and step on holding the rails.",
+      "Build to your target pace and release the rails once steady.",
+      "Run tall with a slight forward lean and relaxed shoulders.",
+      "Finish with a couple of minutes of easy walking to cool down."
+    ],
+    "cues": [
+      "Land your feet under your hips, not out in front.",
+      "Keep your shoulders loose and hands unclenched.",
+      "Don't hold the rails while running, it wrecks your stride."
+    ]
+  },
+  {
+    "id": "world-s-greatest-stretch",
+    "name": "World's Greatest Stretch",
+    "muscleGroup": "Mobility",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Core"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A flowing lunge with a twist and reach that opens the hips, hamstrings, and upper back in one warm-up move.",
+    "metadata": {
+      "primaryMuscles": [
+        "mobility"
+      ],
+      "secondaryMuscles": [
+        "hip flexors",
+        "hamstrings",
+        "upper back"
+      ],
+      "movementPattern": "dynamic stretch",
+      "equipment": [
+        "bodyweight"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "rotation",
+      "laterality": "alternating",
+      "bodyRegion": "full body",
+      "trainingGoal": [
+        "mobility",
+        "warmup"
+      ],
+      "exerciseType": "mobility",
+      "gripType": null,
+      "stance": "deep lunge",
+      "planeOfMotion": "transverse",
+      "tags": [
+        "mobility",
+        "hip flexors",
+        "hamstrings",
+        "upper back",
+        "rotation",
+        "isolation",
+        "warmup",
+        "bodyweight",
+        "alternating",
+        "hip-mobility"
+      ]
+    },
+    "description": "A flowing lunge with a twist and reach that opens the hips, hamstrings, and upper back in one warm-up move.",
+    "howTo": [
+      "Step into a long lunge and place both hands inside your front foot.",
+      "Drop the elbow closest to your front foot toward the floor.",
+      "Rotate that arm up to the ceiling, following it with your eyes.",
+      "Return your hand down, then switch sides and repeat the flow."
+    ],
+    "cues": [
+      "Keep your back leg long and straight in the lunge.",
+      "Follow your rotating hand with your eyes.",
+      "Don't let the front heel lift, it unloads the hip stretch."
+    ]
+  },
+  {
+    "id": "couch-stretch",
+    "name": "Couch Stretch",
+    "muscleGroup": "Mobility",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Legs"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A kneeling hip-flexor and quad stretch with the back foot up a wall, the go-to antidote for hips stiff from sitting.",
+    "metadata": {
+      "primaryMuscles": [
+        "mobility"
+      ],
+      "secondaryMuscles": [
+        "quads",
+        "hip flexors"
+      ],
+      "movementPattern": "static stretch",
+      "equipment": [
+        "bodyweight",
+        "wall"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "isolation",
+      "laterality": "unilateral",
+      "bodyRegion": "lower body",
+      "trainingGoal": [
+        "mobility"
+      ],
+      "exerciseType": "mobility",
+      "gripType": null,
+      "stance": "kneeling at wall",
+      "planeOfMotion": "sagittal",
+      "tags": [
+        "mobility",
+        "quads",
+        "hip flexors",
+        "isolation",
+        "bodyweight",
+        "unilateral",
+        "hip-mobility",
+        "desk-antidote"
+      ]
+    },
+    "description": "A kneeling hip-flexor and quad stretch with the back foot up a wall, the go-to antidote for hips stiff from sitting.",
+    "howTo": [
+      "Kneel with one shin vertical up against a wall or couch, toes pointing up.",
+      "Step the other foot forward into a lunge position.",
+      "Squeeze the glute of the back leg and lift your torso upright.",
+      "Hold and breathe, then switch legs."
+    ],
+    "cues": [
+      "Slide your knee into the corner where floor meets wall.",
+      "Squeeze the back-leg glute before raising your torso.",
+      "Don't over-arch your lower back, it fakes the hip stretch."
+    ]
+  },
+  {
+    "id": "wall-slide",
+    "name": "Wall Slide",
+    "muscleGroup": "Mobility",
+    "equipment": "Bodyweight",
+    "movementPattern": "Isolation",
+    "primaryMuscleGroups": [
+      "Shoulders"
+    ],
+    "difficulty": "Beginner",
+    "instructions": "A shoulder-mobility drill sliding the forearms up a wall, grooving healthy overhead mechanics and waking up the lower traps.",
+    "metadata": {
+      "primaryMuscles": [
+        "mobility"
+      ],
+      "secondaryMuscles": [
+        "lower traps",
+        "rear delts"
+      ],
+      "movementPattern": "scapular upward rotation",
+      "equipment": [
+        "bodyweight",
+        "wall"
+      ],
+      "difficulty": "beginner",
+      "mechanic": "isolation",
+      "forceType": "push",
+      "laterality": "bilateral",
+      "bodyRegion": "upper body",
+      "trainingGoal": [
+        "mobility",
+        "shoulder health"
+      ],
+      "exerciseType": "mobility",
+      "gripType": null,
+      "stance": "standing against wall",
+      "planeOfMotion": "frontal",
+      "tags": [
+        "mobility",
+        "lower traps",
+        "rear delts",
+        "push",
+        "isolation",
+        "shoulder health",
+        "bodyweight",
+        "bilateral",
+        "warmup",
+        "shoulder-health"
+      ]
+    },
+    "description": "A shoulder-mobility drill sliding the forearms up a wall, grooving healthy overhead mechanics and waking up the lower traps.",
+    "howTo": [
+      "Stand with your back, head, and hips against a wall.",
+      "Place your forearms on the wall in a goalpost position.",
+      "Slide your arms overhead as far as they go without leaving the wall.",
+      "Pull your elbows back down to the goalpost with control."
+    ],
+    "cues": [
+      "Keep your forearms and wrists touching the wall throughout.",
+      "Keep your ribs down as your arms rise.",
+      "Don't let your back arch off the wall, it fakes the range."
+    ]
   }
 ]

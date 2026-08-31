@@ -45,6 +45,12 @@ check("isolation + biceps -> flexes the elbows", ExerciseMuscleRoles.clause(for:
 check("pattern gap falls back to muscle default (squat + biceps)", ExerciseMuscleRoles.clause(for: "biceps", pattern: .squat) == "flexes the elbows")
 check("unknown muscle falls back to generic clause", ExerciseMuscleRoles.clause(for: "mystery muscle", pattern: .squat) == "assists the movement")
 
+// Muscles added with the researched dataset expansion (tibialis raise,
+// side plank, cable external rotation) get real default clauses.
+check("obliques get a real clause", ExerciseMuscleRoles.clause(for: "obliques", pattern: .isolation) == "resists and drives trunk rotation")
+check("tibialis anterior gets a real clause", ExerciseMuscleRoles.clause(for: "tibialis anterior", pattern: .isolation) == "lifts the toes toward the shins")
+check("rotator cuff gets a real clause", ExerciseMuscleRoles.clause(for: "rotator cuff", pattern: .isolation) == "rotates and steadies the upper arm")
+
 // Canonicalization of dataset spellings.
 check("pecs canonicalizes to chest", ExerciseMuscleRoles.canonicalMuscle("pecs") == "chest")
 check("lower chest canonicalizes to chest", ExerciseMuscleRoles.canonicalMuscle("lower chest") == "chest")
@@ -114,7 +120,7 @@ guard let data = try? Data(contentsOf: datasetURL),
     exit(1)
 }
 
-check("bundled library decodes (1036 exercises)", library.count == 1036)
+check("bundled library decodes (1094 exercises)", library.count == 1094)
 
 var totalRows = 0
 var fallbackRows = 0

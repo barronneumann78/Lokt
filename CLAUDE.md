@@ -53,7 +53,7 @@ Always build with the real compiler after Swift changes; fix errors, don't guess
   bridge with `store.reload()` before reading if staleness matters. Do not add
   new direct UserDefaults access for these keys.
 - **`ExerciseStore`** (`@EnvironmentObject`, app root): the ONE instance decoding
-  the bundled `exercises.json` (1,036 exercises + merged customs).
+  the bundled `exercises.json` (1,094 exercises + merged customs).
   `harness/checks.sh` enforces exactly one `ExerciseStore()` construction.
   Fuzzy name resolution via `ExerciseNameMatcher` (subset-aware memo cache —
   see commit `3d11076` for why cache keys carry candidate-list size).
@@ -90,6 +90,17 @@ hero number per screen, no gray explainer captions — labels carry the meaning.
 
 - **Review-before-save invariant**: AI output never persists without an explicit
   user tap (Save/Update). Edits of saved routines replace by id, never duplicate.
+- **Dataset (`exercises.json`)**: casual edits stay banned, but EXPANSION via
+  the vetted process is legitimate: research the gap, author schema-complete
+  entries (unique id/name, 3 house-style cues, full metadata, no `imageName` —
+  the placeholder icon covers it), then keep every gate green:
+  `harness/dataset-lint.py` (schema/enums/uniqueness/content floor; new
+  duplicate names are banned, 29 legacy duplicate groups are grandfathered
+  inside the script), the pinned entry counts in
+  `harness/logic-checks/exercise-{muscle-roles,variations,name-matching}`, and
+  the name-matching check proving new names don't steal existing fuzzy
+  resolutions (append-only + the matcher's strict `>` keeps ties with the
+  older entry; verify anyway).
 - Scoped commits only (never `git add -A`; leave `.DS_Store`/xcuserstate churn).
   End commit messages with the standard Claude Co-Authored-By trailer. No push
   unless the user asks — GitHub Pages serves this repo's root on push.
