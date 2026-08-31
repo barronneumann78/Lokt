@@ -345,7 +345,8 @@ struct AIWorkoutGeneratorClient {
                 notes: notes.isEmpty ? nil : notes,
                 reasoning: reasoning.isEmpty ? nil : reasoning,
                 tip: tip.isEmpty ? nil : tip,
-                recommendedSets: max(1, exercise.sets)
+                recommendedSets: max(1, exercise.sets),
+                catalogMatch: exercise.catalogMatch
             )
         }
 

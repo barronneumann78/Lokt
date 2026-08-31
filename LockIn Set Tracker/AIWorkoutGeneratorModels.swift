@@ -83,6 +83,13 @@ struct AIGeneratedExercise: Identifiable, Hashable, Codable {
     /// App-side only — never sent to or required from the backend. Optional
     /// so older cached drafts still decode.
     var recommendedSets: Int?
+    /// Backend verdict on whether `name` is a verbatim exercise-library name
+    /// (the server checks it against the full catalog). `false` marks the
+    /// sanctioned last resort: a movement genuinely absent from the library,
+    /// or the user's own custom-named exercise. Optional so older drafts and
+    /// older backends still decode; `ExerciseNameMatcher` remains the app-side
+    /// resolver either way.
+    var catalogMatch: Bool? = nil
 }
 
 struct AIGeneratedRoutineDraft: Identifiable, Hashable, Codable {
@@ -117,6 +124,8 @@ struct AIWorkoutExercisePayload: Codable {
     var reasoning: String?
     /// Optional so responses from older backends (or cached payloads) decode.
     var tip: String?
+    /// Optional so responses from older backends (or cached payloads) decode.
+    var catalogMatch: Bool?
 }
 
 extension AIGeneratedRoutineDraft {
@@ -157,7 +166,8 @@ extension AIGeneratedRoutineDraft {
                     reps: $0.reps,
                     notes: $0.notes ?? "",
                     reasoning: $0.reasoning,
-                    tip: $0.tip
+                    tip: $0.tip,
+                    catalogMatch: $0.catalogMatch
                 )
             }
         )

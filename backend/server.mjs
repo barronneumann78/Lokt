@@ -1,5 +1,6 @@
 import http from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 const port = Number(process.env.PORT ?? 8787);
 const workoutGeneratorModel = process.env.OPENAI_MODEL ?? "gpt-4.1";
@@ -91,6 +92,180 @@ setInterval(() => {
   }
 }, 60_000).unref();
 
+// --- Exercise catalog grounding ---------------------------------------------
+// Routine-producing endpoints used to emit exercise names blind, so the model
+// free-styled ("Standing OHP", invented flourishes) and drafts landed in the
+// app as unresolvable custom noise. backend/exercise-catalog.json (generated
+// by harness/gen-exercise-catalog.py from the bundled dataset + alias table,
+// drift-checked by harness/checks.sh) carries every library exercise name;
+// each routine-producing call now receives a request-relevant subset and must
+// copy names from it verbatim. Inventing a name is the sanctioned LAST resort,
+// flagged per exercise via catalogMatch.
+
+const exerciseCatalog = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("./exercise-catalog.json", import.meta.url), "utf8"));
+  } catch (error) {
+    console.warn(`exercise-catalog.json missing or invalid — catalog grounding disabled. (${error?.message ?? error})`);
+    return [];
+  }
+})();
+
+const catalogNameSet = new Set(exerciseCatalog.map((entry) => entry.name.toLowerCase()));
+
+const catalogByGroup = new Map();
+for (const entry of exerciseCatalog) {
+  const group = catalogByGroup.get(entry.muscleGroup) ?? [];
+  group.push(entry);
+  catalogByGroup.set(entry.muscleGroup, group);
+}
+
+// Muscle-group hints scanned out of request text. Over-inclusion is cheap
+// (round-robin fill keeps the subset capped); under-inclusion is what hurts,
+// and the always-included staple backbone covers every group regardless.
+const muscleGroupHintPatterns = [
+  [/\b(chest|pecs?|bench|push[ -]?ups?|fly|flyes?|flies|dips?|press day)\b/, ["Chest"]],
+  [/\bpush(es|ing)?\b/, ["Chest", "Shoulders", "Arms"]],
+  [/\b(back|rows?|lats?|pull[ -]?downs?|pull[ -]?ups?|chin[ -]?ups?|shrugs?)\b/, ["Back"]],
+  [/\bpull(s|ing)?\b/, ["Back", "Arms"]],
+  [/\b(shoulders?|delts?|ohp|overhead|military|lateral raises?|face pulls?)\b/, ["Shoulders"]],
+  [/\b(arms?|biceps?|triceps?|curls?|skull ?crushers?|push[ -]?downs?|extensions?|forearms?|grip)\b/, ["Arms"]],
+  [/\b(legs?|quads?|hamstrings?|hammies|glutes?|calf|calves|squats?|lunges?|dead ?lifts?|rdls?|sldl|hip thrusts?|hinge|lower body)\b/, ["Legs"]],
+  [/\b(core|abs?|abdominals?|obliques?|planks?|six[ -]?pack)\b/, ["Core"]],
+  [/\b(cardio|conditioning|hiit|runs?|running|sprints?|bikes?|cycling|rowing|rower|treadmill|jump rope|stairs?)\b/, ["Cardio"]],
+  [/\b(full[ -]?body|total[ -]?body|whole body|crossfit|circuits?|complex(es)?|cleans?|snatch(es)?|jerks?|thrusters?|burpees?)\b/, ["Full Body"]],
+  [/\b(mobility|stretch(es|ing)?|warm[ -]?up|cool[ -]?down|yoga|foam roll(ing)?|recovery)\b/, ["Mobility"]],
+  [/\b(carry|carries|farmer'?s?|sleds?|strongman|battle ropes?|band(s|ed)?)\b/, ["Other"]]
+];
+
+// User equipment-preference strings -> catalog equipment enum values.
+const equipmentAliasPairs = [
+  ["barbell", "Barbell"],
+  ["dumbbell", "Dumbbell"], ["db", "Dumbbell"],
+  ["machine", "Machine"],
+  ["cable", "Cable"],
+  ["bodyweight", "Bodyweight"], ["body weight", "Bodyweight"], ["calisthenic", "Bodyweight"], ["no equipment", "Bodyweight"],
+  ["kettlebell", "Kettlebell"], ["kb", "Kettlebell"],
+  ["band", "Band"],
+  ["medicine ball", "Medicine Ball"], ["med ball", "Medicine Ball"]
+];
+
+function preferredEquipmentSet(preferences) {
+  const set = new Set();
+  for (const raw of Array.isArray(preferences?.preferredEquipment) ? preferences.preferredEquipment : []) {
+    const lowered = String(raw).toLowerCase();
+    for (const [needle, equipment] of equipmentAliasPairs) {
+      if (lowered.includes(needle)) set.add(equipment);
+    }
+  }
+  return set;
+}
+
+function hintedMuscleGroups(text) {
+  const lowered = ` ${String(text ?? "").toLowerCase()} `;
+  const hinted = [];
+  for (const [pattern, groups] of muscleGroupHintPatterns) {
+    if (!pattern.test(lowered)) continue;
+    for (const group of groups) {
+      if (!hinted.includes(group)) hinted.push(group);
+    }
+  }
+  return hinted;
+}
+
+// Names-only budget: ~240 names ≈ 1.2–1.5k prompt tokens.
+const catalogSubsetMaxNames = 240;
+
+// Select the request-relevant slice of the catalog: the staple backbone always
+// (the classics, every muscle group), then the hinted muscle groups expanded
+// round-robin — entries matching the user's preferred equipment first — until
+// the name cap. `fallbackText` (memory focus, conversation) is scanned only
+// when `primaryText` yields no muscle-group hints; no hints at all expands
+// every group evenly.
+function selectCatalogSubset(primaryText, preferences, fallbackText = "") {
+  if (exerciseCatalog.length === 0) return [];
+
+  let hinted = hintedMuscleGroups(primaryText);
+  if (hinted.length === 0) hinted = hintedMuscleGroups(fallbackText);
+  const groups = hinted.length > 0 ? hinted : [...catalogByGroup.keys()];
+  const preferredEquipment = preferredEquipmentSet(preferences);
+
+  const chosen = new Map(); // lowercased name -> entry
+
+  for (const entry of exerciseCatalog) {
+    if (entry.staple) chosen.set(entry.name.toLowerCase(), entry);
+  }
+
+  const passFilters = preferredEquipment.size > 0
+    ? [(entry) => preferredEquipment.has(entry.equipment) || entry.equipment === "Bodyweight", () => true]
+    : [() => true];
+
+  for (const passFilter of passFilters) {
+    if (chosen.size >= catalogSubsetMaxNames) break;
+    const queues = groups.map((group) =>
+      (catalogByGroup.get(group) ?? []).filter(
+        (entry) => passFilter(entry) && !chosen.has(entry.name.toLowerCase())
+      )
+    );
+    let added = true;
+    while (added && chosen.size < catalogSubsetMaxNames) {
+      added = false;
+      for (const queue of queues) {
+        if (chosen.size >= catalogSubsetMaxNames) break;
+        const entry = queue.shift();
+        if (entry) {
+          chosen.set(entry.name.toLowerCase(), entry);
+          added = true;
+        }
+      }
+    }
+  }
+
+  return [...chosen.values()];
+}
+
+function formatCatalogSection(subset) {
+  if (subset.length === 0) return "";
+
+  const namesByGroup = new Map();
+  for (const entry of subset) {
+    const names = namesByGroup.get(entry.muscleGroup) ?? [];
+    names.push(entry.name);
+    namesByGroup.set(entry.muscleGroup, names);
+  }
+
+  const lines = [...namesByGroup.keys()]
+    .sort()
+    .map((group) => `${group}: ${namesByGroup.get(group).join(" | ")}`);
+
+  return ["", "EXERCISE LIBRARY (canonical names, grouped by muscle group):", ...lines].join("\n");
+}
+
+function catalogGroundingBlock(primaryText, preferences, fallbackText = "") {
+  return formatCatalogSection(selectCatalogSubset(primaryText, preferences, fallbackText));
+}
+
+// Muscle-group focus terms from the user-memory digest — subset-selection
+// fallback when the request text itself names no muscle groups.
+function memoryFocusText(memory) {
+  if (!memory) return "";
+  const weekly = Array.isArray(memory.weeklySummaries) ? memory.weeklySummaries : [];
+  return weekly.flatMap((week) => (Array.isArray(week.focus) ? week.focus : [])).join(" ");
+}
+
+function routineExerciseNamesText(routine) {
+  if (!routine || !Array.isArray(routine.exercises)) return "";
+  return routine.exercises.map((exercise) => String(exercise?.name ?? "")).join(" ");
+}
+
+// One line per model call so grounding cost stays observable in dev logs.
+function logModelUsage(label, payload) {
+  const usage = payload?.usage;
+  if (usage) {
+    console.log(`[usage] ${label} input=${usage.input_tokens ?? "?"} output=${usage.output_tokens ?? "?"}`);
+  }
+}
+
 const workoutSchema = {
   type: "object",
   additionalProperties: false,
@@ -113,9 +288,13 @@ const workoutSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "sets", "reps", "notes", "reasoning", "tip"],
+        required: ["name", "sets", "reps", "notes", "reasoning", "tip", "catalogMatch"],
         properties: {
           name: { type: "string" },
+          catalogMatch: {
+            type: "boolean",
+            description: "true when name is copied verbatim from the provided EXERCISE LIBRARY list; false only when the movement has no library entry and a custom or standard non-library name was used."
+          },
           sets: { type: "integer", minimum: 1, maximum: 10 },
           reps: { type: "string" },
           notes: { type: "string" },
@@ -436,6 +615,17 @@ const userMemoryInstructions = [
   "Do not recite the memory back to the user; use it the way a coach who knows their history would."
 ].join(" ");
 
+const catalogGroundingInstructions = [
+  "The request includes an EXERCISE LIBRARY section listing canonical exercise names from the app's own database.",
+  "Whenever a movement you program exists in that list under any name, you MUST copy the library name EXACTLY as written, character for character.",
+  "Translate slang, nicknames, abbreviations, and typos to the library name they mean: OHP is the barbell overhead press entry, pec deck is the machine chest fly entry, SLDL is the stiff-leg deadlift entry, skullcrushers is the skull crusher entry.",
+  "NEVER invent a novel or creative exercise name, and never add flourishes, prefixes, or rebrands to a library name.",
+  "If the user explicitly asks to include their own custom-named exercise, use the user's name for it verbatim.",
+  "Only as a last resort, when the user asks for a movement that genuinely has no entry in the library list, name it by its most standard plain gym name.",
+  "Set catalogMatch to true when the exercise name is copied verbatim from the EXERCISE LIBRARY list, and false only when you used a custom or non-library name.",
+  "Never mention the library list to the user."
+].join(" ");
+
 const routineFieldGuidelines = [
   "Write the summary as one concrete sentence a beginner can read at a glance. Add a second sentence only when it carries genuinely distinct information, such as a constraint, equipment note, or scheduling detail.",
   "Never pad the summary with filler that restates the goal or with generic benefit-speak such as maximizing volume, efficiently, keeps things effective, or optimized. If the second sentence only rephrases the first, drop it.",
@@ -451,7 +641,7 @@ const routineFieldGuidelines = [
 const workoutGeneratorInstructions = [
   "You write practical gym routines for a workout tracking app.",
   "Match the user's requested split, equipment, time cap, and goal as closely as possible.",
-  "Prefer clear, standard exercise names that make sense inside a routine builder.",
+  catalogGroundingInstructions,
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Keep the plan efficient and realistic for the requested duration.",
   "Include a short rationale that explains why this workout structure fits the user's request.",
@@ -473,6 +663,7 @@ const supplementaryWorkoutInstructions = [
   "Keep the block compact, practical, and easy to layer onto another workout.",
   "Prefer 2 to 5 exercises unless the user clearly asks for something else.",
   "Keep the title specific to the add-on block.",
+  catalogGroundingInstructions,
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Use the summary to explain what the add-on is for in plain English.",
   "Use the rationale like a concise coach note about why this small block fits.",
@@ -511,6 +702,7 @@ const voiceWorkoutParseInstructions = [
   "NEVER invent, substitute, or guess an exercise to represent a non-exercise phrase. If a phrase is not plausibly an exercise name, it must not appear in exercises.",
   "Put the notable non-exercise phrases you deliberately left out into skipped, shortened to a few words each. Pure filler like um or okay does not belong in either list.",
   "For each extracted exercise, sourceText is the exact words heard and name is the cleaned exercise name with no sets, reps, numbering, or prescription text.",
+  "The request may include an EXERCISE LIBRARY section listing canonical exercise names from the app's database. When an extracted exercise clearly and unambiguously refers to a library entry, output that library name EXACTLY as written as name, keeping sourceText as the words heard. When no library entry clearly matches, or the spoken words are an abbreviation or nickname you are not certain about, keep the cleaned spoken name unchanged instead of guessing a library entry. The library list NEVER adds exercises: extract only movements the speaker actually said.",
   "When the speaker attaches sets or reps to an exercise, such as three sets of ten, fill that exercise's setCount and repText. Otherwise leave them null.",
   "Set confidence to high when the phrase clearly and unambiguously names an exercise. Set confidence to low when it is garbled, partial, or you are unsure it really names an exercise.",
   "If the transcript names no exercises, return an empty exercises list. Never pad it.",
@@ -528,6 +720,8 @@ const workoutRevisionInstructions = [
   "Apply the user's requested changes while keeping the routine practical and coherent.",
   "Keep the workout style, equipment constraints, and overall intent unless the user asks to change them.",
   "Prefer swapping exercises over rewriting everything when the request is small.",
+  catalogGroundingInstructions,
+  "Exercises kept unchanged from the current routine keep their existing names; catalogMatch for them reflects whether that name appears in the EXERCISE LIBRARY list.",
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Update the rationale so it briefly explains why the revised version fits the user's request.",
   "The rationale should stay concise and user-facing, not hidden reasoning or chain-of-thought.",
@@ -580,6 +774,8 @@ const coachChatInstructions = [
   "When action is created_draft or updated_draft, return a complete routine in the schema and write a short changeSummary.",
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
   "If a routine is returned, keep the name field to exercise names only, never sets, reps, numbering, or prescription text.",
+  catalogGroundingInstructions,
+  "When you edit a saved routine, its existing exercises keep their exact names; catalogMatch for them reflects whether that name appears in the EXERCISE LIBRARY list.",
   routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
@@ -1212,7 +1408,8 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
       model: workoutGeneratorModel,
       store: false,
       instructions: workoutGeneratorInstructions,
-      input: formatPromptWithPreferences(prompt, preferences, memory),
+      input: formatPromptWithPreferences(prompt, preferences, memory)
+        + catalogGroundingBlock(prompt, preferences, memoryFocusText(memory)),
       text: {
         format: {
           type: "json_schema",
@@ -1229,6 +1426,8 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
   if (!apiResponse.ok) {
     throw new Error(payload?.error?.message ?? "OpenAI request failed.");
   }
+
+  logModelUsage("workout-generator", payload);
 
   const outputText = extractOutputText(payload);
   if (!outputText) {
@@ -1260,7 +1459,8 @@ async function generateSupplementaryWorkout(prompt, preferences) {
       model: workoutGeneratorModel,
       store: false,
       instructions: supplementaryWorkoutInstructions,
-      input: formatPromptWithPreferences(prompt, preferences),
+      input: formatPromptWithPreferences(prompt, preferences)
+        + catalogGroundingBlock(prompt, preferences),
       text: {
         format: {
           type: "json_schema",
@@ -1277,6 +1477,8 @@ async function generateSupplementaryWorkout(prompt, preferences) {
   if (!apiResponse.ok) {
     throw new Error(payload?.error?.message ?? "OpenAI supplementary workout request failed.");
   }
+
+  logModelUsage("workout-addon", payload);
 
   const outputText = extractOutputText(payload);
   if (!outputText) {
@@ -1328,7 +1530,12 @@ async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, 
                 formatConversation(conversation),
                 "",
                 "User edit request:",
-                editPrompt
+                editPrompt,
+                catalogGroundingBlock(
+                  `${editPrompt} ${routineExerciseNamesText(currentRoutine)}`,
+                  preferences,
+                  memoryFocusText(memory)
+                )
               ].join("\n")
             }
           ]
@@ -1350,6 +1557,8 @@ async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, 
   if (!apiResponse.ok) {
     throw new Error(payload?.error?.message ?? "OpenAI revision request failed.");
   }
+
+  logModelUsage("workout-generator/revise", payload);
 
   const outputText = extractOutputText(payload);
   if (!outputText) {
@@ -1550,7 +1759,19 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
                 formatConversation(conversation),
                 "",
                 "Latest user message:",
-                message
+                message,
+                catalogGroundingBlock(
+                  [
+                    message,
+                    routineExerciseNamesText(currentRoutine),
+                    ...(Array.isArray(context?.activeWorkout?.exercises) ? context.activeWorkout.exercises : [])
+                  ].join(" "),
+                  preferences,
+                  [
+                    ...(Array.isArray(conversation) ? conversation.slice(-6).map((item) => item.text) : []),
+                    memoryFocusText(memory)
+                  ].join(" ")
+                )
               ].join("\n")
             }
           ]
@@ -1572,6 +1793,8 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
   if (!apiResponse.ok) {
     throw new Error(payload?.error?.message ?? "OpenAI coach chat request failed.");
   }
+
+  logModelUsage("coach/chat", payload);
 
   const outputText = extractOutputText(payload);
   if (!outputText) {
@@ -1967,7 +2190,8 @@ async function parseVoiceWorkoutTranscript(transcript) {
               type: "input_text",
               text: [
                 "Spoken workout transcript:",
-                transcript
+                transcript,
+                catalogGroundingBlock(transcript, null)
               ].join("\n")
             }
           ]
@@ -1989,6 +2213,8 @@ async function parseVoiceWorkoutTranscript(transcript) {
   if (!apiResponse.ok) {
     throw new Error(payload?.error?.message ?? "OpenAI transcript parsing failed.");
   }
+
+  logModelUsage("voice-to-workout/parse", payload);
 
   const outputText = extractOutputText(payload);
   if (!outputText) {
@@ -2554,14 +2780,26 @@ function sanitizeRoutine(routine) {
 
   const exercises = Array.isArray(routine?.exercises)
     ? routine.exercises
-        .map((exercise) => ({
-          name: String(exercise?.name ?? "").trim(),
-          sets: clampNumber(Number(exercise?.sets ?? 3), 1, 10),
-          reps: String(exercise?.reps ?? "").trim(),
-          notes: String(exercise?.notes ?? "").trim(),
-          reasoning: String(exercise?.reasoning ?? "").trim(),
-          tip: String(exercise?.tip ?? "").trim()
-        }))
+        .map((exercise) => {
+          const name = String(exercise?.name ?? "").trim();
+
+          // The model's own catalogMatch claim is only an incentive to copy
+          // names verbatim; the server holds the full catalog, so membership
+          // is recomputed here and the recomputed value wins.
+          const catalogMatch = catalogNameSet.size > 0
+            ? catalogNameSet.has(name.toLowerCase())
+            : (typeof exercise?.catalogMatch === "boolean" ? exercise.catalogMatch : undefined);
+
+          return {
+            name,
+            sets: clampNumber(Number(exercise?.sets ?? 3), 1, 10),
+            reps: String(exercise?.reps ?? "").trim(),
+            notes: String(exercise?.notes ?? "").trim(),
+            reasoning: String(exercise?.reasoning ?? "").trim(),
+            tip: String(exercise?.tip ?? "").trim(),
+            catalogMatch
+          };
+        })
         .filter((exercise) => exercise.name && exercise.reps)
     : [];
 

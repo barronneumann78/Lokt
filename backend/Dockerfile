@@ -4,7 +4,7 @@
 FROM node:22-slim
 
 WORKDIR /app
-COPY server.mjs ./
+COPY server.mjs exercise-catalog.json ./
 
 ENV NODE_ENV=production
 ENV PORT=8787
