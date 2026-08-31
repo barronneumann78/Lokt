@@ -1,5 +1,10 @@
 # Week Plan — ship Lokt to real testing (created 2026-08-30)
 
+STATUS (updated 2026-08-31): Day 1 done EXCEPT key rotation + Railway (user).
+Phone install ✅, data export ✅, field testing ✅ (ahead of schedule — produced
+the voice-import fix and the dataset/alias/AI-grounding trilogy, i.e. Day 4
+polish landed early). M4 not started — next big build. Days 5–7 untouched.
+
 Goal for the week: the app running on real phones, the AI working away from the
 Mac, the M4 adaptation loop built, and 2–3 friends testing by the weekend.
 Roles: **YOU** = accounts, money, testing, judgment. **CLAUDE** = all build work
