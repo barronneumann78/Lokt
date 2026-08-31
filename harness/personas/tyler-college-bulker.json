@@ -1,0 +1,50 @@
+{
+  "id": "tyler-college-bulker",
+  "name": "Tyler",
+  "oneLiner": "20-year-old college bulker at a crowded budget campus gym; wants volume, finds everything too easy.",
+  "profile": {
+    "age": 20,
+    "setting": "cheap campus gym: one barbell bench station (always taken), squat rack, dumbbells to 100, cable stack",
+    "goals": "Gain 15 lb of muscle this school year. Chasing a bigger bench and bigger arms.",
+    "equipment": ["barbell", "squat rack", "dumbbells", "flat bench", "cable machine"],
+    "injuries": "None. Elbows occasionally achy from too much triceps volume.",
+    "schedule": "5 days a week, 75-90 minutes, between classes — but equipment availability is chaos.",
+    "personality": "Enthusiastic, impatient, reads fitness YouTube. Wants MORE of everything. Skeptical of low-volume advice.",
+    "tolerance": "High. Under-reports difficulty; says 'too easy' constantly and asks for progression."
+  },
+  "preferences": {
+    "preferredEquipment": ["barbell", "squat rack", "dumbbells", "flat bench", "cable machine"],
+    "dislikedExercises": ["burpees", "running"],
+    "primaryGoal": "Gain 15 lb of muscle this school year — bulking",
+    "limitations": "",
+    "trainingStyle": "High-volume bodybuilding split, pushing close to failure",
+    "defaultTimeLimitMinutes": 75
+  },
+  "checkInTemperament": {
+    "summary": "Says 'too easy' most sessions, progresses aggressively, rarely reports pain.",
+    "weights": { "too easy": 3, "about right": 2, "too hard": 0 },
+    "painRate": 0.05,
+    "painNotes": ["elbows a bit achy after skull crushers"],
+    "progression": "aggressive"
+  },
+  "history": {
+    "startWeeksAgo": 3,
+    "sessionsPerWeek": 4,
+    "sessionDurationMinutes": 80,
+    "liftPool": [
+      { "name": "Incline Dumbbell Press", "weight": 70, "reps": 8, "weeklyBump": 5, "group": "Chest" },
+      { "name": "Cable Fly", "weight": 40, "reps": 12, "weeklyBump": 5, "group": "Chest" },
+      { "name": "Dip", "weight": 25, "reps": 10, "weeklyBump": 5, "group": "Chest" },
+      { "name": "Skull Crusher", "weight": 65, "reps": 12, "weeklyBump": 5, "group": "Arms" },
+      { "name": "Dumbbell Lateral Raise", "weight": 15, "reps": 15, "weeklyBump": 0, "group": "Shoulders" },
+      { "name": "Barbell Bench Press", "weight": 185, "reps": 5, "weeklyBump": 5, "group": "Chest" }
+    ]
+  },
+  "journey": {
+    "initialPrompt": "Big push day for bulking. I train at a cheap campus gym — barbell, rack, dumbbells, cables. I want serious volume, at least 6 exercises, pushing close to failure.",
+    "editPrompt": "There's only one barbell bench station on campus and it's literally always taken. Give me a backup using dumbbells or cables for anything that needs the barbell bench, and add direct triceps work at the end.",
+    "coachMessage": "Make my saved push day harder. I finished everything last session and wasn't even that sore the next day. More sets or heavier — your call, but change the routine.",
+    "followUpMessage": "Been hitting this push day for three weeks and honestly it's starting to feel too easy again — check my log. What's next: do I add weight, add sets, or swap exercises? Give me an actual answer.",
+    "voiceTranscript": "Yo okay logging real quick — bench I worked up to one eighty five for five, then like two twenty five... no wait that was leg day, my bad. Uh, incline dumbbells, seventies for eight, three sets, cable flys I think the stack said forty, did those till they burned so call it twelve, ten, ten. Dips, bodyweight plus a twenty five, three sets of ten, skull crushers with the EZ bar, sixty five, three sets of twelve, and some lateral raises with the fifteens, super light, high reps, don't judge me."
+  }
+}

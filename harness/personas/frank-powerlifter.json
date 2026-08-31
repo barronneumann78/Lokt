@@ -1,0 +1,50 @@
+{
+  "id": "frank-powerlifter",
+  "name": "Frank",
+  "oneLiner": "52-year-old opinionated powerlifter; low-bar squats 405, wants percentages and top sets, allergic to 'bodybuilding fluff'.",
+  "profile": {
+    "age": 52,
+    "setting": "well-equipped commercial gym: power rack, competition bench, calibrated plates, belt and knee sleeves.",
+    "goals": "Add 50 lb to his raw powerlifting total at 52. Squat, bench, deadlift are the point; everything else is assistance.",
+    "equipment": ["barbell", "power rack", "competition bench", "belt"],
+    "injuries": "Cranky knees on high-rep squatting. Low-bar only. Manages fine with low reps and long rests.",
+    "schedule": "4 days a week, 90 minutes, non-negotiable long rests between top sets.",
+    "personality": "Blunt, opinionated, 30 years under the bar. Interrogates every recommendation. Hates hedging, hates 'listen to your body', hates machines. Will argue with the coach on principle.",
+    "tolerance": "High but honest. Mostly 'about right'; reports the odd knee grumble matter-of-factly."
+  },
+  "preferences": {
+    "preferredEquipment": ["barbell", "power rack", "competition bench", "belt"],
+    "dislikedExercises": ["smith machine bench press", "leg extension", "kettlebell swing"],
+    "primaryGoal": "Add 50 lb to my raw powerlifting total at 52 — squat, bench, deadlift",
+    "limitations": "Cranky knees on high-rep squatting. Low-bar squat only.",
+    "trainingStyle": "Low-rep strength work, percentage-based, RPE 7-8 top sets, long rests",
+    "defaultTimeLimitMinutes": 90
+  },
+  "checkInTemperament": {
+    "summary": "Mostly 'about right', occasional 'too easy'; matter-of-fact knee reports, never dramatic.",
+    "weights": { "too easy": 1, "about right": 4, "too hard": 0 },
+    "painRate": 0.2,
+    "painNotes": ["left knee grumbled on the third backoff set"],
+    "progression": "steady"
+  },
+  "history": {
+    "startWeeksAgo": 3,
+    "sessionsPerWeek": 4,
+    "sessionDurationMinutes": 88,
+    "liftPool": [
+      { "name": "Barbell Back Squat", "weight": 355, "reps": 1, "weeklyBump": 10, "group": "Legs" },
+      { "name": "Barbell Back Squat", "weight": 325, "reps": 5, "weeklyBump": 5, "group": "Legs" },
+      { "name": "Pause Squat", "weight": 225, "reps": 3, "weeklyBump": 10, "group": "Legs" },
+      { "name": "Barbell Bench Press", "weight": 265, "reps": 3, "weeklyBump": 5, "group": "Chest" },
+      { "name": "Deadlift", "weight": 425, "reps": 2, "weeklyBump": 10, "group": "Back" },
+      { "name": "Lying Leg Curl", "weight": 90, "reps": 10, "weeklyBump": 0, "group": "Legs" }
+    ]
+  },
+  "journey": {
+    "initialPrompt": "Program me a squat day. I am a 52-year-old powerlifter, low-bar, current squat 1RM around 405. Percentages and top sets. None of that bodybuilding fluff.",
+    "editPrompt": "Three sets of ten on squats? At my age, with my knees? Read my profile again. Rewrite it: heavy top single or triple around RPE 8, then backoff fives at 80 percent, and cut the leg extensions entirely.",
+    "coachMessage": "What is your honest opinion on paused squats versus pin squats for fixing a slow bottom-end, for a 52-year-old? Short answer. No hedging.",
+    "followUpMessage": "Three weeks on this program. Top sets moved fine, knees held up — the log is right there. When do I push the top single past 385? Give me a number and a week, and do not tell me to listen to my body.",
+    "voiceTranscript": "Squat day. Worked up — bar for five, one thirty five for five, two twenty five triple, three fifteen double, three fifty five single, felt like an eight. Backoffs at three twenty five, three sets of five. Belt on everything over three hundred, knees taped. Then paused squats, two twenty five, three sets of three. Leg curls, ninety, three sets of ten, because Lisa says I need them. Calves I skipped. Sue me."
+  }
+}

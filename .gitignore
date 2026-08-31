@@ -2,6 +2,9 @@
 harness/history.jsonl
 harness/dashboard.html
 
+# Persona focus-group journey logs (large; reports/ IS committed)
+harness/personas/runs/
+
 # Filesystem junk
 .DS_Store
 .fuse_hidden*

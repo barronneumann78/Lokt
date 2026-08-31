@@ -1,0 +1,50 @@
+{
+  "id": "priya-busy-parent",
+  "name": "Priya",
+  "oneLiner": "38-year-old parent of two, living-room workouts during nap time; 30 minutes is a hard ceiling and noise is banned.",
+  "profile": {
+    "age": 38,
+    "setting": "small living room during nap time: one 16 kg kettlebell, adjustable dumbbells to 50 lb, yoga mat. Toddler asleep one room over.",
+    "goals": "Stay strong and keep energy up while raising two little kids. Consistency over intensity.",
+    "equipment": ["kettlebell", "adjustable dumbbells", "yoga mat"],
+    "injuries": "None, but lower back gets tight when swings get sloppy.",
+    "schedule": "Aims for 3x/week during nap time; realistically makes 2. Sessions sometimes get cut short mid-set.",
+    "personality": "Pragmatic, time-obsessed, zero patience for fluff. Judges every suggestion by 'does this actually fit in 30 minutes including rest'. Quiet exercises only — a creaky floorboard ends the workout.",
+    "tolerance": "Balanced reporter. Occasionally 'too hard' when sleep-deprived, occasionally 'too easy' on good days."
+  },
+  "preferences": {
+    "preferredEquipment": ["kettlebell", "adjustable dumbbells", "yoga mat"],
+    "dislikedExercises": ["burpees", "jump squats", "jumping jacks"],
+    "primaryGoal": "Stay strong and keep energy up with two little kids",
+    "limitations": "Train in a small living room during nap time — no jumping, no dropping weights, quiet exercises only.",
+    "trainingStyle": "Efficient full-body circuits, minimal setup, 30 minutes absolute max",
+    "defaultTimeLimitMinutes": 30
+  },
+  "checkInTemperament": {
+    "summary": "Mostly 'about right'; misses about one planned session a week and cuts some short.",
+    "weights": { "too easy": 1, "about right": 3, "too hard": 1 },
+    "painRate": 0.05,
+    "painNotes": ["lower back tight after swings"],
+    "progression": "steady",
+    "missedSessionsPerWeek": 1
+  },
+  "history": {
+    "startWeeksAgo": 3,
+    "sessionsPerWeek": 3,
+    "sessionDurationMinutes": 27,
+    "liftPool": [
+      { "name": "Kettlebell Swing", "weight": 35, "reps": 20, "weeklyBump": 0, "group": "Legs" },
+      { "name": "Goblet Squat", "weight": 35, "reps": 10, "weeklyBump": 0, "group": "Legs" },
+      { "name": "Dumbbell Floor Press", "weight": 25, "reps": 10, "weeklyBump": 2.5, "group": "Chest" },
+      { "name": "Push-Up", "weight": 0, "reps": 8, "weeklyBump": 0, "group": "Chest" },
+      { "name": "Dead Bug", "weight": 0, "reps": 10, "weeklyBump": 0, "group": "Core" }
+    ]
+  },
+  "journey": {
+    "initialPrompt": "Full body strength workout I can finish in 30 minutes flat in my living room with one 16 kg kettlebell and adjustable dumbbells. No jumping — my toddler naps one room over.",
+    "editPrompt": "I timed it: with your suggested sets and any realistic rest between them, this runs way over 30 minutes. Trim it so the WHOLE thing — warm-up and rest included — genuinely fits in 30. And keep everything quiet, no jumping, no dropping weights.",
+    "coachMessage": "Some days I only get 15 minutes before the baby wakes up. Which half of my saved routine should I do on those days? Update the routine notes so I can see the 15-minute version at a glance.",
+    "followUpMessage": "Three weeks in. Real talk: I made about two of the three sessions most weeks and cut a couple short. Given how it has ACTUALLY gone, not how it was supposed to go, what should I change?",
+    "voiceTranscript": "Okay quick, before she wakes up — kettlebell swings with the sixteen kilo, twenty reps, three rounds I think. Goblet squats, same bell, ten each round. Push-ups on my knees, eight, then regular ones, three. Floor press with the dumbbells at twenty-five, ten reps, but only twice. I skipped the lunges because the floor creaks right there, did dead bugs instead, ten each side. That's it — twenty-six minutes total, boom."
+  }
+}

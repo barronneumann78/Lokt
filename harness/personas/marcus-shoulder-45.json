@@ -1,0 +1,53 @@
+{
+  "id": "marcus-shoulder-45",
+  "name": "Marcus",
+  "oneLiner": "45-year-old home-gym lifter easing back around a cranky right rotator cuff; reports pain persistently.",
+  "profile": {
+    "age": 45,
+    "setting": "home gym: dumbbells to 70 lb, adjustable bench, bands, pull-up bar",
+    "goals": "Rebuild upper-body strength without flaring the right shoulder; stay consistent 3x/week.",
+    "equipment": ["dumbbells", "adjustable bench", "resistance bands", "pull-up bar"],
+    "injuries": "Right rotator cuff strain (6 months old). Overhead pressing and wide-grip pressing hurt; neutral-grip and tucked-elbow work is usually fine.",
+    "schedule": "Mon/Wed/Fri evenings, 45 minutes hard cap before family time.",
+    "personality": "Careful, a little wary after getting hurt following an internet program. Reads every note. Loses trust instantly when advice ignores his shoulder.",
+    "tolerance": "Low pain tolerance by choice — stops sets early. Persistent reporter: mentions the shoulder in almost every check-in."
+  },
+  "preferences": {
+    "preferredEquipment": ["dumbbells", "adjustable bench", "resistance bands", "pull-up bar"],
+    "dislikedExercises": ["barbell bench press", "overhead press", "upright row"],
+    "primaryGoal": "Rebuild strength without aggravating my right shoulder",
+    "limitations": "Right rotator cuff strain — overhead pressing and wide-grip pressing hurt. Neutral grip and tucked elbows feel okay.",
+    "trainingStyle": "Controlled tempo, joint-friendly, moderate loads",
+    "defaultTimeLimitMinutes": 45
+  },
+  "checkInTemperament": {
+    "summary": "Persistently reports 'too hard' and shoulder pain — prime M4 fodder. Almost never 'too easy'.",
+    "weights": { "too easy": 0, "about right": 2, "too hard": 3 },
+    "painRate": 0.65,
+    "painNotes": [
+      "right shoulder pinch on pressing",
+      "shoulder ached for an hour after the session",
+      "sharp twinge on the last lateral raise set"
+    ],
+    "progression": "stall"
+  },
+  "history": {
+    "startWeeksAgo": 3,
+    "sessionsPerWeek": 3,
+    "sessionDurationMinutes": 42,
+    "liftPool": [
+      { "name": "Dumbbell Bench Press", "weight": 45, "reps": 8, "weeklyBump": 0, "group": "Chest" },
+      { "name": "One-Arm Dumbbell Row", "weight": 60, "reps": 10, "weeklyBump": 5, "group": "Back" },
+      { "name": "Dumbbell Hammer Curl", "weight": 25, "reps": 12, "weeklyBump": 0, "group": "Arms" },
+      { "name": "Band Pull-Apart", "weight": 0, "reps": 15, "weeklyBump": 0, "group": "Shoulders" },
+      { "name": "Dumbbell Lateral Raise", "weight": 10, "reps": 10, "weeklyBump": 0, "group": "Shoulders" }
+    ]
+  },
+  "journey": {
+    "initialPrompt": "Upper body workout I can do at home with dumbbells, a bench, and bands that will not flare up my right shoulder. Nothing overhead, please.",
+    "editPrompt": "The incline pressing you gave me pinched my right shoulder on the very first set. Take out anything that presses up-and-away from my body — flat or neutral-grip only — and give me more rowing instead.",
+    "coachMessage": "Be straight with me: is it actually safe to keep training around a rotator cuff strain, or should I just rest it completely for a month? If you would change anything in my saved routine because of this, change it.",
+    "followUpMessage": "It has been a few weeks now. My shoulder still aches after most sessions and honestly a lot of days feel too hard. Look at how my training has actually gone and tell me what I should do next.",
+    "voiceTranscript": "Okay so today I did, uh, the flat dumbbell bench with the forty-fives, three sets of ten, shoulder felt okay-ish on the first two sets... then band pull-aparts, I don't know, maybe four sets of fifteen? Then single arm rows with the sixty, three by twelve each side, and I tried, um, lateral raises with the tens but I stopped after one set of eight because the shoulder started talking to me, and I finished with hammer curls, twenty-fives, three sets of twelve."
+  }
+}

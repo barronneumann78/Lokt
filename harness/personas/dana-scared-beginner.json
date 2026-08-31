@@ -1,0 +1,48 @@
+{
+  "id": "dana-scared-beginner",
+  "name": "Dana",
+  "oneLiner": "34-year-old total beginner, intimidated by the gym; needs plain language and very common machines.",
+  "profile": {
+    "age": 34,
+    "setting": "Planet Fitness-style commercial gym: machines, dumbbells, treadmills. No barbell culture.",
+    "goals": "Get comfortable in a gym, build basic strength, stop feeling like everyone is watching.",
+    "equipment": ["machines", "dumbbells", "treadmill"],
+    "injuries": "None, but zero lifting experience — doesn't know what most machine names mean.",
+    "schedule": "Tue/Thu after work plus one weekend morning, 40 minutes tops.",
+    "personality": "Anxious, apologetic, asks a lot of questions. Jargon makes her feel stupid and she will quietly quit rather than ask a stranger for help.",
+    "tolerance": "Cautious. Mostly 'about right', occasionally 'too hard'. Too scared to add weight without being told exactly when and how much."
+  },
+  "preferences": {
+    "preferredEquipment": ["machines", "dumbbells", "treadmill"],
+    "dislikedExercises": ["barbell back squat", "deadlift"],
+    "primaryGoal": "Get comfortable in the gym and build basic strength",
+    "limitations": "Complete beginner — never lifted before. I don't know what most machine names mean.",
+    "trainingStyle": "Simple, low pressure, machine-based to start",
+    "defaultTimeLimitMinutes": 40
+  },
+  "checkInTemperament": {
+    "summary": "Mostly 'about right', sometimes 'too hard'; rarely reports pain but worries about form.",
+    "weights": { "too easy": 0, "about right": 3, "too hard": 1 },
+    "painRate": 0.1,
+    "painNotes": ["knees felt weird on leg press, maybe I set the seat wrong"],
+    "progression": "timid"
+  },
+  "history": {
+    "startWeeksAgo": 3,
+    "sessionsPerWeek": 3,
+    "sessionDurationMinutes": 35,
+    "liftPool": [
+      { "name": "Leg Press", "weight": 90, "reps": 10, "weeklyBump": 0, "group": "Legs" },
+      { "name": "Chest Press Machine", "weight": 30, "reps": 10, "weeklyBump": 0, "group": "Chest" },
+      { "name": "Lat Pulldown", "weight": 45, "reps": 10, "weeklyBump": 0, "group": "Back" },
+      { "name": "Plank", "weight": 0, "reps": 20, "weeklyBump": 0, "group": "Core" }
+    ]
+  },
+  "journey": {
+    "initialPrompt": "I have never worked out in a gym before and I am honestly nervous. Please make me a very simple full-body routine using machines, and explain things like I am brand new to all of this.",
+    "editPrompt": "Some of these exercise names mean nothing to me and one machine I could not even find at my gym. Can you cut it down to 4 exercises maximum, only using super common machines that a Planet Fitness type gym definitely has?",
+    "coachMessage": "What does RPE mean? And how do I figure out how heavy the weight should be my first time on the leg press machine? Nobody has ever explained this to me.",
+    "followUpMessage": "Three weeks in and I have not skipped a single week yet, which honestly shocks me. It mostly feels about right, but I am still scared of adding weight. Look at what I have done so far — what should I do next?",
+    "voiceTranscript": "Um okay, it said I should record this... I did the leg press thing, I think the pin was at ninety? I did it ten times, three rounds. Then the chest press machine at thirty, ten times, but only twice because someone was waiting for it. The lat pulldown at forty-five for ten, three times. And I walked on the treadmill for ten minutes after. Oh and I tried the plank, I lasted like twenty seconds, twice. Is that bad?"
+  }
+}
