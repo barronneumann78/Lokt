@@ -12,13 +12,36 @@ struct ExerciseLibraryView: View {
     }
 
     private var filteredExercises: [Exercise] {
-        exerciseStore.exercises.filter { exercise in
-            let matchesSearch = searchText.isEmpty || exercise.name.localizedCaseInsensitiveContains(searchText)
-            let matchesMuscle = selectedMuscleGroup == "All" || exercise.muscleGroup.rawValue == selectedMuscleGroup
-            let matchesEquipment = selectedEquipment == "All" || exercise.equipment.rawValue == selectedEquipment
-            let matchesPattern = selectedMovementPattern == "All" || exercise.movementPattern.rawValue == selectedMovementPattern
-            return matchesSearch && matchesMuscle && matchesEquipment && matchesPattern
+        let exercises = exerciseStore.exercises
+        let searchKeys = exerciseStore.searchKeys
+
+        // Per-keystroke work happens ONCE here, not per exercise: fold the
+        // query, collect alias targets ("pec deck" -> Machine Chest Fly, live
+        // while typing via prefix), and take the fuzzy matcher's verdict
+        // (memoized) so slang and hyphen mismatches still surface their target.
+        let query = ExerciseAliases.searchFold(searchText)
+        var aliasTargets: Set<String> = []
+        var fuzzyTargetName: String?
+        if !query.isEmpty {
+            aliasTargets = ExerciseAliases.canonicalNames(matchingPrefix: searchText)
+            fuzzyTargetName = exercises.resolvedExercise(named: searchText)?.name
         }
+
+        var result: [Exercise] = []
+        for (index, exercise) in exercises.enumerated() {
+            guard selectedMuscleGroup == "All" || exercise.muscleGroup.rawValue == selectedMuscleGroup else { continue }
+            guard selectedEquipment == "All" || exercise.equipment.rawValue == selectedEquipment else { continue }
+            guard selectedMovementPattern == "All" || exercise.movementPattern.rawValue == selectedMovementPattern else { continue }
+
+            let matchesSearch = query.isEmpty
+                || (index < searchKeys.count && searchKeys[index].contains(query))
+                || aliasTargets.contains(exercise.name)
+                || exercise.name == fuzzyTargetName
+            if matchesSearch {
+                result.append(exercise)
+            }
+        }
+        return result
     }
 
     private var muscleGroupOptions: [String] {

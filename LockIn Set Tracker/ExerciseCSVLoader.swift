@@ -142,6 +142,11 @@ struct Exercise: Identifiable, Hashable, Codable {
 final class ExerciseStore: ObservableObject {
     @Published var exercises: [Exercise] = []
 
+    /// Case/punctuation-folded names, index-aligned with `exercises`.
+    /// Precomputed here (the single place `exercises` is rebuilt) so the
+    /// library search never lowercases 1,000+ names per keystroke.
+    private(set) var searchKeys: [String] = []
+
     /// The decoded bundled library, kept so custom-exercise refreshes never
     /// re-decode the JSON.
     private var bundledExercises: [Exercise] = []
@@ -214,6 +219,7 @@ final class ExerciseStore: ObservableObject {
         exercises = (bundledExercises + prepared).filter { exercise in
             seenNames.insert(exercise.name.lowercased()).inserted
         }
+        searchKeys = exercises.map { ExerciseAliases.searchFold($0.name) }
     }
 }
 

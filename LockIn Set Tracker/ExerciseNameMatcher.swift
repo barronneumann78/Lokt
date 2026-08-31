@@ -45,13 +45,39 @@ enum ExerciseNameMatcher {
     }
 
     private static func computeBestMatch(for name: String, in exercises: [Exercise]) -> Exercise? {
-        let queryTokens = tokens(for: name)
+        // Alias vocabulary first: an exact alias hit ("pec deck", "dips", "ghr")
+        // beats fuzzy token matching. When the canonical target is missing from
+        // the candidate list (some callers resolve against filtered subsets),
+        // the canonical name still flows through normal fuzzy resolution below.
+        let aliasCanonical = ExerciseAliases.canonicalName(for: name)
+        if let canonical = aliasCanonical,
+           let aliasHit = exercises.first(where: { $0.name.caseInsensitiveCompare(canonical) == .orderedSame }) {
+            return aliasHit
+        }
+
+        let query = aliasCanonical ?? name
+
+        // Two passes: the strict pass reproduces the historical behavior; the
+        // bridging pass additionally treats "legged" as "leg" (both sides), so
+        // "single legged deadlift" or "one leg deadlift" can cross the
+        // legacy-vocabulary gap. Bridging only runs when the strict pass found
+        // nothing, so it can never steal a resolution that already worked
+        // (e.g. "db sldl" must keep hitting Dumbbell Stiff-Leg Deadlift, not a
+        // legacy "Stiff-Legged" entry that bridging would tie with).
+        if let strict = fuzzyMatch(for: query, in: exercises, bridgingLegVariants: false) {
+            return strict
+        }
+        return fuzzyMatch(for: query, in: exercises, bridgingLegVariants: true)
+    }
+
+    private static func fuzzyMatch(for name: String, in exercises: [Exercise], bridgingLegVariants: Bool) -> Exercise? {
+        let queryTokens = tokens(for: name, bridgingLegVariants: bridgingLegVariants)
         guard !queryTokens.isEmpty else { return nil }
 
         var best: (exercise: Exercise, score: Double)?
 
         for candidate in exercises {
-            let candidateTokens = tokens(for: candidate.name)
+            let candidateTokens = tokens(for: candidate.name, bridgingLegVariants: bridgingLegVariants)
             guard !candidateTokens.isEmpty else { continue }
 
             if candidateTokens == queryTokens {
@@ -91,14 +117,25 @@ enum ExerciseNameMatcher {
         "ohp": ["overhead", "press"],
         "rdl": ["romanian", "deadlift"],
         "sldl": ["stiff", "leg", "deadlift"],
-        "alt": ["alternating"]
+        "alt": ["alternating"],
+        "dl": ["deadlift"],
+        // One-word spellings bridged to the dataset's split spellings (and
+        // vice versa - candidates tokenize through the same table, so
+        // "Pullups" and "Pull-Up" land on identical tokens).
+        "pushup": ["push", "up"], "pushups": ["push", "up"],
+        "pullup": ["pull", "up"], "pullups": ["pull", "up"],
+        "chinup": ["chin", "up"], "chinups": ["chin", "up"],
+        "situp": ["sit", "up"], "situps": ["sit", "up"],
+        "stepup": ["step", "up"], "stepups": ["step", "up"],
+        "pulldown": ["pull", "down"], "pulldowns": ["pull", "down"],
+        "pushdown": ["push", "down"], "pushdowns": ["push", "down"]
     ]
 
     private static let fillerTokens: Set<String> = [
         "the", "a", "an", "with", "using", "w", "for", "of", "and", "or", "to", "on", "exercise"
     ]
 
-    private static func tokens(for name: String) -> Set<String> {
+    private static func tokens(for name: String, bridgingLegVariants: Bool) -> Set<String> {
         let lowered = name.lowercased()
         let separators = CharacterSet.alphanumerics.inverted
         let rawTokens = lowered.components(separatedBy: separators).filter { !$0.isEmpty }
@@ -112,6 +149,12 @@ enum ExerciseNameMatcher {
             }
 
             guard !fillerTokens.contains(token) else { continue }
+
+            if bridgingLegVariants, token == "legged" {
+                normalized.insert("leg")
+                continue
+            }
+
             normalized.insert(singularized(token))
         }
 
@@ -120,6 +163,12 @@ enum ExerciseNameMatcher {
 
     private static func singularized(_ token: String) -> String {
         if token.hasSuffix("sses") {
+            return String(token.dropLast(2))
+        }
+
+        // "-ches"/"-shes" drop the whole "es": "crunches" must become
+        // "crunch", not the token-orphaning "crunche".
+        if token.hasSuffix("ches") || token.hasSuffix("shes") {
             return String(token.dropLast(2))
         }
 
