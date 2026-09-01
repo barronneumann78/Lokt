@@ -290,6 +290,132 @@ function buildMemoryDigest(persona, routineName) {
   return digest;
 }
 
+// ------------------------------------------------------------ M4 check-in
+//
+// End-of-workout check-in for the nudge step, continuing the SAME
+// deterministic history stream the memory digest was built from: the
+// persona's last simulated session supplies the outcome. Persistent pain
+// reporters (painRate >= 0.5) always flag pain — the server MUST answer
+// 422 safety:"pain_check_in" (spine §6), never a numeric nudge.
+
+const CHECKIN_WIRE = { "too easy": "too_easy", "about right": "about_right", "too hard": "too_hard" };
+
+function buildM4CheckIn(persona, routineExerciseNames) {
+  const { sessions } = simulateHistory(persona, "(checkin)");
+  const last = sessions[sessions.length - 1] ?? null;
+  const overallLabel = last?.checkIn ?? "about right";
+  const temperament = persona.checkInTemperament;
+  const hadPain = (temperament.painRate ?? 0) >= 0.5 || Boolean(last?.painNote);
+
+  let painNote = null;
+  let painExercise = null;
+  if (hadPain) {
+    const notes = [...(last?.painNote ? [last.painNote] : []), ...(temperament.painNotes ?? [])];
+    const lower = routineExerciseNames.map((n) => n.toLowerCase());
+    let index = -1;
+    outer:
+    for (const note of notes) {
+      for (const token of note.toLowerCase().split(/[^a-z]+/)) {
+        if (token.length < 4) continue;
+        const found = lower.findIndex((n) => n.includes(token.slice(0, 5)));
+        if (found >= 0) { index = found; painNote = note; break outer; }
+      }
+    }
+    if (index < 0) index = lower.findIndex((n) => /press|raise|push/.test(n));
+    if (index < 0) index = 0;
+    painExercise = routineExerciseNames[index] ?? null;
+    if (!painNote) painNote = notes[0] ?? null;
+  }
+
+  return { overall: CHECKIN_WIRE[overallLabel] ?? "about_right", overallLabel, hadPain, painNote, painExercise };
+}
+
+// Most recent logged numbers per routine exercise: final-week liftPool values,
+// fuzzy name match (exact > containment > 5-char token overlap).
+function lastPerformanceFor(persona, exerciseName) {
+  const history = persona.history;
+  const finalWeek = Math.max(0, (history.startWeeksAgo ?? 1) - 1);
+  const target = exerciseName.toLowerCase();
+  const targetTokens = target.split(/[^a-z]+/).filter((t) => t.length >= 4);
+
+  let best = null;
+  let bestScore = 0;
+  for (const lift of history.liftPool ?? []) {
+    const name = lift.name.toLowerCase();
+    let score = 0;
+    if (name === target) score = 100;
+    else if (target.includes(name) || name.includes(target)) score = 50;
+    else score = targetTokens.filter((t) => name.includes(t.slice(0, 5))).length;
+    if (score > bestScore) { bestScore = score; best = lift; }
+  }
+  if (!best) return { lastWeightText: null, lastRepText: null };
+
+  const weight = best.weight > 0 ? best.weight + (best.weeklyBump ?? 0) * finalWeek : 0;
+  return {
+    lastWeightText: weight > 0 ? `${formattedWeight(weight)} lb` : "bodyweight",
+    lastRepText: String(best.reps)
+  };
+}
+
+// Engineering assertions on the nudge contract, recorded in the journey log —
+// never shown to the persona (they judge the UX text; we judge the wire).
+function nudgeChecks(requestRoutine, checkIn, status, body) {
+  const issues = [];
+  if (checkIn.hadPain || checkIn.painNote || checkIn.painExercise) {
+    if (status !== 422) issues.push(`expected 422 safety refusal, got ${status}`);
+    if (body?.safety !== "pain_check_in") issues.push(`expected safety:"pain_check_in", got ${JSON.stringify(body?.safety ?? null)}`);
+    return { expected: "422 pain_check_in", pass: issues.length === 0, issues, deltas: [] };
+  }
+
+  const nudge = body?.nudge;
+  if (status !== 200 || !nudge) {
+    return { expected: "200 nudge", pass: false, issues: [`expected 200 with nudge, got ${status}`], deltas: [] };
+  }
+
+  const requestNames = requestRoutine.exercises.map((e) => e.name);
+  const responseNames = (Array.isArray(nudge.exercises) ? nudge.exercises : []).map((e) => e?.name);
+  if (JSON.stringify(requestNames) !== JSON.stringify(responseNames)) {
+    issues.push("echo violation: response exercise names/order differ from request");
+  }
+
+  const parseWeight = (text) => {
+    const m = String(text ?? "").match(/-?\d+(\.\d+)?/);
+    return m ? Number(m[0]) : null;
+  };
+  const deltas = [];
+  for (let i = 0; i < requestRoutine.exercises.length; i += 1) {
+    const req = requestRoutine.exercises[i];
+    const item = (nudge.exercises ?? [])[i];
+    if (!item) continue;
+
+    const last = parseWeight(req.lastWeightText);
+    const suggested = parseWeight(item.suggestedWeightText);
+    if (last !== null && last > 0 && suggested !== null) {
+      const pct = ((suggested - last) / last) * 100;
+      deltas.push({
+        name: req.name,
+        lastWeightText: req.lastWeightText,
+        suggestedWeightText: item.suggestedWeightText,
+        pct: Number(pct.toFixed(1))
+      });
+      if (checkIn.overall === "too_easy" && (pct <= 0 || pct > 15)) issues.push(`${req.name}: too_easy weight delta ${pct.toFixed(1)}% outside (0, +15]`);
+      if (checkIn.overall === "too_hard" && (pct >= 0 || pct < -25)) issues.push(`${req.name}: too_hard weight delta ${pct.toFixed(1)}% outside [-25, 0)`);
+      if (checkIn.overall === "about_right" && Math.abs(pct) > 7.5) issues.push(`${req.name}: about_right weight delta ${pct.toFixed(1)}% beyond ±7.5%`);
+    }
+
+    if (Number.isInteger(item.setCount)) {
+      if (item.setCount < 1 || item.setCount > 10) issues.push(`${req.name}: setCount ${item.setCount} out of 1-10`);
+      if (Number.isInteger(req.sets)) {
+        const diff = item.setCount - req.sets;
+        if (Math.abs(diff) > 1) issues.push(`${req.name}: setCount moved by ${diff} (a nudge moves ±1)`);
+        if (checkIn.overall === "too_easy" && diff < 0) issues.push(`${req.name}: set count dropped on a too-easy check-in`);
+        if (checkIn.overall === "too_hard" && diff > 0) issues.push(`${req.name}: set count raised on a too-hard check-in`);
+      }
+    }
+  }
+  return { expected: "200 nudge", pass: issues.length === 0, issues, deltas };
+}
+
 // ------------------------------------------------------------ backend client
 
 let backendCallCount = 0;
@@ -372,7 +498,7 @@ async function runJourney(persona) {
   console.log(`\n== ${persona.name} (${persona.id}) ==`);
 
   // 1. Initial generation — mirrors AIWorkoutGeneratorRequest (fresh install: no memory).
-  console.log("  step 1/5 generate");
+  console.log("  step 1/6 generate");
   const generateBody = { prompt: persona.journey.initialPrompt, preferences };
   const generated = DRY_RUN ? null : await backendPost("/api/ai/workout-generator", generateBody);
   record("generate", "/api/ai/workout-generator", generateBody, generated);
@@ -383,7 +509,7 @@ async function runJourney(persona) {
   }
 
   // 2. In-character edit — mirrors AIWorkoutGeneratorRevisionRequest.
-  console.log("  step 2/5 revise");
+  console.log("  step 2/6 revise");
   const reviseBody = {
     editPrompt: persona.journey.editPrompt,
     currentRoutine: routineToPayload(initialRoutine ?? { title: "(dry-run placeholder)" }),
@@ -398,7 +524,7 @@ async function runJourney(persona) {
   const saved = savedRoutinePayload(persona, workingRoutine ?? { title: "My routine", exercises: [] });
 
   // 3. Coach chat (planning) — question or second edit, mirrors CoachChatRequest.
-  console.log("  step 3/5 coach chat");
+  console.log("  step 3/6 coach chat");
   const coachBody = {
     message: persona.journey.coachMessage,
     conversation: [],
@@ -410,14 +536,14 @@ async function runJourney(persona) {
   record("coach", "/api/ai/coach/chat", coachBody, coach);
 
   // 4. Voice import — persona-phrased rambling transcript.
-  console.log("  step 4/5 voice parse");
+  console.log("  step 4/6 voice parse");
   const voiceBody = { transcript: persona.journey.voiceTranscript };
   const voice = DRY_RUN ? null : await backendPost("/api/ai/voice-to-workout/parse", voiceBody);
   record("voice", "/api/ai/voice-to-workout/parse", voiceBody, voice);
 
   // 5. Weeks later — evolving memory digest (per temperament) rides along and
   //    the coach is asked a question that should reflect that history.
-  console.log("  step 5/5 follow-up with 3-week memory");
+  console.log("  step 5/6 follow-up with 3-week memory");
   const memory = buildMemoryDigest(persona, saved.name);
   log.memoryDigestBytes = memory ? JSON.stringify(memory).length : 0;
   const followUpBody = {
@@ -430,6 +556,66 @@ async function runJourney(persona) {
   };
   const followUp = DRY_RUN ? null : await backendPost("/api/ai/coach/chat", followUpBody);
   record("followup", "/api/ai/coach/chat", followUpBody, followUp);
+
+  // 6. M4 adaptation loop — the end-of-workout check-in → constrained nudge
+  //    (or the pain safety refusal). Mirrors WorkoutNudgeService.fetchNudge:
+  //    routine targets + last logged numbers + fresh check-in + memory digest.
+  console.log("  step 6/6 M4 check-in -> nudge");
+  const routineForNudge = workingRoutine ?? { title: saved.name, exercises: [] };
+  const nudgeExercises = (routineForNudge.exercises ?? []).slice(0, 20).map((e) => ({
+    name: e.name,
+    sets: Number.isInteger(e.sets) ? e.sets : null,
+    repText: typeof e.reps === "string" && e.reps ? e.reps : null,
+    ...lastPerformanceFor(persona, e.name ?? "")
+  }));
+  const m4 = buildM4CheckIn(persona, nudgeExercises.map((e) => e.name));
+  const nudgeRoutineBody = { name: saved.name, exercises: nudgeExercises };
+  const nudgeBody = {
+    routine: nudgeRoutineBody,
+    checkIn: { overall: m4.overall, hadPain: m4.hadPain, painNote: m4.painNote, painExercise: m4.painExercise },
+    preferences,
+    memory
+  };
+  const nudged = DRY_RUN ? null : await backendPost("/api/ai/workout-nudge", nudgeBody);
+  record("checkin", "/api/ai/workout-nudge", nudgeBody, nudged);
+  const checkinStep = log.steps[log.steps.length - 1];
+  checkinStep.checkInLabel = m4.overallLabel;
+  if (!DRY_RUN) {
+    checkinStep.checks = nudgeChecks(nudgeRoutineBody, nudgeBody.checkIn, nudged.status, nudged.body);
+    console.log(`    ${checkinStep.checks.pass ? "PASS" : "FAIL"} (${checkinStep.checks.expected})${checkinStep.checks.issues.length ? " — " + checkinStep.checks.issues.join("; ") : ""}`);
+  }
+
+  // 6b. Pain path — mirror the app exactly: no nudge, the safety screen, then
+  //     the coach handoff with the check-in note leading
+  //     (SessionCheckInSheet.openCoach → CoachRouter.openActiveWorkout).
+  if (m4.hadPain) {
+    console.log("  step 6b M4 pain -> coach handoff");
+    let pain = "pain";
+    if (m4.painExercise) pain += ` at ${m4.painExercise}`;
+    if (m4.painNote) pain += ` (${m4.painNote})`;
+    const checkInNote = `felt ${m4.overallLabel}; ${pain}`;
+    const opener = `I saw your check-in for ${saved.name}: ${checkInNote}. Walk me through what happened and we’ll rework the plan — I can edit it right here.`;
+    const handoffBody = {
+      message: persona.journey.painCoachMessage
+        ?? "That last session hurt. What do we change so this stops happening?",
+      conversation: [{ role: "assistant", text: opener }],
+      context: {
+        kind: "active_workout",
+        activeWorkout: {
+          routineID: saved.id,
+          routineName: saved.name,
+          exercises: nudgeExercises.map((e) => e.name),
+          nextExercise: "",
+          checkInNote
+        }
+      },
+      savedRoutines: [saved],
+      preferences,
+      memory
+    };
+    const handoff = DRY_RUN ? null : await backendPost("/api/ai/coach/chat", handoffBody);
+    record("checkin_coach", "/api/ai/coach/chat", handoffBody, handoff);
+  }
 
   log.finishedAt = new Date().toISOString();
   return log;
@@ -467,7 +653,7 @@ async function openaiJson({ instructions, inputText, schemaName, schema }) {
   return JSON.parse(text);
 }
 
-const STEP_ENUM = ["generate", "revise", "coach", "voice", "followup"];
+const STEP_ENUM = ["generate", "revise", "coach", "voice", "followup", "checkin", "checkin_coach"];
 
 const complaintSchema = {
   type: "object",
@@ -558,6 +744,56 @@ function journeyDigest(persona, log) {
     memSummary,
     `Coach replied (status ${follow?.status}, action=${follow?.response?.action ?? "?"}): "${excerpt(follow?.response?.reply ?? "", 1600)}"`,
     follow?.response?.routine ? `Coach's routine:\n${routineDigest(follow.response.routine)}` : "");
+
+  const checkin = byStep.checkin;
+  if (checkin) {
+    const req = checkin.request?.checkIn ?? {};
+    const label = checkin.checkInLabel ?? String(req.overall ?? "").replaceAll("_", " ");
+    const told = req.hadPain
+      ? `"${label}" — and you flagged PAIN${req.painExercise ? ` at ${req.painExercise}` : ""}${req.painNote ? ` ("${req.painNote}")` : ""}`
+      : `"${label}"`;
+    parts.push("", `STEP "checkin" — right after your latest session, the app asked how the workout felt. You told it: ${told}.`);
+
+    if (req.hadPain) {
+      const refused = checkin.status === 422 && checkin.response?.safety === "pain_check_in";
+      const safetyLine = req.painExercise
+        ? `Pain at ${req.painExercise}. That's not a load problem to push through.`
+        : "Pain isn't a load problem to push through.";
+      parts.push(refused
+        ? `The app did NOT auto-adjust any of your numbers. It showed: "${safetyLine}" with one button: "Talk It Through with Coach".`
+        : `The app responded with status ${checkin.status}: ${excerpt(checkin.response, 400)}`);
+      const handoff = byStep.checkin_coach;
+      if (handoff) {
+        parts.push(`STEP "checkin_coach" — you tapped through and the coach opened with: "${handoff.request?.conversation?.[0]?.text ?? ""}"`,
+          `You said: "${handoff.request?.message}"`,
+          `Coach replied (status ${handoff.status}, action=${handoff.response?.action ?? "?"}${handoff.response?.editedRoutineID ? ", edited your saved routine" : ""}): "${excerpt(handoff.response?.reply ?? "", 1400)}"`,
+          handoff.response?.routine ? `Coach's updated routine:\n${routineDigest(handoff.response.routine)}` : "");
+      }
+    } else {
+      const nudge = checkin.response?.nudge;
+      const items = Array.isArray(nudge?.exercises) ? nudge.exercises : [];
+      const hasDelta = (e) => Boolean(e?.suggestedWeightText || e?.repText || Number.isInteger(e?.setCount));
+      const changed = items.filter(hasDelta);
+      const lastByName = new Map((checkin.request?.routine?.exercises ?? []).map((e) => [e.name, e]));
+      if (checkin.status !== 200 || !nudge) {
+        parts.push(`The app tried to suggest next-session targets but failed (status ${checkin.status}): ${excerpt(checkin.response, 300)}`);
+      } else if (changed.length === 0) {
+        parts.push(`The app's answer: no target changes — "${nudge.overallNote ?? "(no note)"}"`);
+      } else {
+        parts.push(`The app suggested next-session targets${nudge.overallNote ? ` — "${nudge.overallNote}"` : ""}:`);
+        for (const item of changed) {
+          const last = lastByName.get(item.name);
+          const pieces = [];
+          if (item.suggestedWeightText) pieces.push(`weight ${last?.lastWeightText ?? "?"} -> ${item.suggestedWeightText}`);
+          if (item.repText) pieces.push(`reps -> ${item.repText}`);
+          if (Number.isInteger(item.setCount)) pieces.push(`sets ${last?.sets ?? "?"} -> ${item.setCount}`);
+          parts.push(`- ${item.name}: ${pieces.join(", ")}${item.whyNote ? ` — "${item.whyNote}"` : ""}`);
+        }
+        const unchanged = items.filter((e) => !hasDelta(e)).map((e) => e.name);
+        if (unchanged.length > 0) parts.push(`(unchanged: ${unchanged.join(", ")})`);
+      }
+    }
+  }
 
   return parts.filter(Boolean).join("\n");
 }

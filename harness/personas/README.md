@@ -17,6 +17,14 @@ from the quiz, `UserMemoryStore`-shaped memory digests):
 5. **followup** — three simulated weeks later, an evolving memory digest
    (check-ins + pain notes generated per temperament) rides along and the coach
    is asked what to do next — this is the M4 adaptation-loop probe
+6. **checkin** — the M4 loop itself: the persona's last simulated session
+   supplies an end-of-workout check-in (same deterministic stream as the
+   digest) and `/api/ai/workout-nudge` is called with the revised routine +
+   last logged numbers. Clean outcomes expect a constrained nudge (verbatim
+   echo, sane deltas — asserted in `steps[].checks`); pain reporters
+   (painRate ≥ 0.5) MUST get the 422 `safety:"pain_check_in"` refusal, then
+   the runner mirrors the app's coach handoff (`checkin_coach` step) with the
+   check-in note leading
 
 Then each persona reviews its own journey log and files complaints + likes
 (one gpt-4.1-mini call, direct to OpenAI — NOT through the backend, so the
@@ -46,8 +54,9 @@ reports go in `reports/YYYY-MM-DD.md` (**committed**).
 
 ## Cost & pacing
 
-A full 5-persona sweep ≈ 25 backend calls (gpt-4.1 + one mini voice-parse per
-persona) + 6 direct mini calls ≈ **$0.30–0.50, ~15 minutes**. The runner
+A full 5-persona sweep ≈ 31 backend calls (gpt-4.1 + one mini voice-parse per
+persona, incl. the M4 check-in step) + 6 direct mini calls ≈
+**$0.30–0.50, ~15 minutes**. The runner
 prices the backend's `[usage]` log lines (`/tmp/lokt-backend.log`) and its own
 direct-call usage, and prints measured spend. Calls are spaced ≥2.1 s with 429
 `retryAfter` handling so a sweep never trips the backend's 40/600 s rate limit
