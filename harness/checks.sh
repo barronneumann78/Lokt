@@ -47,6 +47,12 @@ then pass "backend/exercise-catalog.json matches dataset (no drift)"
 else fail "backend/exercise-catalog.json is stale — regenerate: python3 harness/gen-exercise-catalog.py"; fi
 rm -f "$TMP_CATALOG"
 
+# 3d. Backend sanitize/post-check logic (persona 2026-09-01 NEW-1: the dupe-
+#     dropper destroyed percent-based programming). Pure-node assertions
+#     extracted from the real server.mjs — zero OpenAI cost, prints its own
+#     PASS/FAIL lines.
+if ! node harness/logic-checks/backend-sanitize-merge/check.mjs; then FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); fi
+
 # 4. Exactly one ExerciseStore() construction (app root). Per-view copies each
 #    re-decoded 2MB of JSON (fixed in f4d6798).
 COUNT=$(grep -rn "ExerciseStore()" --include="*.swift" "$SRC" | wc -l | tr -d ' ')

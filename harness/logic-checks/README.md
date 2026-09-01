@@ -32,6 +32,15 @@ command substitution hands swiftc broken half-paths. Stub any app-only symbols
 the sources drag in — media catalogs, custom-exercise stores — inside
 `main.swift` rather than importing SwiftUI or compiling more of the app.)
 
+## Backend variant
+
+Backend (Node) logic gets the same treatment without a compiler:
+`backend-sanitize-merge/check.mjs` extracts the functions under test from the
+REAL `backend/server.mjs` at run time (brace-matched, never copied) and runs
+plain PASS/FAIL assertions — zero OpenAI cost. It runs inside
+`harness/checks.sh` (sensor 3d). New backend logic checks follow that shape:
+one directory, one `check.mjs`, extract-don't-copy.
+
 ## Rules
 
 - Deterministic: fixed dates and a fixed timezone in the harness — never `Date()`.

@@ -1581,7 +1581,8 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
   // Post-generation sanity gate (persona report 2026-08-31): time budget +
   // equipment reality. One corrective retry, then accept with honest labeling.
   const limitMinutes = effectiveTimeLimitMinutes(prompt, preferences);
-  let issues = routinePostCheckIssues(routine, limitMinutes, preferences);
+  const limitStatedInPrompt = statedTimeLimitMinutes(prompt) !== null;
+  let issues = routinePostCheckIssues(routine, limitMinutes, preferences, limitStatedInPrompt);
 
   if (issues.length > 0) {
     console.log(`[post-check] workout-generator retrying once: ${issues.map((issue) => issue.log).join(" | ")}`);
@@ -1597,7 +1598,7 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
 
     try {
       ({ requestId, routine } = await requestGeneratedRoutine(retryInput));
-      issues = routinePostCheckIssues(routine, limitMinutes, preferences);
+      issues = routinePostCheckIssues(routine, limitMinutes, preferences, limitStatedInPrompt);
     } catch (error) {
       console.log(`[post-check] retry failed (${error instanceof Error ? error.message : error}) — keeping the first attempt`);
     }
@@ -1669,10 +1670,10 @@ async function requestGeneratedRoutine(input) {
 // #1: "30-Minute Quiet Full Body Circuit" carried 16 work sets (28-42 min of
 // sets alone). The generator never computed duration; now the server does.
 
-// Time limit stated in the request text ("30 minutes", "30-minute", "1 hour"),
-// falling back to the saved preference. Durations under 10 minutes are ignored
-// so rest prescriptions ("2 minutes rest between sets") never read as a cap.
-function effectiveTimeLimitMinutes(prompt, preferences) {
+// Time limit stated in the request text ("30 minutes", "30-minute", "1 hour").
+// Durations under 10 minutes are ignored so rest prescriptions ("2 minutes
+// rest between sets") never read as a cap. Null when the prompt states none.
+function statedTimeLimitMinutes(prompt) {
   const text = ` ${String(prompt ?? "").toLowerCase()} `;
   const candidates = [];
   for (const match of text.matchAll(/(\d{1,3})\s*(?:-|–|\s)?\s*(?:minutes?|mins?)\b/g)) {
@@ -1685,7 +1686,14 @@ function effectiveTimeLimitMinutes(prompt, preferences) {
   else if (/\ban\s+hour\b/.test(text)) candidates.push(60);
 
   const plausible = candidates.filter((minutes) => minutes >= 10 && minutes <= 240);
-  if (plausible.length > 0) return Math.max(...plausible);
+  return plausible.length > 0 ? Math.max(...plausible) : null;
+}
+
+// The limit the post-checks enforce: prompt-stated first, saved preference as
+// the fallback.
+function effectiveTimeLimitMinutes(prompt, preferences) {
+  const stated = statedTimeLimitMinutes(prompt);
+  if (stated !== null) return stated;
   return Number.isFinite(preferences?.defaultTimeLimitMinutes) ? preferences.defaultTimeLimitMinutes : null;
 }
 
@@ -1751,7 +1759,7 @@ function estimateRoutineMinutes(routine) {
   };
 }
 
-function routinePostCheckIssues(routine, limitMinutes, preferences) {
+function routinePostCheckIssues(routine, limitMinutes, preferences, limitStatedInPrompt = false) {
   const issues = [];
 
   if (Number.isFinite(limitMinutes)) {
@@ -1764,6 +1772,18 @@ function routinePostCheckIssues(routine, limitMinutes, preferences) {
         estimatedMinutes: estimate.minutes,
         log: `estimated ${estimate.minutes.toFixed(0)} min vs ${limitMinutes} min limit (${totalSets} work sets)`,
         feedback: `TIME BUDGET: the user's limit is ${limitMinutes} minutes, but ${totalSets} work sets at ~45 seconds of work plus rest, transitions, and a short warm-up add up to about ${Math.round(estimate.minutes)} minutes. Cut sets and exercises until sets x (45s work + rest) plus a few minutes of warm-up and transitions fits inside ${limitMinutes} minutes, and state the rest you assume in each exercise's tip.`
+      });
+    } else if (limitStatedInPrompt && estimate.minutes < limitMinutes * 0.4) {
+      // Persona report 2026-09-01 NEW-1: Frank's 90-minute request shipped as
+      // ~10 minutes of work and nothing flagged it — only OVER-limit tripped.
+      // Far-under (below ~40% of the limit) is as suspicious as over, but only
+      // against a limit stated in THIS request — a short ask under a long
+      // default-preference limit is intentional, not a bug.
+      issues.push({
+        kind: "time",
+        estimatedMinutes: estimate.minutes,
+        log: `estimated ${estimate.minutes.toFixed(0)} min vs ${limitMinutes} min limit — under-filled`,
+        feedback: `TIME BUDGET: the user asked for about ${limitMinutes} minutes, but the routine's work sets, rest, transitions, and warm-up only add up to about ${Math.round(estimate.minutes)} minutes. Add real programming volume that fits the same request — more work sets and/or exercises, never filler — until the session fills most of the ${limitMinutes} minutes, and state the rest you assume in each exercise's tip.`
       });
     }
   }
@@ -1795,8 +1815,9 @@ function routinePostCheckIssues(routine, limitMinutes, preferences) {
 }
 
 // Accept-but-relabel: after the retry the routine ships anyway, but the title
-// and summary stop promising a duration the set math cannot meet. The claimed
-// limit is swapped for the estimate rounded UP to the next 5 minutes.
+// and summary stop promising a duration the set math cannot meet — in either
+// direction (over-stuffed OR under-filled). The claimed limit is swapped for
+// the estimate rounded UP to the next 5 minutes.
 function retitleForHonestDuration(routine, limitMinutes, estimatedMinutes) {
   const honestMinutes = Math.ceil(estimatedMinutes / 5) * 5;
   const claimPattern = new RegExp(`\\b${limitMinutes}\\s*(?:-|–|\\s)?\\s*(?:minutes?|mins?)\\b`, "gi");
@@ -3422,21 +3443,47 @@ function sanitizeRoutine(routine) {
         .filter((exercise) => exercise.name && exercise.reps)
     : [];
 
-  // Persona report 2026-08-31 #3: the model listed Seated Leg Curl twice
-  // ("second lighter round"). Case-insensitive names are unique in a routine;
-  // the FIRST occurrence wins and later duplicates are dropped and logged.
-  const seenNames = new Set();
-  const dedupedExercises = exercises.filter((exercise) => {
+  // Persona report 2026-08-31 #3 dropped later same-name entries; 2026-09-01
+  // NEW-1 proved that grain wrong — strength programming legitimately lists
+  // one lift under several schemes (Frank's percent ramp shipped as a single
+  // 1-set squat). Same-name entries now MERGE into the first occurrence's
+  // slot: sets sum (still capped at 10), differing rep schemes join as
+  // "setsxreps" segments, notes/tips join uniquely, first reasoning wins.
+  // Names stay case-insensitively unique, which the nudge echo contract and
+  // edit-by-id lineage rely on.
+  const mergedByName = new Map();
+  for (const exercise of exercises) {
     const key = exercise.name.toLowerCase();
-    if (seenNames.has(key)) {
-      console.log(`[sanitize] dropped duplicate exercise "${exercise.name}" (kept the first occurrence)`);
-      return false;
+    const existing = mergedByName.get(key);
+    if (!existing) {
+      mergedByName.set(key, { ...exercise, schemes: [{ sets: exercise.sets, reps: exercise.reps }] });
+      continue;
     }
-    seenNames.add(key);
-    return true;
-  });
 
-  if (!title || dedupedExercises.length === 0) {
+    const lastScheme = existing.schemes[existing.schemes.length - 1];
+    if (lastScheme.reps.toLowerCase() === exercise.reps.toLowerCase()) {
+      lastScheme.sets += exercise.sets;
+    } else {
+      existing.schemes.push({ sets: exercise.sets, reps: exercise.reps });
+    }
+    existing.sets = clampNumber(existing.sets + exercise.sets, 1, 10);
+    for (const field of ["notes", "tip"]) {
+      if (exercise[field] && !existing[field].toLowerCase().includes(exercise[field].toLowerCase())) {
+        existing[field] = existing[field] ? `${existing[field]}; ${exercise[field]}` : exercise[field];
+      }
+    }
+    if (!existing.reasoning) existing.reasoning = exercise.reasoning;
+    console.log(`[sanitize] merged duplicate exercise "${exercise.name}" (now ${existing.sets} sets, ${existing.schemes.length} scheme${existing.schemes.length === 1 ? "" : "s"})`);
+  }
+
+  const mergedExercises = [...mergedByName.values()].map(({ schemes, ...exercise }) => ({
+    ...exercise,
+    reps: schemes.length > 1
+      ? schemes.map((scheme) => `${scheme.sets}x${scheme.reps}`).join(", ")
+      : exercise.reps
+  }));
+
+  if (!title || mergedExercises.length === 0) {
     throw new Error("The generated routine was incomplete.");
   }
 
@@ -3445,7 +3492,7 @@ function sanitizeRoutine(routine) {
     summary,
     rationale,
     routineNotes,
-    exercises: dedupedExercises
+    exercises: mergedExercises
   };
 }
 
