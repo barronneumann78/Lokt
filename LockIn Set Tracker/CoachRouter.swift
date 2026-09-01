@@ -13,12 +13,16 @@ struct CoachWorkoutSnapshot: Hashable {
     var routineName: String
     var exercises: [String]
     var nextExercise: String?
+    /// M4 safety branch: one-line post-workout check-in summary (pain flag or
+    /// repeated too-hard) so the coach's first reply addresses it directly.
+    var checkInNote: String?
 
-    init(routine: Routine, nextExercise: String? = nil) {
+    init(routine: Routine, nextExercise: String? = nil, checkInNote: String? = nil) {
         self.routineID = routine.id
         self.routineName = routine.name
         self.exercises = routine.exercises
         self.nextExercise = nextExercise
+        self.checkInNote = checkInNote
     }
 }
 
@@ -41,9 +45,13 @@ final class CoachRouter: ObservableObject {
         selectedTab = .coach
     }
 
-    func openActiveWorkout(routine: Routine, nextExercise: String?) {
+    func openActiveWorkout(routine: Routine, nextExercise: String?, checkInNote: String? = nil) {
         launchRequest = CoachLaunchRequest(
-            context: .activeWorkout(CoachWorkoutSnapshot(routine: routine, nextExercise: nextExercise))
+            context: .activeWorkout(CoachWorkoutSnapshot(
+                routine: routine,
+                nextExercise: nextExercise,
+                checkInNote: checkInNote
+            ))
         )
         selectedTab = .coach
     }

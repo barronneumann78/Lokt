@@ -337,6 +337,53 @@ const workoutRevisionSchema = {
   }
 };
 
+// M4 adaptation loop: constrained next-session nudge after a post-workout
+// check-in. Same exercises, same order, names echoed verbatim — only
+// load/rep/set-count targets move. Never a replan.
+const workoutNudgeSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["overallNote", "exercises"],
+  properties: {
+    overallNote: {
+      type: "string",
+      description: "One short plain sentence describing the session-level adjustment. No filler."
+    },
+    exercises: {
+      type: "array",
+      minItems: 1,
+      maxItems: 20,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "suggestedWeightText", "repText", "setCount", "whyNote"],
+        properties: {
+          name: {
+            type: "string",
+            description: "Exercise name copied VERBATIM from the request routine. Never a new exercise."
+          },
+          suggestedWeightText: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Next-session load target as short text with unit, matching how the user logs (e.g. 145 lb, bodyweight). Null when unchanged."
+          },
+          repText: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "Next-session rep target (e.g. 8 or 8-10). Null when unchanged."
+          },
+          setCount: {
+            anyOf: [{ type: "integer", minimum: 1, maximum: 10 }, { type: "null" }],
+            description: "Next-session set count. Null when unchanged."
+          },
+          whyNote: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            description: "At most 12 words tying the change to what the user reported or lifted. Null when nothing changed."
+          }
+        }
+      }
+    }
+  }
+};
+
 const exerciseSwapSchema = {
   type: "object",
   additionalProperties: false,
@@ -735,6 +782,22 @@ const workoutRevisionInstructions = [
   "Only return JSON matching the schema."
 ].join(" ");
 
+const workoutNudgeInstructions = [
+  "You make small next-session adjustments to one saved workout routine after a post-workout check-in.",
+  "You receive the routine's exercises with their current set counts and the user's most recent numbers, the fresh check-in, and their training history digest.",
+  "Return the SAME exercises in the SAME order, exactly one entry per exercise, each name copied VERBATIM from the request. Never add, drop, merge, rename, or reorder exercises. This is a nudge, not a replan.",
+  "Only load, rep targets, and set counts may move.",
+  "Check-in too easy: modest progression — roughly 2.5 to 5 percent more load, or one more set where load is not the lever. Round to practical gym increments.",
+  "Check-in too hard: back off — roughly 5 to 10 percent less load, or one fewer set. Never increase anything.",
+  "Check-in about right: tiny or no change. Leaving every field null for an exercise is a good answer when its numbers are working.",
+  "Base every target on the recent numbers provided. When an exercise has no recent numbers, leave its fields null rather than inventing a load.",
+  "suggestedWeightText is short text with a unit, matching how the user logs (145 lb, bodyweight). repText is a plain rep target like 8 or 8-10.",
+  "Each whyNote is at most 12 words, grounded in what the user reported or lifted. Plain language, no jargon.",
+  "overallNote is one short plain sentence describing the session-level adjustment.",
+  userMemoryInstructions,
+  "Only return JSON matching the schema."
+].join(" ");
+
 const importRevisionInstructions = [
   "You revise structured workout drafts for a gym tracking app.",
   "You will receive the current routine draft plus a user edit request.",
@@ -1000,6 +1063,61 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       sendJson(response, 502, {
         error: error instanceof Error ? error.message : "Failed to revise the workout."
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/ai/workout-nudge") {
+    try {
+      if (!apiKey) {
+        sendJson(response, 500, {
+          error: "OPENAI_API_KEY is missing on the backend."
+        });
+        return;
+      }
+
+      const body = await readJsonBody(request, response);
+      const routine = normalizeNudgeRoutine(body?.routine);
+      const checkIn = normalizeNudgeCheckIn(body?.checkIn);
+      const preferences = normalizePreferences(body?.preferences);
+      const memory = normalizeUserMemory(body?.memory);
+
+      if (!routine) {
+        sendJson(response, 400, {
+          error: "Routine with a name and 1-20 named exercises is required."
+        });
+        return;
+      }
+
+      if (!checkIn) {
+        sendJson(response, 400, {
+          error: "Check-in with outcome too_easy, about_right, or too_hard is required."
+        });
+        return;
+      }
+
+      // Safety branch (spine §6), enforced server-side as defense in depth:
+      // a pain-flagged check-in gets a real conversation with the coach,
+      // never a silent numeric nudge — even if a client asks anyway.
+      if (checkIn.hadPain || checkIn.painNote || checkIn.painExercise) {
+        sendJson(response, 422, {
+          error: "Pain check-ins are not auto-adjusted. Route the user to the coach instead.",
+          safety: "pain_check_in"
+        });
+        return;
+      }
+
+      const nudgeResult = await nudgeWorkoutRoutine({ routine, checkIn, preferences, memory });
+
+      sendJson(response, 200, {
+        nudge: nudgeResult.nudge,
+        requestId: nudgeResult.requestId,
+        model: workoutGeneratorModel
+      });
+    } catch (error) {
+      sendJson(response, 502, {
+        error: error instanceof Error ? error.message : "Failed to build the workout nudge."
       });
     }
     return;
@@ -1580,6 +1698,97 @@ async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, 
     changeSummary: sanitizeChangeSummary(revision?.changeSummary, revision?.action),
     routine: sanitizeOptionalRoutine(revision?.routine, revision?.action)
   };
+}
+
+async function nudgeWorkoutRoutine({ routine, checkIn, preferences, memory = null }) {
+  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: workoutGeneratorModel,
+      store: false,
+      instructions: workoutNudgeInstructions,
+      input: [
+        `Routine being adjusted: "${routine.name}"`,
+        formatNudgeRoutine(routine),
+        "",
+        "Post-workout check-in:",
+        formatNudgeCheckIn(checkIn),
+        "",
+        "Saved user preferences:",
+        formatPreferences(preferences),
+        "",
+        "USER MEMORY:",
+        formatUserMemory(memory)
+      ].join("\n"),
+      text: {
+        format: {
+          type: "json_schema",
+          name: "workout_nudge",
+          strict: true,
+          schema: workoutNudgeSchema
+        }
+      }
+    })
+  });
+
+  const payload = await apiResponse.json();
+
+  if (!apiResponse.ok) {
+    throw new Error(payload?.error?.message ?? "OpenAI nudge request failed.");
+  }
+
+  logModelUsage("workout-nudge", payload);
+
+  const outputText = extractOutputText(payload);
+  if (!outputText) {
+    throw new Error("OpenAI returned a response without structured nudge JSON.");
+  }
+
+  let nudge;
+
+  try {
+    nudge = JSON.parse(outputText);
+  } catch {
+    throw new Error("OpenAI returned malformed nudge JSON.");
+  }
+
+  return {
+    requestId: payload.id ?? null,
+    nudge: sanitizeWorkoutNudge(nudge, routine)
+  };
+}
+
+function formatNudgeRoutine(routine) {
+  return routine.exercises
+    .map((exercise) => {
+      const target = [
+        exercise.sets !== null ? `${exercise.sets} sets` : null,
+        exercise.repText ? `${exercise.repText} reps` : null
+      ].filter(Boolean).join(" x ");
+      const last = [
+        exercise.lastWeightText,
+        exercise.lastRepText ? `x ${exercise.lastRepText}` : null
+      ].filter(Boolean).join(" ");
+      const facts = [
+        target || null,
+        last ? `last logged: ${last}` : "no recent numbers"
+      ].filter(Boolean).join(" | ");
+      return `- ${exercise.name}${facts ? ` | ${facts}` : ""}`;
+    })
+    .join("\n");
+}
+
+function formatNudgeCheckIn(checkIn) {
+  const outcomeText = {
+    too_easy: "too easy",
+    about_right: "about right",
+    too_hard: "too hard"
+  }[checkIn.overall] ?? checkIn.overall;
+  return `The session overall felt: ${outcomeText}. No pain reported.`;
 }
 
 async function extractWorkoutFromImage({ imageBase64, mimeType, preferences }) {
@@ -2310,7 +2519,12 @@ function normalizeCoachContext(value) {
           exercises: Array.isArray(activeWorkout.exercises)
             ? activeWorkout.exercises.map((item) => String(item).trim()).filter(Boolean).slice(0, 20)
             : [],
-          nextExercise: typeof activeWorkout.nextExercise === "string" ? activeWorkout.nextExercise.trim() : ""
+          nextExercise: typeof activeWorkout.nextExercise === "string" ? activeWorkout.nextExercise.trim() : "",
+          // M4 safety branch: post-workout check-in summary (pain flag /
+          // repeated too-hard) riding along so the coach addresses it first.
+          checkInNote: typeof activeWorkout.checkInNote === "string"
+            ? activeWorkout.checkInNote.trim().slice(0, 240)
+            : ""
         }
       : null
   };
@@ -2373,6 +2587,60 @@ function formatSavedRoutines(savedRoutines) {
       return `- id ${routine.id} | "${routine.name}": ${exercises || "no exercises listed"}`;
     })
     .join("\n");
+}
+
+// M4 nudge request: one routine snapshot with per-exercise current targets
+// and most recent logged numbers. Length-clamped like every other input.
+function normalizeNudgeRoutine(value) {
+  const name = typeof value?.name === "string" ? value.name.trim().slice(0, 120) : "";
+
+  const exercises = (Array.isArray(value?.exercises) ? value.exercises : [])
+    .slice(0, 20)
+    .map((exercise) => {
+      const exerciseName = typeof exercise?.name === "string" ? exercise.name.trim().slice(0, 80) : "";
+      if (!exerciseName) {
+        return null;
+      }
+
+      const textOrNull = (input, maxLength) =>
+        typeof input === "string" && input.trim() ? input.trim().slice(0, maxLength) : null;
+
+      return {
+        name: exerciseName,
+        sets: Number.isInteger(exercise?.sets) && exercise.sets >= 1 && exercise.sets <= 10
+          ? exercise.sets
+          : null,
+        repText: textOrNull(exercise?.repText, 24),
+        lastWeightText: textOrNull(exercise?.lastWeightText, 24),
+        lastRepText: textOrNull(exercise?.lastRepText, 24)
+      };
+    })
+    .filter(Boolean);
+
+  if (!name || exercises.length === 0) {
+    return null;
+  }
+
+  return { name, exercises };
+}
+
+function normalizeNudgeCheckIn(value) {
+  const validOutcomes = new Set(["too_easy", "about_right", "too_hard"]);
+  const overall = typeof value?.overall === "string" ? value.overall.trim().toLowerCase() : "";
+
+  if (!validOutcomes.has(overall)) {
+    return null;
+  }
+
+  const textOrNull = (input, maxLength) =>
+    typeof input === "string" && input.trim() ? input.trim().slice(0, maxLength) : null;
+
+  return {
+    overall,
+    hadPain: value?.hadPain === true,
+    painNote: textOrNull(value?.painNote, 160),
+    painExercise: textOrNull(value?.painExercise, 80)
+  };
 }
 
 function sanitizeEditedRoutineID(editedRoutineID, savedRoutines, context) {
@@ -2664,6 +2932,10 @@ function formatCoachContext(context) {
     lines.push(`Next exercise: ${context.activeWorkout.nextExercise}`);
   }
 
+  if (context.activeWorkout.checkInNote) {
+    lines.push(`Post-workout check-in that needs a real conversation (address it directly in your first reply): ${context.activeWorkout.checkInNote}`);
+  }
+
   return lines.join("\n");
 }
 
@@ -2812,6 +3084,53 @@ function sanitizeRoutine(routine) {
     summary,
     rationale,
     routineNotes,
+    exercises
+  };
+}
+
+// The nudge contract the app can trust: the response mirrors the REQUEST's
+// exercise list byte for byte — same names, same order — carrying only
+// target deltas. A model that invents an exercise name fails the request;
+// an exercise it skipped comes back all-null (no change).
+function sanitizeWorkoutNudge(nudge, routine) {
+  const textOrNull = (input, maxLength) =>
+    typeof input === "string" && input.trim() ? input.trim().slice(0, maxLength) : null;
+  const clampWords = (text, maxWords) =>
+    text.split(/\s+/).filter(Boolean).slice(0, maxWords).join(" ");
+
+  const requestNames = new Set(routine.exercises.map((exercise) => exercise.name.toLowerCase()));
+  const byName = new Map();
+
+  for (const item of (Array.isArray(nudge?.exercises) ? nudge.exercises : [])) {
+    const itemName = String(item?.name ?? "").trim();
+    if (!requestNames.has(itemName.toLowerCase())) {
+      throw new Error("The nudge referenced an exercise that is not in the routine.");
+    }
+    if (!byName.has(itemName.toLowerCase())) {
+      byName.set(itemName.toLowerCase(), item);
+    }
+  }
+
+  const exercises = routine.exercises.map((exercise) => {
+    const item = byName.get(exercise.name.toLowerCase()) ?? null;
+    const setCount = Number.isInteger(item?.setCount) ? clampNumber(item.setCount, 1, 10) : null;
+    const suggestedWeightText = textOrNull(item?.suggestedWeightText, 24);
+    const repText = textOrNull(item?.repText, 24);
+    const rawWhyNote = textOrNull(item?.whyNote, 120);
+    const hasChange = setCount !== null || suggestedWeightText !== null || repText !== null;
+
+    return {
+      // Echo the request's own name, byte for byte.
+      name: exercise.name,
+      suggestedWeightText,
+      repText,
+      setCount,
+      whyNote: hasChange && rawWhyNote ? clampWords(rawWhyNote, 12) : null
+    };
+  });
+
+  return {
+    overallNote: textOrNull(nudge?.overallNote, 160),
     exercises
   };
 }

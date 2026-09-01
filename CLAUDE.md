@@ -10,8 +10,8 @@ multi-step work should follow `harness/AGENT_PLAYBOOK.md`.
 workout-coach iOS app. Users generate/describe/import workouts → review a
 structured draft → confirm → log sessions with checkmark-completed sets → view
 analytics. A coach chat can create AND edit saved routines. `BUILD_PLAN.md`
-holds the product thesis (adaptation loop = M4, still pending); its milestone
-statuses are stale — trust this file for current state.
+holds the product thesis; the M4 adaptation loop is BUILT (see Architecture).
+`BUILD_PLAN.md`'s milestone statuses are stale — trust this file for current state.
 
 ## Stack & layout
 
@@ -67,8 +67,21 @@ Always build with the real compiler after Swift changes; fix errors, don't guess
 - **Coach seams** (in `CoachView.swift`): `savedDraftIDs` (one-shot save),
   `savedRoutineIDsByDraft` (edit-in-place lineage; backend returns
   `editedRoutineID`), `SendMorphRender` (iMessage send morph). Touch carefully.
+- **Adaptation loop (M4)**: after a session saves, `SessionCheckInSheet` (one
+  ultra-light check-in, 2 taps happy path) persists via
+  `WorkoutStore.recordCheckIn`, then offers a constrained nudge from
+  `/api/ai/workout-nudge` — same exercises, same order, only load/rep/set
+  targets move. The explicit **Apply** tap upserts the SAME routine id;
+  applied targets + a one-line why live in `ExerciseProgressionState`
+  (`suggestedWeightText`/`suggestedRepText`/`nudgeNote`), surface in the
+  logger's TARGET chip, and are consumed by the next check-in. Pain or
+  `needsRealCheckIn` (repeated too-hard) routes to Coach via
+  `CoachRouter.openActiveWorkout(checkInNote:)` instead of nudging; the server
+  also refuses pain nudges (422, defense in depth). M5 funnel counters:
+  UserDefaults key `adaptationMetricsV1` (`AdaptationMetrics`).
 - **Backend endpoints**: workout-generator (+`/revise`, `/explain`), workout-addon,
-  coach/chat (accepts `savedRoutines` + `memory`, returns `editedRoutineID`),
+  workout-nudge (M4: strict echo-verbatim target deltas; 422 on pain check-ins),
+  coach/chat (accepts `savedRoutines` + `memory` + `checkInNote`, returns `editedRoutineID`),
   exercise-coach/answer + `/explain` (cues|simple), photo/voice import, `GET /health`.
   Generator schema: per-exercise required `reasoning` (≤15 words) + `tip`
   (≤12 words); `summary` = one concrete sentence, filler banned.

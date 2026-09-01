@@ -27,6 +27,8 @@ struct WorkoutLoggerView: View {
     @State private var showSupplementaryBlockGenerator = false
     @State private var workoutBuilderFeedbackMessage: String?
     @State private var showUncheckedFinishDialog = false
+    /// M4: the just-saved session awaiting its post-workout check-in.
+    @State private var checkInPrompt: SessionCheckInPrompt?
     @FocusState private var focusedField: WorkoutInputField?
 
     private let workoutTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -116,6 +118,9 @@ struct WorkoutLoggerView: View {
                     currentWorkoutTitle: activeRoutine.name
                 )
             }
+        }
+        .sheet(item: $checkInPrompt) { prompt in
+            SessionCheckInSheet(prompt: prompt)
         }
     }
 
@@ -320,6 +325,15 @@ struct WorkoutLoggerView: View {
 
             statChips(for: exercise)
 
+            // One line of why behind an applied nudge target ("last one felt
+            // easy") — cleared automatically once the next check-in lands.
+            if let nudgeNote = appliedNudgeState(for: exercise)?.nudgeNote {
+                Text(nudgeNote)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(2)
+            }
+
             if expandedExercises.contains(exercise) {
                 historySection(for: exercise)
             }
@@ -500,7 +514,11 @@ struct WorkoutLoggerView: View {
         HStack(spacing: 10) {
             statChip(label: "LAST", value: lastSessionSummary(for: exercise) ?? "—")
 
-            if let suggestion = fatigueAdjustedSuggestedWeight(for: exercise) {
+            // The one suggestion surface: an applied check-in nudge wins,
+            // otherwise the fatigue model's estimate as before.
+            if let nudgeTarget = nudgeTargetText(for: exercise) {
+                statChip(label: "TARGET", value: nudgeTarget)
+            } else if let suggestion = fatigueAdjustedSuggestedWeight(for: exercise) {
                 statChip(label: "TARGET", value: "\(formatWeight(suggestion.suggestedWeight)) lb")
             }
 
@@ -510,6 +528,35 @@ struct WorkoutLoggerView: View {
 
             statChip(label: "VOL", value: sessionVolumeText(for: exercise))
         }
+    }
+
+    /// Progression state carrying an applied-nudge target for this exercise.
+    private func appliedNudgeState(for exercise: String) -> ExerciseProgressionState? {
+        guard let state = activeRoutine.progression?[exercise],
+              state.suggestedWeightText != nil || state.suggestedRepText != nil || state.nudgeNote != nil else {
+            return nil
+        }
+        return state
+    }
+
+    /// Applied-nudge target rendered for the TARGET chip / coach WEIGHT pill.
+    private func nudgeTargetText(for exercise: String) -> String? {
+        guard let state = appliedNudgeState(for: exercise) else { return nil }
+
+        let weight = nonEmptyTrimmed(state.suggestedWeightText)
+        let reps = nonEmptyTrimmed(state.suggestedRepText)
+
+        switch (weight, reps) {
+        case let (weight?, reps?): return "\(weight) × \(reps)"
+        case let (weight?, nil): return weight
+        case let (nil, reps?): return "\(reps) reps"
+        default: return nil
+        }
+    }
+
+    private func nonEmptyTrimmed(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func statChip(label: String, value: String) -> some View {
@@ -681,6 +728,15 @@ struct WorkoutLoggerView: View {
         currentTime = Date()
         skipRestTimer()
         completed = true
+
+        // M4: one ultra-light check-in right after the save — both finish
+        // paths (direct and the unchecked-sets dialog) land here.
+        checkInPrompt = SessionCheckInPrompt(
+            sessionID: session.id,
+            routineID: activeRoutine.id,
+            routineName: activeRoutine.name,
+            exercises: activeRoutine.exercises
+        )
     }
 
     @ViewBuilder
@@ -945,9 +1001,10 @@ struct WorkoutLoggerView: View {
 
         let currentExercise = nextTarget.exercise
         let exerciseDetail = exerciseStore.exercises.exercise(named: currentExercise)
-        let suggestedWeightText = fatigueAdjustedSuggestedWeight(for: currentExercise).map {
-            formatWeight($0.suggestedWeight)
-        }
+        let suggestedWeightText = nudgeTargetText(for: currentExercise)
+            ?? fatigueAdjustedSuggestedWeight(for: currentExercise).map {
+                formatWeight($0.suggestedWeight)
+            }
         let recommendedRest = restDuration(for: currentExercise)
         let afterExercise = nextExercise(after: currentExercise)
 

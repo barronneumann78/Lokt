@@ -16,6 +16,8 @@ struct CoachActiveWorkoutPayload: Codable {
     var routineName: String
     var exercises: [String]
     var nextExercise: String?
+    /// M4 safety branch: post-workout check-in summary the coach must address.
+    var checkInNote: String?
 }
 
 /// Compact snapshot of one saved routine for the coach's context window.
@@ -93,7 +95,8 @@ struct CoachChatService {
                         routineID: $0.routineID.uuidString,
                         routineName: $0.routineName,
                         exercises: $0.exercises,
-                        nextExercise: $0.nextExercise
+                        nextExercise: $0.nextExercise,
+                        checkInNote: $0.checkInNote
                     )
                 }
             ),

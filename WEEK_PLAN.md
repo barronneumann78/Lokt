@@ -1,9 +1,12 @@
 # Week Plan — ship Lokt to real testing (created 2026-08-30)
 
-STATUS (updated 2026-08-31): Day 1 done EXCEPT key rotation + Railway (user).
+STATUS (updated 2026-09-01): Day 1 done EXCEPT key rotation + Railway (user).
 Phone install ✅, data export ✅, field testing ✅ (ahead of schedule — produced
 the voice-import fix and the dataset/alias/AI-grounding trilogy, i.e. Day 4
-polish landed early). M4 not started — next big build. Days 5–7 untouched.
+polish landed early). **M4 BUILT** — end-of-workout check-in → constrained
+nudge (Apply = explicit save) → next session shows targets + why; pain /
+repeated too-hard routes to Coach; M5 answered-vs-skipped counters recording
+locally (`adaptationMetricsV1`). Days 5–7 untouched.
 
 Goal for the week: the app running on real phones, the AI working away from the
 Mac, the M4 adaptation loop built, and 2–3 friends testing by the weekend.

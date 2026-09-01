@@ -148,6 +148,9 @@ struct SessionCheckIn: Codable, Hashable {
     var hadPain: Bool
     /// Optional free-text describing the pain (e.g. "left knee on lunges").
     var painNote: String?
+    /// Which exercise hurt, quick-picked from the session's exercises.
+    /// Optional so check-ins recorded before M4's sheet still decode.
+    var painExercise: String? = nil
     /// Optional per-exercise difficulty answers, keyed by exercise name.
     /// Absent means the user only answered at the session level.
     var perExercise: [String: CheckInOutcome]?
@@ -158,12 +161,14 @@ struct SessionCheckIn: Codable, Hashable {
         overall: CheckInOutcome,
         hadPain: Bool = false,
         painNote: String? = nil,
+        painExercise: String? = nil,
         perExercise: [String: CheckInOutcome]? = nil,
         recordedAt: Date = Date()
     ) {
         self.overall = overall
         self.hadPain = hadPain
         self.painNote = painNote
+        self.painExercise = painExercise
         self.perExercise = perExercise
         self.recordedAt = recordedAt
     }
@@ -186,6 +191,13 @@ struct ExerciseProgressionState: Codable, Hashable {
     var painFlagged: Bool
     /// When this state was last updated.
     var updatedAt: Date
+    /// Applied next-session load target from an accepted nudge (free text with
+    /// unit, e.g. "145 lb"). Optional so pre-M4 states still decode.
+    var suggestedWeightText: String? = nil
+    /// Applied next-session rep target from an accepted nudge (e.g. "8-10").
+    var suggestedRepText: String? = nil
+    /// One-line why for the applied nudge, surfaced in the logger next session.
+    var nudgeNote: String? = nil
 
     init(
         lastWeight: String? = nil,
@@ -193,7 +205,10 @@ struct ExerciseProgressionState: Codable, Hashable {
         lastOutcome: CheckInOutcome? = nil,
         consecutiveTooHard: Int = 0,
         painFlagged: Bool = false,
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        suggestedWeightText: String? = nil,
+        suggestedRepText: String? = nil,
+        nudgeNote: String? = nil
     ) {
         self.lastWeight = lastWeight
         self.lastReps = lastReps
@@ -201,6 +216,9 @@ struct ExerciseProgressionState: Codable, Hashable {
         self.consecutiveTooHard = consecutiveTooHard
         self.painFlagged = painFlagged
         self.updatedAt = updatedAt
+        self.suggestedWeightText = suggestedWeightText
+        self.suggestedRepText = suggestedRepText
+        self.nudgeNote = nudgeNote
     }
 
     /// True when the user needs a real check-in rather than a silent nudge

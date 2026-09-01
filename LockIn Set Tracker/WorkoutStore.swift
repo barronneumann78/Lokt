@@ -140,9 +140,21 @@ final class WorkoutStore: ObservableObject {
             }
             state.lastOutcome = outcome
             state.consecutiveTooHard = (outcome == .tooHard) ? state.consecutiveTooHard + 1 : 0
-            // Coarse for M1: session-level pain applied to exercises the user found
-            // too hard. M4's UI can capture which exercise actually hurt.
-            state.painFlagged = checkIn.hadPain && outcome == .tooHard
+            if let painExercise = checkIn.painExercise?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !painExercise.isEmpty {
+                // M4's sheet names the exercise that hurt — flag exactly that one.
+                state.painFlagged = checkIn.hadPain
+                    && exerciseName.caseInsensitiveCompare(painExercise) == .orderedSame
+            } else {
+                // Coarse fallback (check-ins without a named exercise): session-level
+                // pain applied to exercises the user found too hard.
+                state.painFlagged = checkIn.hadPain && outcome == .tooHard
+            }
+            // The session this check-in describes consumed any applied nudge;
+            // a fresh nudge (if the user applies one) repopulates these.
+            state.suggestedWeightText = nil
+            state.suggestedRepText = nil
+            state.nudgeNote = nil
             state.updatedAt = Date()
 
             progression[exerciseName] = state

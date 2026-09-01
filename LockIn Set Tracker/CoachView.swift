@@ -615,6 +615,9 @@ struct CoachView: View {
             // The top bar subtitle already says "Planning a new workout" — no banner needed.
             return nil
         case .activeWorkout(let snapshot):
+            if let checkInNote = nonEmptyText(snapshot.checkInNote) {
+                return "Check-in: \(snapshot.routineName) • \(checkInNote)"
+            }
             if let nextExercise = nonEmptyText(snapshot.nextExercise) {
                 return "Active workout: \(snapshot.routineName) • Up next: \(nextExercise)"
             }
@@ -884,7 +887,11 @@ struct CoachView: View {
             return [.assistant("I’m ready. Tell me what kind of workout you want, ask a training question, or just talk through ideas with me and I’ll figure out when it makes sense to actually build something for you.")]
         case .activeWorkout(let snapshot):
             let opener: String
-            if let nextExercise = snapshot.nextExercise?.trimmingCharacters(in: .whitespacesAndNewlines), !nextExercise.isEmpty {
+            if let checkInNote = snapshot.checkInNote?.trimmingCharacters(in: .whitespacesAndNewlines), !checkInNote.isEmpty {
+                // M4 safety branch: the check-in reported pain or repeated
+                // too-hard — open on it instead of generic session help.
+                opener = "I saw your check-in for \(snapshot.routineName): \(checkInNote). Walk me through what happened and we’ll rework the plan — I can edit it right here."
+            } else if let nextExercise = snapshot.nextExercise?.trimmingCharacters(in: .whitespacesAndNewlines), !nextExercise.isEmpty {
                 opener = "I’m here with you during \(snapshot.routineName). You’re heading into \(nextExercise), so ask for a substitution, weight call, or a quick adjustment any time."
             } else {
                 opener = "I’m here with you during \(snapshot.routineName). Ask for substitutions, setup cues, or quick coaching between sets."
