@@ -225,7 +225,8 @@ enum ImportedWorkoutSaver {
                     notes: exercise.notes.isEmpty ? nil : exercise.notes,
                     intensityNotes: exercise.intensityNotes,
                     matchedExerciseName: exercise.matchedExerciseName,
-                    isCustomExercise: exercise.isCustomExercise
+                    isCustomExercise: exercise.isCustomExercise,
+                    targetWeightText: exercise.weightText
                 )
             }
 

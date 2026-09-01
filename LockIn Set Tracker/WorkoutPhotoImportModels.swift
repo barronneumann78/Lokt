@@ -53,6 +53,10 @@ struct ImportedExerciseDraft: Identifiable, Hashable, Codable {
     /// One short practical execution tip from an AI-generated draft. Optional
     /// (and defaulted) so photo extractions and older payloads still decode.
     var tip: String? = nil
+    /// Load captured by the voice parse, kept as short text with its spoken
+    /// unit ("16 kg", "90"). Optional/defaulted so photo extractions and
+    /// older payloads decode unchanged.
+    var weightText: String? = nil
 
     var resolvedExerciseName: String {
         if isCustomExercise {
@@ -117,6 +121,10 @@ struct ImportedExerciseDraft: Identifiable, Hashable, Codable {
             values.append("\(repText) reps")
         } else {
             values.append("Reps not detected")
+        }
+
+        if let weightText, !weightText.isEmpty {
+            values.append(weightText)
         }
 
         if let restSeconds {

@@ -525,7 +525,8 @@ struct VoiceWorkoutImportView: View {
             intensityNotes: [],
             confidence: .low,
             isCustomExercise: true,
-            customExercise: nil
+            customExercise: nil,
+            weightText: phrase.weightText
         )
 
         if importedWorkout.days.isEmpty {

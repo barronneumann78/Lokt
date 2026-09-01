@@ -236,7 +236,8 @@ struct VoiceWorkoutImportPipeline {
                 setCount: payload.setCount,
                 repText: payload.repText,
                 notes: nil,
-                exercises: exercises
+                exercises: exercises,
+                weightText: payload.weightText
             )
             return (payload, draft)
         }
@@ -253,7 +254,8 @@ struct VoiceWorkoutImportPipeline {
                 suggestedName: entry.draft.exerciseName,
                 matchCandidates: entry.draft.matchCandidates,
                 setCount: entry.draft.setCount,
-                repText: entry.draft.repText
+                repText: entry.draft.repText,
+                weightText: entry.draft.weightText
             )
         }
 
@@ -335,7 +337,8 @@ struct VoiceWorkoutImportPipeline {
         repText: String?,
         notes: String?,
         exercises: [Exercise],
-        tip: String? = nil
+        tip: String? = nil,
+        weightText: String? = nil
     ) -> ImportedExerciseDraft {
         let resolution = matcher.resolve(exerciseName: exerciseName, dayName: dayName, exercises: exercises)
 
@@ -354,7 +357,8 @@ struct VoiceWorkoutImportPipeline {
                 confidence: confidence,
                 isCustomExercise: false,
                 customExercise: nil,
-                tip: tip
+                tip: tip,
+                weightText: weightText
             )
         case let .custom(candidates):
             return ImportedExerciseDraft(
@@ -370,7 +374,8 @@ struct VoiceWorkoutImportPipeline {
                 confidence: .low,
                 isCustomExercise: true,
                 customExercise: nil,
-                tip: tip
+                tip: tip,
+                weightText: weightText
             )
         }
     }

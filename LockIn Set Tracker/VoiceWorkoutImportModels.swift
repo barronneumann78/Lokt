@@ -21,6 +21,9 @@ struct VoiceWorkoutParsedExercisePayload: Codable, Hashable {
     var name: String
     var setCount: Int?
     var repText: String?
+    /// Spoken load kept as short text with its unit ("16 kg", "90"). Optional
+    /// so older backend responses without the field still decode.
+    var weightText: String?
     var confidence: VoiceParsedConfidence?
 }
 
@@ -40,4 +43,5 @@ struct VoiceFilteredPhrase: Identifiable, Codable, Hashable {
     var matchCandidates: [ImportedExerciseMatchCandidate] = []
     var setCount: Int? = nil
     var repText: String? = nil
+    var weightText: String? = nil
 }

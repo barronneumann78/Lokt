@@ -112,6 +112,7 @@ const exerciseCatalog = (() => {
 })();
 
 const catalogNameSet = new Set(exerciseCatalog.map((entry) => entry.name.toLowerCase()));
+const catalogEquipmentByName = new Map(exerciseCatalog.map((entry) => [entry.name.toLowerCase(), entry.equipment]));
 
 const catalogByGroup = new Map();
 for (const entry of exerciseCatalog) {
@@ -574,7 +575,7 @@ const voiceWorkoutParseSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["sourceText", "name", "setCount", "repText", "confidence"],
+        required: ["sourceText", "name", "setCount", "repText", "weightText", "confidence"],
         properties: {
           sourceText: { type: "string" },
           name: { type: "string" },
@@ -589,6 +590,13 @@ const voiceWorkoutParseSchema = {
               { type: "string" },
               { type: "null" }
             ]
+          },
+          weightText: {
+            anyOf: [
+              { type: "string" },
+              { type: "null" }
+            ],
+            description: "The load the speaker attached to THIS exercise, as short text keeping the spoken unit (16 kg, 225 lb, 90, bodyweight). Null when no load was spoken."
           },
           confidence: {
             type: "string",
@@ -654,11 +662,48 @@ const preferenceInstructions = [
   "Do not mention the saved profile explicitly unless it helps explain a coaching choice."
 ].join(" ");
 
+// Persona report 2026-08-31 #1: a "30-Minute" routine carried 16 work sets.
+// The time limit must constrain volume, not decorate the title.
+const timeBudgetInstructions = [
+  "When the request or the saved preferences set a time limit, budget it explicitly before answering: total work sets times (about 45 seconds of work per set plus the rest you prescribe), plus a short warm-up and about a minute of setup per exercise, must fit inside the limit.",
+  "State the rest periods you assumed explicitly in the exercise tips so the arithmetic is checkable.",
+  "As a reference, a 30-minute limit fits roughly 10 to 12 work sets with 60 to 90 second rests.",
+  "Never put a duration in the title or summary that the set-and-rest arithmetic cannot meet. Fewer exercises done honestly beat an overstuffed list."
+].join(" ");
+
+// Persona report 2026-08-31 #3: duplicate entry (Seated Leg Curl twice) and a
+// "Treadmill Run" prescribed as a walk; 7 exercises for a "very simple"
+// beginner request. Soft guidance, enforced server-side only for duplicates.
+const routineConsistencyInstructions = [
+  "Match the exercise count to the time limit and experience level: for a beginner, or any session up to about 40 minutes, prefer 4 to 6 exercises; go beyond 8 only for long advanced sessions that clearly ask for more.",
+  "Never list the same exercise twice in one routine. A second, lighter, or later round of a movement means more sets on its single entry, never a duplicate entry.",
+  "Name the movement you actually prescribe: if the notes tell the user to walk, pick a walking entry, never Treadmill Run. The exercise name must match what the notes and tips tell the user to do."
+].join(" ");
+
+// Persona report 2026-08-31 engineering find: a cable-less home gym got
+// "Cable Triceps Pushdown" with a "substitute a band" hedge, twice.
+const equipmentInstructions = [
+  "When the saved preferences list preferred equipment, treat that list as the complete equipment the user actually has.",
+  "Every exercise you prescribe MUST be performable with only that equipment; bodyweight movements are always allowed.",
+  "Never prescribe an exercise that needs missing equipment and patch it with a substitution note such as use a band if you have no cable machine. Prescribe the movement the user can actually do in the first place."
+].join(" ");
+
+// Persona report 2026-08-31 #4: the coach confirmed removing exercises that
+// were never in the routine. Agreement must never outrank the actual state.
+const falsePremiseInstructions = [
+  "Before acting on an edit request, compare it against the ACTUAL current routine.",
+  "If the user references an exercise, set scheme, or detail that is not in the routine, say so plainly in your reply. Never confirm removing or changing something that was not there.",
+  "Correct the false premise in one short sentence, then handle the parts of the request that do apply."
+].join(" ");
+
 const userMemoryInstructions = [
   "You may receive a USER MEMORY digest summarizing the user's real logged training history.",
   "It is tiered: the most recent sessions are detailed, weeks two through thirteen are weekly summaries, and everything older is monthly one-liners plus durable lifetime facts such as all-time PRs, pain history, and consistency.",
   "Treat it as ground truth about what the user actually did, and prefer newer information when tiers disagree.",
   "Use it to personalize: base loads and progressions on recent numbers, respect recovery after heavy recent volume, reference PRs accurately, and never program movements that clash with a reported pain or limitation without adjusting for it.",
+  // Persona report 2026-08-31 #5: e1RM estimates were quoted back as lifts
+  // the user performed ("you hit 385") to a powerlifter who knows his singles.
+  "Values labeled est. 1RM or e1RM are computed one-rep-max estimates derived from rep sets, never sets that happened. Never present an estimate as a performed lift: never say the user hit, lifted, or did an est. 1RM number. Quote performed lifts only from actual logged sets, and always call estimates estimates.",
   "Do not recite the memory back to the user; use it the way a coach who knows their history would."
 ].join(" ");
 
@@ -689,6 +734,9 @@ const workoutGeneratorInstructions = [
   "You write practical gym routines for a workout tracking app.",
   "Match the user's requested split, equipment, time cap, and goal as closely as possible.",
   catalogGroundingInstructions,
+  timeBudgetInstructions,
+  routineConsistencyInstructions,
+  equipmentInstructions,
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Keep the plan efficient and realistic for the requested duration.",
   "Include a short rationale that explains why this workout structure fits the user's request.",
@@ -751,6 +799,7 @@ const voiceWorkoutParseInstructions = [
   "For each extracted exercise, sourceText is the exact words heard and name is the cleaned exercise name with no sets, reps, numbering, or prescription text.",
   "The request may include an EXERCISE LIBRARY section listing canonical exercise names from the app's database. When an extracted exercise clearly and unambiguously refers to a library entry, output that library name EXACTLY as written as name, keeping sourceText as the words heard. When no library entry clearly matches, or the spoken words are an abbreviation or nickname you are not certain about, keep the cleaned spoken name unchanged instead of guessing a library entry. The library list NEVER adds exercises: extract only movements the speaker actually said.",
   "When the speaker attaches sets or reps to an exercise, such as three sets of ten, fill that exercise's setCount and repText. Otherwise leave them null.",
+  "When the speaker attaches a load to an exercise, such as the sixteen kilo bell, the pin was at ninety, or two twenty five for a double, fill that exercise's weightText as short digits-first text keeping the spoken unit: 16 kg, 90, 225. Spell numbers as digits. Leave weightText null when no load was spoken for that exercise, and never move a load from one exercise to another.",
   "Set confidence to high when the phrase clearly and unambiguously names an exercise. Set confidence to low when it is garbled, partial, or you are unsure it really names an exercise.",
   "If the transcript names no exercises, return an empty exercises list. Never pad it.",
   "Do not include markdown or commentary outside the JSON schema."
@@ -764,10 +813,14 @@ const workoutRevisionInstructions = [
   "Choose action reply_only when the user mainly wants explanation or reassurance and the routine should stay exactly the same.",
   "Choose action suggestion when you want to recommend a change but are not actually changing the routine yet.",
   "Choose action updated_draft only when the user clearly wants the routine changed right now.",
+  falsePremiseInstructions,
   "Apply the user's requested changes while keeping the routine practical and coherent.",
   "Keep the workout style, equipment constraints, and overall intent unless the user asks to change them.",
   "Prefer swapping exercises over rewriting everything when the request is small.",
   catalogGroundingInstructions,
+  timeBudgetInstructions,
+  routineConsistencyInstructions,
+  equipmentInstructions,
   "Exercises kept unchanged from the current routine keep their existing names; catalogMatch for them reflects whether that name appears in the EXERCISE LIBRARY list.",
   "The name field must contain only the exercise name, never sets, reps, numbering, or prescription text.",
   "Update the rationale so it briefly explains why the revised version fits the user's request.",
@@ -828,6 +881,7 @@ const coachChatInstructions = [
   "If exactly one saved routine plausibly matches, work with that one. If several plausibly match, ask which one they mean instead of guessing, using action reply_only.",
   "Never tell the user a workout does not exist while the saved routine list is non-empty. If nothing matches what they described, say which routines you do see and ask which they mean.",
   "When you edit a saved routine, base the draft on that routine's ACTUAL exercises: apply only the requested change and preserve every other exercise, its order, and its sets and reps.",
+  falsePremiseInstructions,
   "Choose action reply_only when the user mainly wants an answer, reassurance, or explanation.",
   "Choose action suggestion when you want to recommend a change but should not edit the draft yet.",
   "Choose action created_draft when the user clearly wants a brand-new structured workout that is not based on a saved routine or the current draft.",
@@ -838,6 +892,9 @@ const coachChatInstructions = [
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
   "If a routine is returned, keep the name field to exercise names only, never sets, reps, numbering, or prescription text.",
   catalogGroundingInstructions,
+  timeBudgetInstructions,
+  routineConsistencyInstructions,
+  equipmentInstructions,
   "When you edit a saved routine, its existing exercises keep their exact names; catalogMatch for them reflects whether that name appears in the EXERCISE LIBRARY list.",
   routineFieldGuidelines,
   coachVoiceGuidelines,
@@ -1516,6 +1573,49 @@ server.listen(port, () => {
 });
 
 async function generateWorkoutRoutine(prompt, preferences, memory = null) {
+  const baseInput = formatPromptWithPreferences(prompt, preferences, memory)
+    + catalogGroundingBlock(prompt, preferences, memoryFocusText(memory));
+
+  let { requestId, routine } = await requestGeneratedRoutine(baseInput);
+
+  // Post-generation sanity gate (persona report 2026-08-31): time budget +
+  // equipment reality. One corrective retry, then accept with honest labeling.
+  const limitMinutes = effectiveTimeLimitMinutes(prompt, preferences);
+  let issues = routinePostCheckIssues(routine, limitMinutes, preferences);
+
+  if (issues.length > 0) {
+    console.log(`[post-check] workout-generator retrying once: ${issues.map((issue) => issue.log).join(" | ")}`);
+    const retryInput = [
+      baseInput,
+      "",
+      "PREVIOUS ATTEMPT (rejected by the app's hard checks):",
+      JSON.stringify(routine.exercises.map((exercise) => ({ name: exercise.name, sets: exercise.sets, reps: exercise.reps }))),
+      "",
+      "That attempt failed these checks. Produce a corrected routine that fixes ALL of them:",
+      ...issues.map((issue) => `- ${issue.feedback}`)
+    ].join("\n");
+
+    try {
+      ({ requestId, routine } = await requestGeneratedRoutine(retryInput));
+      issues = routinePostCheckIssues(routine, limitMinutes, preferences);
+    } catch (error) {
+      console.log(`[post-check] retry failed (${error instanceof Error ? error.message : error}) — keeping the first attempt`);
+    }
+  }
+
+  const timeIssue = issues.find((issue) => issue.kind === "time");
+  if (timeIssue) {
+    routine = retitleForHonestDuration(routine, limitMinutes, timeIssue.estimatedMinutes);
+  }
+  for (const issue of issues.filter((issue) => issue.kind === "equipment")) {
+    console.log(`[post-check] unresolved after retry: ${issue.log}`);
+  }
+
+  return { requestId, routine };
+}
+
+// One model round-trip for the generator: fetch, parse, sanitize.
+async function requestGeneratedRoutine(input) {
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -1526,8 +1626,7 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
       model: workoutGeneratorModel,
       store: false,
       instructions: workoutGeneratorInstructions,
-      input: formatPromptWithPreferences(prompt, preferences, memory)
-        + catalogGroundingBlock(prompt, preferences, memoryFocusText(memory)),
+      input,
       text: {
         format: {
           type: "json_schema",
@@ -1564,6 +1663,152 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
     requestId: payload.id ?? null,
     routine: sanitizeRoutine(routine)
   };
+}
+
+// --- Post-generation sanity checks (persona report 2026-08-31) ----------------
+// #1: "30-Minute Quiet Full Body Circuit" carried 16 work sets (28-42 min of
+// sets alone). The generator never computed duration; now the server does.
+
+// Time limit stated in the request text ("30 minutes", "30-minute", "1 hour"),
+// falling back to the saved preference. Durations under 10 minutes are ignored
+// so rest prescriptions ("2 minutes rest between sets") never read as a cap.
+function effectiveTimeLimitMinutes(prompt, preferences) {
+  const text = ` ${String(prompt ?? "").toLowerCase()} `;
+  const candidates = [];
+  for (const match of text.matchAll(/(\d{1,3})\s*(?:-|–|\s)?\s*(?:minutes?|mins?)\b/g)) {
+    candidates.push(Number(match[1]));
+  }
+  for (const match of text.matchAll(/(\d{1,2}(?:\.\d)?)\s*(?:-|–|\s)?\s*(?:hours?|hrs?)\b/g)) {
+    candidates.push(Math.round(Number(match[1]) * 60));
+  }
+  if (/\bhalf\s+(?:an\s+)?hour\b/.test(text)) candidates.push(30);
+  else if (/\ban\s+hour\b/.test(text)) candidates.push(60);
+
+  const plausible = candidates.filter((minutes) => minutes >= 10 && minutes <= 240);
+  if (plausible.length > 0) return Math.max(...plausible);
+  return Number.isFinite(preferences?.defaultTimeLimitMinutes) ? preferences.defaultTimeLimitMinutes : null;
+}
+
+// Duration estimator. Deliberately simple, conservative, and explainable
+// (assumptions mirror the persona report's own arithmetic):
+// - each work set costs ~45 s of work, or its stated timed duration ("30 sec");
+// - rest per set is whatever THAT exercise's notes/tip state (upper bound of a
+//   stated range), else guessed by catalog equipment: 90 s barbell,
+//   75 s dumbbell/kettlebell, 45 s bodyweight, 60 s everything else
+//   (machine/cable/band/unknown); rest counts after EVERY set;
+// - plus 60 s setup/transition per exercise and a flat 4 min warm-up.
+const estimatorWorkSecondsPerSet = 45;
+const estimatorTransitionSecondsPerExercise = 60;
+const estimatorWarmupSeconds = 240;
+
+function parseSecondsFromText(text) {
+  // Largest duration named in the text, in seconds (ranges use the upper bound).
+  const lowered = String(text ?? "").toLowerCase();
+  let best = null;
+  for (const match of lowered.matchAll(/(\d+(?:\.\d+)?)(?:\s*(?:-|–|to)\s*(\d+(?:\.\d+)?))?\s*(seconds?|secs?|minutes?|mins?)\b/g)) {
+    const upper = Number(match[2] ?? match[1]);
+    const seconds = match[3].startsWith("min") ? upper * 60 : upper;
+    if (Number.isFinite(seconds) && (best === null || seconds > best)) best = seconds;
+  }
+  return best;
+}
+
+function statedRestSeconds(exercise) {
+  const source = `${exercise.notes ?? ""}. ${exercise.tip ?? ""}`.toLowerCase();
+  const restClauses = source.match(/[^.;]*rest[^.;]*/g);
+  if (!restClauses) return null;
+  const seconds = parseSecondsFromText(restClauses.join(" "));
+  return seconds !== null && seconds >= 10 && seconds <= 600 ? seconds : null;
+}
+
+function workSecondsPerSet(exercise) {
+  const timed = parseSecondsFromText(exercise.reps);
+  if (timed !== null && timed >= 10 && timed <= 1800) return timed;
+  return estimatorWorkSecondsPerSet;
+}
+
+function guessedRestSeconds(exerciseName) {
+  const equipment = catalogEquipmentByName.get(String(exerciseName ?? "").toLowerCase());
+  if (equipment === "Barbell") return 90;
+  if (equipment === "Dumbbell" || equipment === "Kettlebell") return 75;
+  if (equipment === "Bodyweight") return 45;
+  return 60;
+}
+
+function estimateRoutineMinutes(routine) {
+  let totalSeconds = estimatorWarmupSeconds;
+  const perExercise = [];
+  for (const exercise of routine.exercises) {
+    const work = workSecondsPerSet(exercise);
+    const stated = statedRestSeconds(exercise);
+    const rest = stated ?? guessedRestSeconds(exercise.name);
+    totalSeconds += exercise.sets * (work + rest) + estimatorTransitionSecondsPerExercise;
+    perExercise.push(`${exercise.name} ${exercise.sets}x(${work}s+${rest}s rest ${stated !== null ? "stated" : "guessed"})`);
+  }
+  return {
+    minutes: totalSeconds / 60,
+    detail: `${perExercise.join(" | ")} | +${estimatorTransitionSecondsPerExercise}s/exercise transitions +${estimatorWarmupSeconds}s warm-up`
+  };
+}
+
+function routinePostCheckIssues(routine, limitMinutes, preferences) {
+  const issues = [];
+
+  if (Number.isFinite(limitMinutes)) {
+    const estimate = estimateRoutineMinutes(routine);
+    console.log(`[time-budget] limit ${limitMinutes} min, estimate ${estimate.minutes.toFixed(1)} min — ${estimate.detail}`);
+    if (estimate.minutes > limitMinutes * 1.25) {
+      const totalSets = routine.exercises.reduce((sum, exercise) => sum + exercise.sets, 0);
+      issues.push({
+        kind: "time",
+        estimatedMinutes: estimate.minutes,
+        log: `estimated ${estimate.minutes.toFixed(0)} min vs ${limitMinutes} min limit (${totalSets} work sets)`,
+        feedback: `TIME BUDGET: the user's limit is ${limitMinutes} minutes, but ${totalSets} work sets at ~45 seconds of work plus rest, transitions, and a short warm-up add up to about ${Math.round(estimate.minutes)} minutes. Cut sets and exercises until sets x (45s work + rest) plus a few minutes of warm-up and transitions fits inside ${limitMinutes} minutes, and state the rest you assume in each exercise's tip.`
+      });
+    }
+  }
+
+  // Equipment reality: preferences listing equipment mean that IS the gym.
+  // Catalog "Bodyweight" is always fine; "Other" (sleds, yokes, unlabeled odd
+  // implements) and non-catalog names cannot be judged, so they pass — this
+  // check only flags contradictions the catalog can prove. A "machines" gym
+  // also passes Cable: to a gym user, a cable stack IS a machine (the strict
+  // split cost Dana's replay a needless retry; home gyms without "machine"
+  // in their list, like Marcus's, are unaffected).
+  const allowedEquipment = preferredEquipmentSet(preferences);
+  if (allowedEquipment.has("Machine")) allowedEquipment.add("Cable");
+  if (allowedEquipment.size > 0) {
+    for (const exercise of routine.exercises) {
+      const equipment = catalogEquipmentByName.get(exercise.name.toLowerCase());
+      if (!equipment || equipment === "Bodyweight" || equipment === "Other") continue;
+      if (!allowedEquipment.has(equipment)) {
+        issues.push({
+          kind: "equipment",
+          log: `"${exercise.name}" needs ${equipment}, user has: ${[...allowedEquipment].join(", ")}`,
+          feedback: `EQUIPMENT: "${exercise.name}" requires a ${equipment} the user does not have. Their equipment: ${preferences.preferredEquipment.join(", ")} (bodyweight always allowed). Replace it with an equivalent movement on their actual equipment — never a substitution note.`
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+// Accept-but-relabel: after the retry the routine ships anyway, but the title
+// and summary stop promising a duration the set math cannot meet. The claimed
+// limit is swapped for the estimate rounded UP to the next 5 minutes.
+function retitleForHonestDuration(routine, limitMinutes, estimatedMinutes) {
+  const honestMinutes = Math.ceil(estimatedMinutes / 5) * 5;
+  const claimPattern = new RegExp(`\\b${limitMinutes}\\s*(?:-|–|\\s)?\\s*(?:minutes?|mins?)\\b`, "gi");
+  const retitled = {
+    ...routine,
+    title: routine.title.replace(claimPattern, `${honestMinutes}-Minute`),
+    summary: routine.summary.replace(claimPattern, `about ${honestMinutes} minutes`)
+  };
+  if (retitled.title !== routine.title || retitled.summary !== routine.summary) {
+    console.log(`[time-budget] retitled honestly: "${routine.title}" -> "${retitled.title}" (estimate ${estimatedMinutes.toFixed(0)} min)`);
+  }
+  return retitled;
 }
 
 async function generateSupplementaryWorkout(prompt, preferences) {
@@ -1691,13 +1936,89 @@ async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, 
     throw new Error("OpenAI returned malformed revision JSON.");
   }
 
+  const sanitizedRoutine = sanitizeOptionalRoutine(revision?.routine, revision?.action);
+
   return {
     requestId: payload.id ?? null,
     action: sanitizeCoachAction(revision?.action),
     reply: sanitizeReply(revision?.reply),
-    changeSummary: sanitizeChangeSummary(revision?.changeSummary, revision?.action),
-    routine: sanitizeOptionalRoutine(revision?.routine, revision?.action)
+    // The summary carries a server-computed diff so it can never claim a
+    // change that did not happen (persona report 2026-08-31 #4).
+    changeSummary: appendActualDiff(
+      sanitizeChangeSummary(revision?.changeSummary, revision?.action),
+      currentRoutine,
+      sanitizedRoutine
+    ),
+    routine: sanitizedRoutine
   };
+}
+
+// --- Server-side routine diffing (persona report 2026-08-31 #4) --------------
+// changeSummary used to be narrated from the conversation, so it "confirmed"
+// removing exercises that were never in the routine. The response now appends
+// the REAL before/after diff computed from the data.
+
+function routineExerciseFacts(routine) {
+  return (Array.isArray(routine?.exercises) ? routine.exercises : [])
+    .map((exercise) => ({
+      name: String(exercise?.name ?? "").trim(),
+      sets: Number.isFinite(Number(exercise?.sets)) ? Number(exercise.sets) : null,
+      reps: typeof exercise?.reps === "string" ? exercise.reps.trim() : ""
+    }))
+    .filter((exercise) => exercise.name);
+}
+
+function computeRoutineDiffLine(beforeRoutine, afterRoutine) {
+  const before = routineExerciseFacts(beforeRoutine);
+  const after = routineExerciseFacts(afterRoutine);
+  if (before.length === 0 && after.length === 0) return null;
+
+  const byName = (list) => {
+    const map = new Map();
+    for (const entry of list) {
+      const key = entry.name.toLowerCase();
+      if (!map.has(key)) map.set(key, entry);
+    }
+    return map;
+  };
+  const beforeMap = byName(before);
+  const afterMap = byName(after);
+
+  const removed = [...beforeMap.values()]
+    .filter((entry) => !afterMap.has(entry.name.toLowerCase()))
+    .map((entry) => entry.name);
+  const added = [...afterMap.values()]
+    .filter((entry) => !beforeMap.has(entry.name.toLowerCase()))
+    .map((entry) => entry.name);
+  const changed = [];
+  for (const [key, afterEntry] of afterMap) {
+    const beforeEntry = beforeMap.get(key);
+    if (!beforeEntry) continue;
+    const deltas = [];
+    if (beforeEntry.sets !== null && afterEntry.sets !== null && beforeEntry.sets !== afterEntry.sets) {
+      deltas.push(`sets ${beforeEntry.sets}→${afterEntry.sets}`);
+    }
+    if (beforeEntry.reps && afterEntry.reps && beforeEntry.reps.toLowerCase() !== afterEntry.reps.toLowerCase()) {
+      deltas.push(`reps ${beforeEntry.reps}→${afterEntry.reps}`);
+    }
+    if (deltas.length > 0) {
+      changed.push(`${afterEntry.name} (${deltas.join(", ")})`);
+    }
+  }
+
+  const parts = [];
+  if (removed.length > 0) parts.push(`removed ${removed.join(", ")}`);
+  if (added.length > 0) parts.push(`added ${added.join(", ")}`);
+  if (changed.length > 0) parts.push(`changed ${changed.join("; ")}`);
+  const text = parts.length > 0 ? parts.join("; ") : "no exercise, set, or rep changes";
+  return `Actual changes: ${text}.`.slice(0, 600);
+}
+
+function appendActualDiff(changeSummary, beforeRoutine, afterRoutine) {
+  if (!afterRoutine) return changeSummary;
+  const diffLine = computeRoutineDiffLine(beforeRoutine, afterRoutine);
+  if (!diffLine) return changeSummary;
+  return changeSummary ? `${changeSummary} ${diffLine}` : diffLine;
 }
 
 async function nudgeWorkoutRoutine({ routine, checkIn, preferences, memory = null }) {
@@ -2019,16 +2340,30 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
   }
 
   const sanitizedRoutine = sanitizeOptionalRoutine(coachResponse?.routine, coachResponse?.action);
+  const action = sanitizeCoachAction(coachResponse?.action);
+  const editedRoutineID = sanitizedRoutine
+    ? sanitizeEditedRoutineID(coachResponse?.editedRoutineID, savedRoutines, context)
+    : null;
+
+  // Edits of an existing routine carry the server-computed diff in their
+  // summary (persona report 2026-08-31 #4); brand-new drafts have no "before".
+  let changeSummary = sanitizeChangeSummary(coachResponse?.changeSummary, coachResponse?.action);
+  if (action === "updated_draft" && sanitizedRoutine) {
+    const baseRoutine = currentRoutine && typeof currentRoutine === "object"
+      ? currentRoutine
+      : (savedRoutines.find((routine) => routine.id === editedRoutineID) ?? null);
+    if (baseRoutine) {
+      changeSummary = appendActualDiff(changeSummary, baseRoutine, sanitizedRoutine);
+    }
+  }
 
   return {
     requestId: payload.id ?? null,
-    action: sanitizeCoachAction(coachResponse?.action),
+    action,
     reply: sanitizeReply(coachResponse?.reply),
-    changeSummary: sanitizeChangeSummary(coachResponse?.changeSummary, coachResponse?.action),
+    changeSummary,
     routine: sanitizedRoutine,
-    editedRoutineID: sanitizedRoutine
-      ? sanitizeEditedRoutineID(coachResponse?.editedRoutineID, savedRoutines, context)
-      : null
+    editedRoutineID
   };
 }
 
@@ -2457,6 +2792,9 @@ function sanitizeVoiceWorkoutParse(parsed) {
             setCount: Number.isFinite(exercise?.setCount) ? clampNumber(exercise.setCount, 1, 20) : null,
             repText: typeof exercise?.repText === "string" && exercise.repText.trim()
               ? exercise.repText.trim().slice(0, 24)
+              : null,
+            weightText: typeof exercise?.weightText === "string" && exercise.weightText.trim()
+              ? exercise.weightText.trim().slice(0, 24)
               : null,
             confidence: exercise?.confidence === "high" ? "high" : "low"
           };
@@ -2893,7 +3231,16 @@ function formatUserMemory(memory) {
 
   // Final guard well past the app-side cap: never let a crafted payload
   // balloon the context.
-  const rendered = lines.join("\n");
+  let rendered = lines.join("\n");
+
+  // Persona report 2026-08-31 #5: e1RM values were quoted back as performed
+  // lifts ("you hit 385"). Relabel estimates unmistakably at render time and
+  // attach a one-line legend whenever any appear.
+  if (/\be1RM\b/i.test(rendered)) {
+    rendered = rendered.replace(/\be1RM\b/gi, "est. 1RM");
+    rendered += "\n(est. 1RM values are computed estimates from rep sets — NOT lifts the user performed.)";
+  }
+
   return rendered.length > 9000 ? `${rendered.slice(0, 9000)}\n(truncated)` : rendered;
 }
 
@@ -3075,7 +3422,21 @@ function sanitizeRoutine(routine) {
         .filter((exercise) => exercise.name && exercise.reps)
     : [];
 
-  if (!title || exercises.length === 0) {
+  // Persona report 2026-08-31 #3: the model listed Seated Leg Curl twice
+  // ("second lighter round"). Case-insensitive names are unique in a routine;
+  // the FIRST occurrence wins and later duplicates are dropped and logged.
+  const seenNames = new Set();
+  const dedupedExercises = exercises.filter((exercise) => {
+    const key = exercise.name.toLowerCase();
+    if (seenNames.has(key)) {
+      console.log(`[sanitize] dropped duplicate exercise "${exercise.name}" (kept the first occurrence)`);
+      return false;
+    }
+    seenNames.add(key);
+    return true;
+  });
+
+  if (!title || dedupedExercises.length === 0) {
     throw new Error("The generated routine was incomplete.");
   }
 
@@ -3084,7 +3445,7 @@ function sanitizeRoutine(routine) {
     summary,
     rationale,
     routineNotes,
-    exercises
+    exercises: dedupedExercises
   };
 }
 

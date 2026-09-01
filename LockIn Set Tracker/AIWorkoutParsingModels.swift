@@ -40,6 +40,7 @@ struct AIWorkoutParsingExerciseMatch: Identifiable, Codable, Hashable {
     var restSeconds: Int?
     var intensityNotes: [String]
     var tip: String? = nil
+    var weightText: String? = nil
 }
 
 struct AIWorkoutParsingUnmatchedItem: Identifiable, Codable, Hashable {
@@ -55,6 +56,7 @@ struct AIWorkoutParsingUnmatchedItem: Identifiable, Codable, Hashable {
     var intensityNotes: [String]
     var customExercise: Exercise?
     var tip: String? = nil
+    var weightText: String? = nil
 }
 
 extension ImportedWorkoutDraft {
@@ -111,7 +113,8 @@ extension ImportedWorkoutDraft {
                                 notes: exercise.notes.nilIfEmpty,
                                 restSeconds: exercise.restSeconds,
                                 intensityNotes: exercise.intensityNotes,
-                                tip: exercise.tip
+                                tip: exercise.tip,
+                                weightText: exercise.weightText
                             )
                         )
                     case .uncertain:
@@ -127,7 +130,8 @@ extension ImportedWorkoutDraft {
                                 notes: exercise.notes.nilIfEmpty,
                                 restSeconds: exercise.restSeconds,
                                 intensityNotes: exercise.intensityNotes,
-                                tip: exercise.tip
+                                tip: exercise.tip,
+                                weightText: exercise.weightText
                             )
                         )
                     case .unmatched:
@@ -143,7 +147,8 @@ extension ImportedWorkoutDraft {
                                 restSeconds: exercise.restSeconds,
                                 intensityNotes: exercise.intensityNotes,
                                 customExercise: exercise.customExercise,
-                                tip: exercise.tip
+                                tip: exercise.tip,
+                                weightText: exercise.weightText
                             )
                         )
                     }
@@ -208,7 +213,8 @@ private extension AIWorkoutParsingExerciseMatch {
             confidence: confidence,
             isCustomExercise: false,
             customExercise: nil,
-            tip: tip
+            tip: tip,
+            weightText: weightText
         )
     }
 }
@@ -228,7 +234,8 @@ private extension AIWorkoutParsingUnmatchedItem {
             confidence: .low,
             isCustomExercise: true,
             customExercise: customExercise,
-            tip: tip
+            tip: tip,
+            weightText: weightText
         )
     }
 }

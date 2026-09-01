@@ -11,6 +11,9 @@ struct RoutineImportedExercisePlan: Codable, Hashable, Identifiable {
     var intensityNotes: [String]
     var matchedExerciseName: String?
     var isCustomExercise: Bool
+    /// Load captured at import time (voice: "16 kg", "90"). Optional/defaulted
+    /// so routines saved before weight capture still decode.
+    var targetWeightText: String? = nil
 }
 
 struct RoutineImportContext: Codable, Hashable {
