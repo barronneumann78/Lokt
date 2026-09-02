@@ -17,6 +17,9 @@ struct WorkoutTabView: View {
     /// Live in-progress workout (persisted by the logger) offered for resume.
     @State private var activeWorkout: ActiveWorkoutState?
     @State private var showDiscardActiveAlert = false
+    /// Routine whose Start Workout tap awaits the replace-in-progress
+    /// confirmation (another routine's workout holds the slot with content).
+    @State private var routinePendingStart: Routine?
 
     var body: some View {
         NavigationView {
@@ -64,6 +67,30 @@ struct WorkoutTabView: View {
                     .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 32)
+                }
+                .alert(replacePromptTitle, isPresented: replacePromptBinding) {
+                    Button(activeWorkout.map { "Resume \($0.routineName)" } ?? "Resume") {
+                        routinePendingStart = nil
+                        if let activeWorkout {
+                            resumeActiveWorkout(activeWorkout)
+                        }
+                    }
+
+                    Button("Start New", role: .destructive) {
+                        if let routinePendingStart {
+                            ActiveWorkoutStore.clear()
+                            activeWorkout = nil
+                            selectedRoutine = routinePendingStart
+                            navigateToLogger = true
+                        }
+                        routinePendingStart = nil
+                    }
+
+                    Button("Cancel", role: .cancel) {
+                        routinePendingStart = nil
+                    }
+                } message: {
+                    Text(replacePromptMessage)
                 }
             }
             .navigationBarHidden(true)
@@ -283,8 +310,7 @@ struct WorkoutTabView: View {
             }
 
             Button("Start Workout") {
-                selectedRoutine = routine
-                navigateToLogger = true
+                requestStartWorkout(routine)
             }
             .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
         }
@@ -428,5 +454,48 @@ struct WorkoutTabView: View {
 
         selectedRoutine = routine
         navigateToLogger = true
+    }
+
+    // MARK: - Start Workout guard
+    // Starting a routine while a DIFFERENT routine's workout holds the slot
+    // with logged content asks first: resume it, or explicitly discard and
+    // start fresh. Same routine, empty slot, or contentless slot start
+    // straight away — exactly the old behavior.
+
+    private func requestStartWorkout(_ routine: Routine) {
+        refreshActiveWorkout()   // freshest slot; also drops deleted-routine slots
+        if ActiveWorkoutStore.needsReplacePrompt(slot: activeWorkout, startingRoutineID: routine.id) {
+            routinePendingStart = routine
+            return
+        }
+        selectedRoutine = routine
+        navigateToLogger = true
+    }
+
+    private var replacePromptBinding: Binding<Bool> {
+        Binding(
+            get: { routinePendingStart != nil },
+            set: { isPresented in
+                if !isPresented {
+                    routinePendingStart = nil
+                }
+            }
+        )
+    }
+
+    private var replacePromptTitle: String {
+        guard let activeWorkout else { return "Workout in progress" }
+        return "\(activeWorkout.routineName) is in progress"
+    }
+
+    private var replacePromptMessage: String {
+        guard let activeWorkout else { return "" }
+        let now = Date()
+        let sets = ActiveWorkoutStore.meaningfulSetCount(activeWorkout.logs)
+        let context = activeWorkout.isStale(now: now)
+            ? "Started \(activeWorkout.startedAt.formatted(.relative(presentation: .named)))"
+            : "\(elapsedLabel(since: activeWorkout.startedAt, now: now).lowercased()) in"
+        let target = routinePendingStart?.name ?? "a new workout"
+        return "\(context), \(sets) set\(sets == 1 ? "" : "s") logged. Starting \(target) discards those sets."
     }
 }

@@ -233,6 +233,44 @@ check("session-added: UserDefaults save → load keeps additions",
       ActiveWorkoutStore.load(defaults: addedDefaults) == withAdded)
 addedDefaults.removePersistentDomain(forName: addedSuite)
 
+// MARK: - 10. Replace-prompt decision (Start Workout while a workout is live)
+// The Workout tab's front-door guard: prompt ONLY when the slot holds a
+// DIFFERENT routine's workout with meaningful content. Reuses the
+// meaningful-content gate — same predicate, never forked.
+
+let meaningfulSlot = makeState(activeSeconds: 900, lastInteractionOffset: 900, logs: mixedLogs)
+let contentlessSlot = makeState(
+    activeSeconds: 900,
+    lastInteractionOffset: 900,
+    logs: ["Bench Press": [WorkoutSet(weight: "", reps: " ", completed: false)]]
+)
+
+check("prompt: empty slot → no prompt",
+      !ActiveWorkoutStore.needsReplacePrompt(slot: nil, startingRoutineID: otherRoutineID))
+check("prompt: contentless slot, different routine → no prompt",
+      !ActiveWorkoutStore.needsReplacePrompt(slot: contentlessSlot, startingRoutineID: otherRoutineID))
+check("prompt: meaningful slot, SAME routine → no prompt (that's resume)",
+      !ActiveWorkoutStore.needsReplacePrompt(slot: meaningfulSlot, startingRoutineID: routineID))
+check("prompt: meaningful slot, DIFFERENT routine → prompt",
+      ActiveWorkoutStore.needsReplacePrompt(slot: meaningfulSlot, startingRoutineID: otherRoutineID))
+check("prompt: contentless slot, same routine → no prompt",
+      !ActiveWorkoutStore.needsReplacePrompt(slot: contentlessSlot, startingRoutineID: routineID))
+
+// Context line count: checked, weight-only, and legacy-nil-with-weight sets
+// count; the blank set doesn't (mixedLogs → 3). Count agrees with the gate.
+check("prompt context: meaningful set count (mixedLogs → 3)",
+      ActiveWorkoutStore.meaningfulSetCount(mixedLogs) == 3)
+check("prompt context: empty logs count 0", ActiveWorkoutStore.meaningfulSetCount([:]) == 0)
+check("prompt context: blank sets count 0",
+      ActiveWorkoutStore.meaningfulSetCount(["A": [WorkoutSet(weight: " ", reps: "", completed: false)]]) == 0)
+check("prompt context: count>0 exactly when gate says meaningful", [
+    [:], mixedLogs,
+    ["A": [WorkoutSet(weight: "", reps: "", completed: nil)]],
+    ["A": [WorkoutSet(weight: "", reps: "8", completed: false)]]
+].allSatisfy { logs in
+    (ActiveWorkoutStore.meaningfulSetCount(logs) > 0) == ActiveWorkoutStore.hasMeaningfulContent(logs)
+})
+
 // MARK: - Summary
 
 if failures == 0 {

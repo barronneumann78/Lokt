@@ -103,12 +103,32 @@ enum ActiveWorkoutStore {
     /// never claims the slot (so opening routine B doesn't clobber routine A's
     /// in-progress workout until the user actually logs something).
     static func hasMeaningfulContent(_ logs: [String: [WorkoutSet]]) -> Bool {
-        logs.values.contains { sets in
-            sets.contains { set in
-                set.completed == true ||
-                !set.weight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                !set.reps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
-        }
+        logs.values.contains { $0.contains(where: isMeaningfulSet) }
+    }
+
+    /// The ONE definition of "the user touched this set": checked, or any
+    /// weight/reps text. `hasMeaningfulContent` and `meaningfulSetCount`
+    /// both derive from it — never fork the predicate.
+    static func isMeaningfulSet(_ set: WorkoutSet) -> Bool {
+        set.completed == true ||
+        !set.weight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !set.reps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// How many sets the user has actually touched — the number the replace
+    /// prompt quotes ("5 sets logged").
+    static func meaningfulSetCount(_ logs: [String: [WorkoutSet]]) -> Int {
+        logs.values.reduce(0) { $0 + $1.filter(isMeaningfulSet).count }
+    }
+
+    /// The Start Workout guard: true only when starting `startingRoutineID`
+    /// would clobber a DIFFERENT routine's in-progress workout that has
+    /// meaningful content. An empty slot, a contentless slot, or the same
+    /// routine (that's just resume) all start without a prompt. The slot
+    /// semantics themselves stay unchanged — this is a front-door check,
+    /// defense in depth for any unguarded path.
+    static func needsReplacePrompt(slot: ActiveWorkoutState?, startingRoutineID: UUID) -> Bool {
+        guard let slot, slot.routineID != startingRoutineID else { return false }
+        return hasMeaningfulContent(slot.logs)
     }
 }
