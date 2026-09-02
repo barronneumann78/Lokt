@@ -2,11 +2,6 @@ import SwiftUI
 import Combine
 
 struct WorkoutLoggerView: View {
-    private enum WorkoutInputField: Hashable {
-        case weight(String, Int)
-        case reps(String, Int)
-    }
-
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var coachRouter: CoachRouter
     @AppStorage("workoutCoachModeEnabled") private var isCoachModeEnabled = true
@@ -45,7 +40,14 @@ struct WorkoutLoggerView: View {
     @State private var pendingFinishDurationSeconds: Int?
     /// The duration actually written to the saved session (may be the fixed one).
     @State private var savedDurationSeconds: Int?
-    @FocusState private var focusedField: WorkoutInputField?
+    /// The one focus coordinate for every set cell. Plain state (not
+    /// `@FocusState`): the cells are UIKit text fields, which report and
+    /// receive first-responder moves through this value.
+    @State private var focusedField: LoggerField?
+    /// Sessions matching this routine, decoded ONCE per appearance (and after
+    /// a finish) instead of per body evaluation — previous-set lookups, stat
+    /// chips, and history all read this cache.
+    @State private var routineSessions: [WorkoutSession] = []
 
     private let workoutTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -57,35 +59,40 @@ struct WorkoutLoggerView: View {
         ZStack {
             AppBackground()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
-                    headerSection
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        headerSection
 
-                    if isRestTimerActive {
-                        restCard
-                    }
+                        if isRestTimerActive {
+                            restCard
+                        }
 
-                    ForEach(activeRoutine.exercises, id: \.self) { exercise in
-                        exerciseCard(for: exercise)
-                            .onDrop(
-                                of: [.plainText],
-                                delegate: ExerciseReorderDropDelegate(
-                                    targetExercise: exercise,
-                                    exercises: $activeRoutine.exercises,
-                                    draggedExercise: $draggedExercise,
-                                    didReorder: saveActiveRoutine
+                        ForEach(activeRoutine.exercises, id: \.self) { exercise in
+                            exerciseCard(for: exercise)
+                                .onDrop(
+                                    of: [.plainText],
+                                    delegate: ExerciseReorderDropDelegate(
+                                        targetExercise: exercise,
+                                        exercises: $activeRoutine.exercises,
+                                        draggedExercise: $draggedExercise,
+                                        didReorder: saveActiveRoutine
+                                    )
                                 )
-                            )
+                        }
+
+                        addExerciseRow
+
+                        finishSection
+                        .padding(20)
+                        .glassCard()
                     }
-
-                    addExerciseRow
-
-                    finishSection
-                    .padding(20)
-                    .glassCard()
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 20)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .onChange(of: focusedField) {
+                    scrollToFocusedRow(proxy)
+                }
             }
         }
         .navigationTitle("")
@@ -94,6 +101,7 @@ struct WorkoutLoggerView: View {
             configureInitialSetCounts()
             restoreActiveWorkoutIfAvailable()
             startWorkoutTimerIfNeeded()
+            refreshRoutineSessionsCache()
         }
         .onReceive(workoutTicker) { tick in
             handleTimerTick(tick)
@@ -103,25 +111,6 @@ struct WorkoutLoggerView: View {
         }
         .onChange(of: preferredSetCounts) {
             scheduleActiveWorkoutPersist()
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                if currentFocusedPreviousSet != nil {
-                    Button("Use Last") {
-                        applyFocusedPreviousSet()
-                    }
-                }
-
-                Spacer()
-
-                Button(keyboardPrimaryActionTitle) {
-                    handleKeyboardPrimaryAction()
-                }
-
-                Button("Done") {
-                    focusedField = nil
-                }
-            }
         }
         .sheet(item: $swapTarget) { target in
             ExerciseSwapSheet(
@@ -291,238 +280,144 @@ struct WorkoutLoggerView: View {
 
     // MARK: - Exercise card
 
+    /// Builds one isolated card: every input is a value derived for this
+    /// exercise, so `.equatable()` lets unchanged cards skip their bodies
+    /// entirely — a keystroke re-diffs one card, a timer tick re-diffs none.
     private func exerciseCard(for exercise: String) -> some View {
-        let isActiveExercise = isPrimaryExercise(exercise)
-
-        return VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        if isActiveExercise {
-                            Text("ACTIVE")
-                                .microLabel(AppTheme.primary)
-                        }
-
-                        ExerciseTextNavigationLink(
-                            exerciseName: exercise,
-                            exercises: exerciseStore.exercises,
-                            primaryAddAction: ExerciseDetailPrimaryAddAction(title: "Add to This Workout") { detailExercise in
-                                addExerciseToCurrentWorkout(detailExercise)
-                            }
-                        ) {
-                            Text(exercise)
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(AppTheme.textPrimary)
-                        }
-                    }
-
-                    Spacer()
-
-                    ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
-                }
-
-                HStack(spacing: 8) {
-                    Button("Smart Swap") {
-                        swapTarget = ExerciseSwapTarget(
-                            exerciseName: exercise,
-                            sourceNote: "Swap this exercise without losing the workout’s overall purpose."
-                        )
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-
-                    Button(expandedExercises.contains(exercise) ? "Hide History" : "History") {
-                        toggleHistory(exercise)
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-            }
-
-            setTable(for: exercise)
-
-            HStack(spacing: 10) {
-                Button {
-                    addSet(to: exercise)
-                } label: {
-                    Label("Add Set", systemImage: "plus")
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                Button {
-                    removeSet(from: exercise)
-                } label: {
-                    Label("Delete Set", systemImage: "minus")
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(setCount(for: exercise) <= 1)
-                .opacity(setCount(for: exercise) <= 1 ? 0.55 : 1)
-
-                Spacer()
-            }
-
-            statChips(for: exercise)
-
-            // One line of why behind an applied nudge target ("last one felt
-            // easy") — cleared automatically once the next check-in lands.
-            if let nudgeNote = appliedNudgeState(for: exercise)?.nudgeNote {
-                Text(nudgeNote)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(2)
-            }
-
-            if expandedExercises.contains(exercise) {
-                historySection(for: exercise)
-            }
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private func setTable(for exercise: String) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Text("SET")
-                    .microLabel()
-                    .frame(width: 30, alignment: .leading)
-
-                Text("WEIGHT")
-                    .microLabel()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text("REPS")
-                    .microLabel()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Color.clear
-                    .frame(width: 44, height: 1)
-            }
-            .padding(.bottom, 8)
-
-            hairline
-
-            ForEach(0..<setCount(for: exercise), id: \.self) { set in
-                setRow(exercise: exercise, set: set)
-
-                if set < setCount(for: exercise) - 1 {
-                    hairline
-                }
-            }
-        }
-    }
-
-    private func setRow(exercise: String, set: Int) -> some View {
-        let isActive = isPrimarySet(exercise: exercise, setIndex: set)
-        let isDone = isCompletedSet(exercise: exercise, setIndex: set)
-
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Text("\(set + 1)")
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(isActive ? AppTheme.backgroundTop : AppTheme.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(isActive ? AppTheme.primary : AppTheme.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .frame(width: 30, alignment: .leading)
-
-                setField(
-                    text: Binding(
-                        get: { logs[exercise]?[safe: set]?.weight ?? "" },
-                        set: { newValue in
-                            logs[exercise, default: []] = update(
-                                logs[exercise],
-                                exercise: exercise,
-                                at: set,
-                                weight: newValue,
-                                targetCount: setCount(for: exercise)
-                            )
-                        }
-                    ),
-                    keyboard: .decimalPad,
-                    isActive: isActive
+        LoggerExerciseCard(
+            exercise: exercise,
+            sets: logs[exercise] ?? [],
+            setCount: setCount(for: exercise),
+            isActiveExercise: isPrimaryExercise(exercise),
+            activeSetIndex: activeSetIndex(for: exercise),
+            focus: cardFocus(for: exercise),
+            lastSessionSets: routineSessions.last?.logs[exercise],
+            lastSummary: lastSessionSummary(for: exercise),
+            targetChip: targetChipText(for: exercise),
+            oneRM: estimatedOneRM(for: exercise),
+            nudgeNote: appliedNudgeState(for: exercise)?.nudgeNote,
+            isHistoryExpanded: expandedExercises.contains(exercise),
+            history: historyEntries(for: exercise),
+            isLastExercise: activeRoutine.exercises.last == exercise,
+            draggedExercise: $draggedExercise,
+            addAction: ExerciseDetailPrimaryAddAction(title: "Add to This Workout") { detailExercise in
+                addExerciseToCurrentWorkout(detailExercise)
+            },
+            onSmartSwap: {
+                swapTarget = ExerciseSwapTarget(
+                    exerciseName: exercise,
+                    sourceNote: "Swap this exercise without losing the workout’s overall purpose."
                 )
-                .focused($focusedField, equals: .weight(exercise, set))
-
-                setField(
-                    text: Binding(
-                        get: { logs[exercise]?[safe: set]?.reps ?? "" },
-                        set: { newValue in
-                            logs[exercise, default: []] = update(
-                                logs[exercise],
-                                exercise: exercise,
-                                at: set,
-                                reps: newValue,
-                                targetCount: setCount(for: exercise)
-                            )
-                        }
-                    ),
-                    keyboard: .numberPad,
-                    isActive: isActive
+            },
+            onToggleHistory: { toggleHistory(exercise) },
+            onAddSet: { addSet(to: exercise) },
+            onRemoveSet: { removeSet(from: exercise) },
+            onWeightChange: { set, newValue in
+                logs[exercise, default: []] = update(
+                    logs[exercise],
+                    exercise: exercise,
+                    at: set,
+                    weight: newValue,
+                    targetCount: setCount(for: exercise)
                 )
-                .focused($focusedField, equals: .reps(exercise, set))
-
-                setCheckButton(exercise: exercise, set: set, isActive: isActive, isDone: isDone)
-                    .frame(width: 44)
-            }
-
-            if let previous = getLastSet(for: exercise, at: set), !isDone {
-                Button {
-                    applyPreviousSet(previous, to: exercise, at: set)
-                } label: {
-                    Text("Use last · \(previous.weight) × \(previous.reps)")
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 42)
-            }
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, isActive ? 8 : 0)
-        .background(isActive ? AppTheme.surfaceElevated : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            },
+            onRepsChange: { set, newValue in
+                logs[exercise, default: []] = update(
+                    logs[exercise],
+                    exercise: exercise,
+                    at: set,
+                    reps: newValue,
+                    targetCount: setCount(for: exercise)
+                )
+            },
+            onToggleCompletion: { toggleSetCompletion(for: exercise, at: $0) },
+            onUseLast: { applyLastSet(to: exercise, at: $0) },
+            onFocusChange: fieldFocusChanged(_:isFocused:),
+            onAdvance: advanceFocus(from:)
+        )
+        .equatable()
     }
 
-    private func setField(text: Binding<String>, keyboard: UIKeyboardType, isActive: Bool) -> some View {
-        TrackerTextField("0", text: text)
-            .keyboardType(keyboard)
-            .font(.system(size: 20, weight: .semibold))
-            .monospacedDigit()
-            .foregroundStyle(isActive ? AppTheme.primary : AppTheme.textPrimary)
-            .tint(AppTheme.primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(maxWidth: .infinity)
-            .background(isActive ? AppTheme.backgroundTop.opacity(0.45) : AppTheme.mutedFill)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    private func activeSetIndex(for exercise: String) -> Int? {
+        guard let nextTarget = nextLoggingTarget, nextTarget.exercise == exercise else { return nil }
+        return nextTarget.setIndex
     }
 
-    /// The checkmark is the single source of truth for set completion.
-    /// Completed = volt check, incomplete = hollow circle (volt on the active row).
-    private func setCheckButton(exercise: String, set: Int, isActive: Bool, isDone: Bool) -> some View {
-        Button {
-            toggleSetCompletion(for: exercise, at: set)
-        } label: {
-            ZStack {
-                if isDone {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AppTheme.primary)
-                        .frame(width: 26, height: 26)
+    /// Focus scoped to one card — nil unless the focused cell lives there,
+    /// so a focus change invalidates only the cards it leaves and enters.
+    private func cardFocus(for exercise: String) -> LoggerField? {
+        guard let focusedField, focusedField.exercise == exercise else { return nil }
+        return focusedField
+    }
 
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(AppTheme.backgroundTop)
-                } else {
-                    Circle()
-                        .stroke(isActive ? AppTheme.primary : AppTheme.textTertiary, lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
-                }
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+    /// TARGET chip text: an applied check-in nudge wins, otherwise the
+    /// fatigue model's estimate as before.
+    private func targetChipText(for exercise: String) -> String? {
+        if let nudgeTarget = nudgeTargetText(for: exercise) {
+            return nudgeTarget
         }
-        .buttonStyle(.plain)
+        if let suggestion = fatigueAdjustedSuggestedWeight(for: exercise) {
+            return "\(formatWeight(suggestion.suggestedWeight)) lb"
+        }
+        return nil
+    }
+
+    /// Recent completed set-lists, newest first — only computed while the
+    /// card's history is expanded.
+    private func historyEntries(for exercise: String) -> [[WorkoutSet]] {
+        guard expandedExercises.contains(exercise) else { return [] }
+        return Array(
+            routineSessions.reversed()
+                .compactMap { session -> [WorkoutSet]? in
+                    guard let sets = session.logs[exercise]?.filter(\.isCompleted), !sets.isEmpty else { return nil }
+                    return sets
+                }
+                .prefix(5)
+        )
+    }
+
+    private func fieldFocusChanged(_ field: LoggerField, isFocused: Bool) {
+        if isFocused {
+            if focusedField != field {
+                focusedField = field
+            }
+        } else if focusedField == field {
+            focusedField = nil
+        }
+    }
+
+    /// Next: weight → reps → next set's weight → next exercise's first set,
+    /// skipping nothing. False = nothing left (the field dismisses itself).
+    private func advanceFocus(from field: LoggerField) -> Bool {
+        if let next = nextField(after: field) {
+            focusedField = next
+            return true
+        }
+        focusedField = nil
+        return false
+    }
+
+    private func applyLastSet(to exercise: String, at set: Int) {
+        guard let previous = getLastSet(for: exercise, at: set) else { return }
+        applyPreviousSet(previous, to: exercise, at: set)
+    }
+
+    /// Keeps the focused row visible above the keyboard — the UIKit cells
+    /// don't get SwiftUI's own focused-TextField auto-scroll. Each row is
+    /// tagged with its weight-field id; anchor nil scrolls minimally, so an
+    /// already-visible row doesn't move. Deferred a beat to land after the
+    /// keyboard's safe-area change.
+    private func scrollToFocusedRow(_ proxy: ScrollViewProxy) {
+        guard let focusedField else { return }
+        let rowID = LoggerField.weight(focusedField.exercise, focusedField.setIndex)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            guard let current = self.focusedField,
+                  LoggerField.weight(current.exercise, current.setIndex) == rowID else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo(rowID, anchor: nil)
+            }
+        }
     }
 
     private func toggleSetCompletion(for exercise: String, at index: Int) {
@@ -544,26 +439,6 @@ struct WorkoutLoggerView: View {
         sets[index].completed = true
         logs[exercise] = sets
         startRestTimer(for: exercise)
-    }
-
-    private func statChips(for exercise: String) -> some View {
-        HStack(spacing: 10) {
-            statChip(label: "LAST", value: lastSessionSummary(for: exercise) ?? "—")
-
-            // The one suggestion surface: an applied check-in nudge wins,
-            // otherwise the fatigue model's estimate as before.
-            if let nudgeTarget = nudgeTargetText(for: exercise) {
-                statChip(label: "TARGET", value: nudgeTarget)
-            } else if let suggestion = fatigueAdjustedSuggestedWeight(for: exercise) {
-                statChip(label: "TARGET", value: "\(formatWeight(suggestion.suggestedWeight)) lb")
-            }
-
-            if let oneRM = estimatedOneRM(for: exercise) {
-                statChip(label: "1RM", value: "\(oneRM) lb")
-            }
-
-            statChip(label: "VOL", value: sessionVolumeText(for: exercise))
-        }
     }
 
     /// Progression state carrying an applied-nudge target for this exercise.
@@ -595,35 +470,8 @@ struct WorkoutLoggerView: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func statChip(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .microLabel()
-                .lineLimit(1)
-
-            Text(value)
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .background(AppTheme.mutedFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    private var hairline: some View {
-        Rectangle()
-            .fill(AppTheme.cardBorder)
-            .frame(height: 1)
-    }
-
     private func lastSessionSummary(for exercise: String) -> String? {
-        let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        guard let sets = sessions.last?.logs[exercise],
+        guard let sets = routineSessions.last?.logs[exercise],
               let best = sets.first(where: { $0.isCompleted && isLoggedSet($0) }) else {
             return nil
         }
@@ -631,8 +479,7 @@ struct WorkoutLoggerView: View {
     }
 
     private func estimatedOneRM(for exercise: String) -> Int? {
-        let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        guard let sets = sessions.last?.logs[exercise] else { return nil }
+        guard let sets = routineSessions.last?.logs[exercise] else { return nil }
 
         let estimates: [Double] = sets.compactMap { set in
             guard set.isCompleted,
@@ -646,20 +493,6 @@ struct WorkoutLoggerView: View {
 
         guard let best = estimates.max() else { return nil }
         return Int(best.rounded())
-    }
-
-    private func sessionVolumeText(for exercise: String) -> String {
-        let sets = resize(sets: logs[exercise], to: setCount(for: exercise))
-        let volume = sets.reduce(0.0) { total, set in
-            guard set.isCompleted,
-                  let weight = parseWeight(set.weight),
-                  let reps = Double(set.reps.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-                return total
-            }
-            return total + weight * reps
-        }
-        guard volume > 0 else { return "—" }
-        return Int(volume).formatted(.number.grouping(.automatic))
     }
 
     /// The direct mid-workout add: one obvious row at the bottom of the
@@ -849,6 +682,7 @@ struct WorkoutLoggerView: View {
         )
         saveWorkoutSession(session)
         savedDurationSeconds = durationSeconds
+        refreshRoutineSessionsCache()
 
         activePersistWorkItem?.cancel()
         activePersistWorkItem = nil
@@ -905,51 +739,6 @@ struct WorkoutLoggerView: View {
         sessionAddedExercises = []
     }
 
-    @ViewBuilder
-    private func historySection(for exercise: String) -> some View {
-        let allSessions = loadWorkoutSessions().reversed().filter(matchesRoutine)
-        let history = Array(
-            allSessions
-                .compactMap { session -> [WorkoutSet]? in
-                    guard let sets = session.logs[exercise]?.filter(\.isCompleted), !sets.isEmpty else { return nil }
-                    return sets
-                }
-                .prefix(5)
-        )
-
-        if history.isEmpty {
-            Text("No history yet for this exercise.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("RECENT HISTORY")
-                    .microLabel()
-
-                ForEach(Array(history.enumerated()), id: \.offset) { item in
-                    let sets = item.element
-
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Workout \(item.offset + 1)")
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textSecondary)
-
-                        Text(historySummary(for: sets))
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-            }
-            .padding(.top, 6)
-        }
-    }
-
     private func configureInitialSetCounts() {
         for exercise in activeRoutine.exercises {
             let count = activeRoutine.preferredSetCount(for: exercise)
@@ -974,21 +763,8 @@ struct WorkoutLoggerView: View {
         return sets.firstIndex(where: { !$0.isCompleted })
     }
 
-    private func isCompletedSet(exercise: String, setIndex: Int) -> Bool {
-        guard let set = resize(sets: logs[exercise], to: setCount(for: exercise))[safe: setIndex] else {
-            return false
-        }
-
-        return set.isCompleted
-    }
-
     private func isPrimaryExercise(_ exercise: String) -> Bool {
         nextLoggingTarget?.exercise == exercise
-    }
-
-    private func isPrimarySet(exercise: String, setIndex: Int) -> Bool {
-        guard let nextTarget = nextLoggingTarget else { return false }
-        return nextTarget.exercise == exercise && nextTarget.setIndex == setIndex
     }
 
     private func startWorkoutTimerIfNeeded() {
@@ -1099,19 +875,8 @@ struct WorkoutLoggerView: View {
     }
 
     private func resize(sets: [WorkoutSet]?, to count: Int) -> [WorkoutSet] {
-        var updatedSets = sets ?? []
-
-        if updatedSets.count < count {
-            // In-session sets carry an explicit flag — only the checkmark completes them.
-            updatedSets.append(contentsOf: Array(
-                repeating: WorkoutSet(weight: "", reps: "", completed: false),
-                count: count - updatedSets.count
-            ))
-        } else if updatedSets.count > count {
-            updatedSets = Array(updatedSets.prefix(count))
-        }
-
-        return updatedSets
+        // In-session sets carry an explicit flag — only the checkmark completes them.
+        LoggerSetMath.resize(sets: sets, to: count)
     }
 
     private func saveActiveRoutine() {
@@ -1267,26 +1032,6 @@ struct WorkoutLoggerView: View {
         }.count
     }
 
-    private var currentFocusedPreviousSet: WorkoutSet? {
-        guard let focusedField else { return nil }
-
-        switch focusedField {
-        case let .weight(exercise, set), let .reps(exercise, set):
-            return getLastSet(for: exercise, at: set)
-        }
-    }
-
-    private var keyboardPrimaryActionTitle: String {
-        guard let focusedField else { return "Done" }
-
-        switch focusedField {
-        case .weight:
-            return "Next"
-        case .reps(let exercise, let set):
-            return nextField(after: .reps(exercise, set)) == nil ? "Done" : "Next"
-        }
-    }
-
     private func startRestTimer(for exercise: String) {
         let duration = TimeInterval(restDuration(for: exercise))
         lastRestDuration = duration
@@ -1303,37 +1048,12 @@ struct WorkoutLoggerView: View {
         restTimerEndDate = Date().addingTimeInterval(lastRestDuration)
     }
 
-    private func handleKeyboardPrimaryAction() {
-        guard let activeField = focusedField else { return }
-
-        if let nextField = nextField(after: activeField) {
-            focusedField = nextField
-        } else {
-            focusedField = nil
-        }
-    }
-
-    private func nextField(after field: WorkoutInputField) -> WorkoutInputField? {
-        switch field {
-        case let .weight(exercise, set):
-            return .reps(exercise, set)
-
-        case let .reps(exercise, set):
-            guard let exerciseIndex = activeRoutine.exercises.firstIndex(of: exercise) else {
-                return nil
-            }
-
-            if set + 1 < setCount(for: exercise) {
-                return .weight(exercise, set + 1)
-            }
-
-            let nextExerciseIndex = exerciseIndex + 1
-            guard activeRoutine.exercises.indices.contains(nextExerciseIndex) else {
-                return nil
-            }
-
-            return .weight(activeRoutine.exercises[nextExerciseIndex], 0)
-        }
+    private func nextField(after field: LoggerField) -> LoggerField? {
+        LoggerFocusModel.nextField(
+            after: field,
+            exercises: activeRoutine.exercises,
+            setCount: setCount(for:)
+        )
     }
 
     private func nextExercise(after exercise: String) -> String? {
@@ -1341,15 +1061,6 @@ struct WorkoutLoggerView: View {
         let nextIndex = currentIndex + 1
         guard activeRoutine.exercises.indices.contains(nextIndex) else { return nil }
         return activeRoutine.exercises[nextIndex]
-    }
-
-    private func applyFocusedPreviousSet() {
-        guard let focusedField, let previousSet = currentFocusedPreviousSet else { return }
-
-        switch focusedField {
-        case let .weight(exercise, set), let .reps(exercise, set):
-            applyPreviousSet(previousSet, to: exercise, at: set)
-        }
     }
 
     private func applyPreviousSet(_ previousSet: WorkoutSet, to exercise: String, at set: Int) {
@@ -1377,8 +1088,7 @@ struct WorkoutLoggerView: View {
     }
 
     private func recentWorkingWeight(for exercise: String) -> Double? {
-        let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        guard let latestWeights = sessions.last?.logs[exercise] else { return nil }
+        guard let latestWeights = routineSessions.last?.logs[exercise] else { return nil }
 
         return latestWeights
             .filter(\.isCompleted)
@@ -1387,11 +1097,7 @@ struct WorkoutLoggerView: View {
     }
 
     private func parseWeight(_ weight: String) -> Double? {
-        let cleaned = weight
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: ",", with: "")
-
-        return Double(cleaned)
+        LoggerSetMath.parseWeight(weight)
     }
 
     private func formatWeight(_ weight: Double) -> String {
@@ -1408,12 +1114,6 @@ struct WorkoutLoggerView: View {
         } else {
             expandedExercises.insert(exercise)
         }
-    }
-
-    private func historySummary(for sets: [WorkoutSet]) -> String {
-        sets.enumerated()
-            .map { "Set \($0.offset + 1): \($0.element.weight) x \($0.element.reps)" }
-            .joined(separator: "  •  ")
     }
 
     private func update(
@@ -1475,9 +1175,15 @@ struct WorkoutLoggerView: View {
     }
 
     private func getLastSet(for exercise: String, at index: Int) -> WorkoutSet? {
-        let sessions = loadWorkoutSessions().filter(matchesRoutine)
-        guard let set = sessions.last?.logs[exercise]?[safe: index], set.isCompleted else { return nil }
+        guard let set = routineSessions.last?.logs[exercise]?[safe: index], set.isCompleted else { return nil }
         return set
+    }
+
+    /// One decode of the session history per appearance/finish — everything
+    /// per-keystroke reads the cache. Sessions only change under this screen
+    /// at finish (refreshed there) or while it's off-screen (onAppear).
+    private func refreshRoutineSessionsCache() {
+        routineSessions = loadWorkoutSessions().filter(matchesRoutine)
     }
 
     private func matchesRoutine(_ session: WorkoutSession) -> Bool {
