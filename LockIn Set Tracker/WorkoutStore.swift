@@ -105,6 +105,18 @@ final class WorkoutStore: ObservableObject {
         sessions.first { $0.id == id }
     }
 
+    /// Replace the stored session with the same id (the session editor's save
+    /// path). Never inserts — correcting a session that no longer exists is a
+    /// no-op, not a resurrection.
+    func updateSession(_ session: WorkoutSession) {
+        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        sessions[index] = session
+        persistSessions()
+        // Corrections rewrite history — rebuild the derived AI memory digest,
+        // same as every other session-writing path.
+        UserMemoryStore.refresh(defaults: defaults)
+    }
+
     // MARK: - Adaptation loop (spine §6) — foundation for M4
 
     /// Current adaptation state for an exercise within a routine, if any.
