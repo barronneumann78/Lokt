@@ -6,13 +6,19 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $coachRouter.selectedTab) {
+            // Timed tab-root reset: re-entering Home/Workout after >5 min away
+            // bumps that tab's epoch (see TabResetPolicy in CoachRouter.swift),
+            // rebuilding the tab at its root. Coach is exempt (chat survives),
+            // and Workout never resets while a workout is in progress.
             HomeView()
+                .id(coachRouter.resetEpoch(for: .home))
             .tabItem {
                 Label("Home", systemImage: "house.fill")
             }
             .tag(AppRootTab.home)
 
             WorkoutTabView()
+                .id(coachRouter.resetEpoch(for: .workout))
             .tabItem {
                 Label("Workout", systemImage: "dumbbell.fill")
             }
