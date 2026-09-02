@@ -192,26 +192,37 @@ struct HomeView: View {
                         hairline
                     }
 
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(session.routineName)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(AppTheme.textPrimary)
-                                .lineLimit(1)
+                    // Tappable: pushes the correction editor for this session.
+                    NavigationLink {
+                        SessionEditView(session: session)
+                    } label: {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(session.routineName)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                    .lineLimit(1)
 
-                            Text(session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                                .font(.caption)
+                                Text(session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textTertiary)
+                            }
+
+                            Spacer()
+
+                            Text(volumeText(for: session))
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(AppTheme.textSecondary)
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(AppTheme.textTertiary)
                         }
-
-                        Spacer()
-
-                        Text(volumeText(for: session))
-                            .font(.subheadline.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textSecondary)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 12)
+                    .buttonStyle(.plain)
                 }
             }
         }
