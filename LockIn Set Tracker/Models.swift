@@ -77,7 +77,7 @@ struct Routine: Identifiable, Codable {
     }
 }
 
-struct WorkoutSet: Codable {
+struct WorkoutSet: Codable, Equatable {
     var weight: String
     var reps: String
     /// Whether the user checked this set off in the logger. Optional so sessions

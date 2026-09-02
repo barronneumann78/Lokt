@@ -29,6 +29,14 @@ struct WorkoutLoggerView: View {
     @State private var showUncheckedFinishDialog = false
     /// M4: the just-saved session awaiting its post-workout check-in.
     @State private var checkInPrompt: SessionCheckInPrompt?
+    /// In-memory mirror of the persisted `activeWorkoutV1` slot.
+    @State private var activeWorkoutState: ActiveWorkoutState?
+    @State private var activePersistWorkItem: DispatchWorkItem?
+    /// Finish paused on an implausible clock — the one inserted step.
+    @State private var durationFixPrompt: DurationFixPrompt?
+    @State private var pendingFinishDurationSeconds: Int?
+    /// The duration actually written to the saved session (may be the fixed one).
+    @State private var savedDurationSeconds: Int?
     @FocusState private var focusedField: WorkoutInputField?
 
     private let workoutTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -74,10 +82,17 @@ struct WorkoutLoggerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             configureInitialSetCounts()
+            restoreActiveWorkoutIfAvailable()
             startWorkoutTimerIfNeeded()
         }
         .onReceive(workoutTicker) { tick in
             handleTimerTick(tick)
+        }
+        .onChange(of: logs) {
+            scheduleActiveWorkoutPersist()
+        }
+        .onChange(of: preferredSetCounts) {
+            scheduleActiveWorkoutPersist()
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -117,6 +132,12 @@ struct WorkoutLoggerView: View {
                     addToCurrentWorkout: appendSupplementaryBlock,
                     currentWorkoutTitle: activeRoutine.name
                 )
+            }
+        }
+        .sheet(item: $durationFixPrompt, onDismiss: handleDurationFixDismiss) { prompt in
+            WorkoutDurationFixSheet(prompt: prompt) { seconds in
+                pendingFinishDurationSeconds = seconds
+                durationFixPrompt = nil
             }
         }
         .sheet(item: $checkInPrompt) { prompt in
@@ -647,7 +668,10 @@ struct WorkoutLoggerView: View {
                 }
 
                 HStack(spacing: 12) {
-                    completionStat(title: "Duration", value: workoutDurationText)
+                    completionStat(
+                        title: "Duration",
+                        value: savedDurationSeconds.map { formatDuration(TimeInterval($0)) } ?? workoutDurationText
+                    )
                     completionStat(title: "Sets", value: "\(loggedSetCount)")
                     completionStat(title: "Exercises", value: "\(completedExerciseCount)")
                 }
@@ -702,8 +726,10 @@ struct WorkoutLoggerView: View {
             : "\(count) sets aren't checked off — finish anyway?"
     }
 
-    /// Saves the session. Unchecked sets keep their numbers but carry
+    /// Marks the finish. Unchecked sets keep their numbers but carry
     /// `completed == false`, so nothing downstream ever counts them.
+    /// A plausible clock saves straight away; an implausible one (forgotten
+    /// workout, phone slept overnight) inserts the ONE duration-fix step first.
     private func finishWorkout(checkingAllFilledSets: Bool) {
         if checkingAllFilledSets {
             for exercise in activeRoutine.exercises {
@@ -715,22 +741,64 @@ struct WorkoutLoggerView: View {
             }
         }
 
+        let now = Date()
+        guard hasStartedWorkoutTimer else {
+            completeFinish(durationSeconds: nil)
+            return
+        }
+
+        let reference = activeWorkoutState ?? ActiveWorkoutState(
+            routineID: activeRoutine.id,
+            routineName: activeRoutine.name,
+            startedAt: workoutStartDate,
+            lastInteractionAt: workoutStartDate,
+            activeSeconds: nil,
+            logs: logs,
+            preferredSetCounts: preferredSetCounts
+        )
+
+        if reference.needsDurationFix(now: now) {
+            durationFixPrompt = DurationFixPrompt(
+                defaultSeconds: reference.smartDurationSeconds(now: now),
+                elapsedSeconds: max(0, Int(now.timeIntervalSince(workoutStartDate)))
+            )
+        } else {
+            completeFinish(durationSeconds: max(0, Int(now.timeIntervalSince(workoutStartDate))))
+        }
+    }
+
+    /// A confirmed duration fix resumes the finish once the sheet is gone;
+    /// a swiped-away sheet cancels nothing — the workout keeps recording.
+    private func handleDurationFixDismiss() {
+        guard let seconds = pendingFinishDurationSeconds else { return }
+        pendingFinishDurationSeconds = nil
+        completeFinish(durationSeconds: seconds)
+    }
+
+    /// The actual save. Clears the persisted in-progress slot, then hands off
+    /// to the M4 check-in exactly as before.
+    private func completeFinish(durationSeconds: Int?) {
         let session = WorkoutSession(
             date: Date(),
             routineID: activeRoutine.id,
             routineName: activeRoutine.name,
             logs: logs,
-            durationSeconds: hasStartedWorkoutTimer
-                ? max(0, Int(Date().timeIntervalSince(workoutStartDate)))
-                : nil
+            durationSeconds: durationSeconds
         )
         saveWorkoutSession(session)
+        savedDurationSeconds = durationSeconds
+
+        activePersistWorkItem?.cancel()
+        activePersistWorkItem = nil
+        ActiveWorkoutStore.clear()
+        activeWorkoutState = nil
+
         currentTime = Date()
         skipRestTimer()
         completed = true
 
-        // M4: one ultra-light check-in right after the save — both finish
-        // paths (direct and the unchecked-sets dialog) land here.
+        // M4: one ultra-light check-in right after the save — every finish
+        // path (direct, unchecked-sets dialog, duration fix) lands here.
         checkInPrompt = SessionCheckInPrompt(
             sessionID: session.id,
             routineID: activeRoutine.id,
@@ -830,6 +898,62 @@ struct WorkoutLoggerView: View {
         workoutStartDate = Date()
         currentTime = workoutStartDate
         hasStartedWorkoutTimer = true
+    }
+
+    // MARK: - In-progress persistence (activeWorkoutV1)
+
+    /// Reopening the logger for the routine with a live persisted workout
+    /// picks it up where it left off: entered numbers, checkmarks, set counts,
+    /// and the ORIGINAL start time (quit-and-relaunch lands here too).
+    private func restoreActiveWorkoutIfAvailable() {
+        guard !hasStartedWorkoutTimer,
+              let saved = ActiveWorkoutStore.load(),
+              saved.routineID == activeRoutine.id else {
+            return
+        }
+
+        for (exercise, count) in saved.preferredSetCounts {
+            preferredSetCounts[exercise] = max(1, count)
+        }
+        logs = saved.logs
+        for exercise in activeRoutine.exercises {
+            logs[exercise] = resize(sets: logs[exercise], to: setCount(for: exercise))
+        }
+
+        workoutStartDate = saved.startedAt
+        currentTime = Date()
+        hasStartedWorkoutTimer = true
+        activeWorkoutState = saved
+    }
+
+    /// Cheap debounce: meaningful mutations (set edits, checks, add/remove)
+    /// coalesce into one write shortly after the last change.
+    private func scheduleActiveWorkoutPersist() {
+        guard !completed else { return }
+        activePersistWorkItem?.cancel()
+        let item = DispatchWorkItem { persistActiveWorkoutNow() }
+        activePersistWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: item)
+    }
+
+    private func persistActiveWorkoutNow() {
+        guard !completed, ActiveWorkoutStore.hasMeaningfulContent(logs) else { return }
+
+        let base = activeWorkoutState ?? ActiveWorkoutState(
+            routineID: activeRoutine.id,
+            routineName: activeRoutine.name,
+            startedAt: workoutStartDate,
+            lastInteractionAt: workoutStartDate,
+            activeSeconds: 0,
+            logs: [:],
+            preferredSetCounts: [:]
+        )
+        var updated = base.updatingActivity(now: Date())
+        updated.routineName = activeRoutine.name
+        updated.logs = logs
+        updated.preferredSetCounts = preferredSetCounts
+        ActiveWorkoutStore.save(updated)
+        activeWorkoutState = updated
     }
 
     private func handleTimerTick(_ tick: Date) {
@@ -1340,6 +1464,95 @@ private struct WorkoutCoachContext {
     var suggestedWeight: String?
     var cue: String?
     var afterExercise: String?
+}
+
+/// Finish paused on an implausible clock — carries the smart default the
+/// wheel starts at (never zero) and the raw elapsed for context.
+struct DurationFixPrompt: Identifiable {
+    let id = UUID()
+    let defaultSeconds: Int
+    let elapsedSeconds: Int
+}
+
+/// The ONE inserted step when the workout clock ran implausibly long: a wheel
+/// already positioned at what the workout probably took — the user scrolls
+/// from there, then the save proceeds as normal.
+struct WorkoutDurationFixSheet: View {
+    let prompt: DurationFixPrompt
+    let onConfirm: (Int) -> Void
+
+    @State private var selectedSeconds: Int
+
+    init(prompt: DurationFixPrompt, onConfirm: @escaping (Int) -> Void) {
+        self.prompt = prompt
+        self.onConfirm = onConfirm
+        _selectedSeconds = State(initialValue: prompt.defaultSeconds)
+    }
+
+    private var options: [Int] {
+        let step = ActiveWorkoutState.durationStep
+        let maxSeconds = max(8 * 3600, prompt.defaultSeconds)
+        return Array(stride(from: step, through: maxSeconds, by: step))
+    }
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("TIMER RAN \(formatElapsed(prompt.elapsedSeconds))")
+                        .microLabel()
+                        .monospacedDigit()
+
+                    Text("How long was it really?")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                }
+
+                Picker("Duration", selection: $selectedSeconds) {
+                    ForEach(options, id: \.self) { seconds in
+                        Text(durationLabel(seconds))
+                            .font(.title3.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .tag(seconds)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .frame(height: 168)
+
+                Button("Save Workout") {
+                    onConfirm(selectedSeconds)
+                }
+                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
+            }
+            .padding(20)
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func durationLabel(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        if hours > 0 {
+            return String(format: "%d h %02d min", hours, minutes)
+        }
+        return "\(minutes) min"
+    }
+
+    private func formatElapsed(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let secs = seconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%d:%02d", minutes, secs)
+    }
 }
 
 extension Array {

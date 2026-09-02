@@ -14,6 +14,9 @@ struct WorkoutTabView: View {
     @State private var navigateToCreate = false
     @State private var navigateToPresetGenerator = false
     @State private var routinePendingDelete: Routine?
+    /// Live in-progress workout (persisted by the logger) offered for resume.
+    @State private var activeWorkout: ActiveWorkoutState?
+    @State private var showDiscardActiveAlert = false
 
     var body: some View {
         NavigationView {
@@ -23,6 +26,10 @@ struct WorkoutTabView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
                         headerSection
+
+                        if let activeWorkout {
+                            resumeCard(activeWorkout)
+                        }
 
                         if routines.isEmpty {
                             emptyHero
@@ -63,6 +70,7 @@ struct WorkoutTabView: View {
             .onAppear {
                 loadRoutines()
                 store.reload()
+                refreshActiveWorkout()
             }
             .alert("Delete routine?", isPresented: deleteAlertBinding) {
                 Button("Cancel", role: .cancel) {
@@ -120,6 +128,88 @@ struct WorkoutTabView: View {
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    // MARK: - Resume in-progress workout
+    // A started workout survives leaving the logger (and the app). One compact
+    // row offers the way back in; the only volt on this screen when fresh,
+    // neutral once it's gone stale ("yesterday"). Discard is explicit — never
+    // automatic.
+
+    private func resumeCard(_ state: ActiveWorkoutState) -> some View {
+        let now = Date()
+        let isStale = state.isStale(now: now)
+
+        return Button {
+            resumeActiveWorkout(state)
+        } label: {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(isStale ? AppTheme.textTertiary : AppTheme.primary)
+                    .frame(width: 7, height: 7)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(resumeStatusText(state, now: now))
+                        .microLabel(isStale ? AppTheme.textSecondary : AppTheme.primary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+
+                    Text(state.routineName)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Button {
+                    showDiscardActiveAlert = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(AppTheme.surfaceElevated)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .padding(AppTheme.rowPadding)
+            .glassCard()
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .alert("Discard workout in progress?", isPresented: $showDiscardActiveAlert) {
+            Button("Cancel", role: .cancel) { }
+
+            Button("Discard", role: .destructive) {
+                ActiveWorkoutStore.clear()
+                activeWorkout = nil
+            }
+        } message: {
+            Text("Its logged sets won't be saved to history.")
+        }
+    }
+
+    private func resumeStatusText(_ state: ActiveWorkoutState, now: Date) -> String {
+        if state.isStale(now: now) {
+            return "RESUME · \(state.startedAt.formatted(.relative(presentation: .named)).uppercased())"
+        }
+        return "RESUME · \(elapsedLabel(since: state.startedAt, now: now))"
+    }
+
+    private func elapsedLabel(since start: Date, now: Date) -> String {
+        let totalMinutes = max(0, Int(now.timeIntervalSince(start)) / 60)
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours > 0 {
+            return "\(hours) H \(String(format: "%02d", minutes)) MIN"
+        }
+        return "\(minutes) MIN"
     }
 
     // MARK: - Saved routines
@@ -307,5 +397,36 @@ struct WorkoutTabView: View {
         if let encoded = try? JSONEncoder().encode(routines) {
             UserDefaults.standard.set(encoded, forKey: "routines")
         }
+        // An active workout pointing at the deleted routine has nothing to
+        // resume into — drop it gracefully.
+        refreshActiveWorkout()
+    }
+
+    /// Load the persisted in-progress workout, discarding it gracefully when
+    /// its routine no longer exists.
+    private func refreshActiveWorkout() {
+        guard let state = ActiveWorkoutStore.load() else {
+            activeWorkout = nil
+            return
+        }
+
+        guard ActiveWorkoutStore.resumableRoutine(for: state, in: routines) != nil else {
+            ActiveWorkoutStore.clear()
+            activeWorkout = nil
+            return
+        }
+
+        activeWorkout = state
+    }
+
+    private func resumeActiveWorkout(_ state: ActiveWorkoutState) {
+        guard let routine = ActiveWorkoutStore.resumableRoutine(for: state, in: routines) else {
+            ActiveWorkoutStore.clear()
+            activeWorkout = nil
+            return
+        }
+
+        selectedRoutine = routine
+        navigateToLogger = true
     }
 }
