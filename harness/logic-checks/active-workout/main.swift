@@ -11,6 +11,8 @@
 // - Thresholds: duration fix strictly beyond 3h, staleness strictly beyond 12h.
 // - Routine-deleted discard: resumableRoutine returns nil so callers clear.
 // - Store save/load/clear round-trips through a real UserDefaults suite.
+// - Session-added exercises (mid-workout Add Exercise): names + order survive
+//   the round-trip; blobs without the field still decode (nil).
 // Compiles against the REAL Models.swift + ActiveWorkoutState.swift.
 import Foundation
 
@@ -197,6 +199,39 @@ ActiveWorkoutStore.clear(defaults: defaults)
 check("store: clear empties the slot", ActiveWorkoutStore.load(defaults: defaults) == nil)
 
 defaults.removePersistentDomain(forName: suiteName)
+
+// MARK: - 9. Session-added exercises (mid-workout Add Exercise) round-trip
+
+var withAdded = makeState(activeSeconds: 900, lastInteractionOffset: 900, logs: mixedLogs)
+withAdded.sessionAddedExercises = ["Cable Lateral Raise", "Face Pull"]
+withAdded.preferredSetCounts["Cable Lateral Raise"] = 3
+let addedEncoded = try! JSONEncoder().encode(withAdded)
+let addedDecoded = try! JSONDecoder().decode(ActiveWorkoutState.self, from: addedEncoded)
+
+check("session-added: state equal after encode/decode", addedDecoded == withAdded)
+check("session-added: names survive in add order",
+      addedDecoded.sessionAddedExercises == ["Cable Lateral Raise", "Face Pull"])
+check("session-added: seeded set count survives",
+      addedDecoded.preferredSetCounts["Cable Lateral Raise"] == 3)
+check("session-added: state without additions decodes nil field",
+      decoded.sessionAddedExercises == nil)
+
+// A blob with the field explicitly stripped (legacy build's save) still decodes.
+var addedDict = try! JSONSerialization.jsonObject(with: addedEncoded) as! [String: Any]
+addedDict.removeValue(forKey: "sessionAddedExercises")
+let strippedData = try! JSONSerialization.data(withJSONObject: addedDict)
+let strippedState = try! JSONDecoder().decode(ActiveWorkoutState.self, from: strippedData)
+check("session-added: legacy blob without the field decodes, field nil",
+      strippedState.sessionAddedExercises == nil && strippedState.routineID == routineID)
+
+// UserDefaults round-trip keeps the added names (quit-and-resume path).
+let addedSuite = "active-workout-logic-check-added"
+let addedDefaults = UserDefaults(suiteName: addedSuite)!
+addedDefaults.removePersistentDomain(forName: addedSuite)
+ActiveWorkoutStore.save(withAdded, defaults: addedDefaults)
+check("session-added: UserDefaults save → load keeps additions",
+      ActiveWorkoutStore.load(defaults: addedDefaults) == withAdded)
+addedDefaults.removePersistentDomain(forName: addedSuite)
 
 // MARK: - Summary
 

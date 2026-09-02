@@ -11,6 +11,7 @@ struct WorkoutLoggerView: View {
     @EnvironmentObject private var coachRouter: CoachRouter
     @AppStorage("workoutCoachModeEnabled") private var isCoachModeEnabled = true
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @EnvironmentObject private var workoutStore: WorkoutStore
     @State private var activeRoutine: Routine
     @State private var logs: [String: [WorkoutSet]] = [:]
     @State private var completed = false
@@ -25,6 +26,13 @@ struct WorkoutLoggerView: View {
     @State private var activeRestExercise: String?
     @State private var swapTarget: ExerciseSwapTarget?
     @State private var showSupplementaryBlockGenerator = false
+    /// The bottom-of-list "Add Exercise" picker sheet.
+    @State private var showAddExercisePicker = false
+    /// Exercises added mid-workout, in add order. Session-scoped: they never
+    /// touch the saved routine unless the user keeps them at finish.
+    @State private var sessionAddedExercises: [String] = []
+    /// The one keep-in-routine question has been answered (either way).
+    @State private var keepAddedPromptResolved = false
     @State private var workoutBuilderFeedbackMessage: String?
     @State private var showUncheckedFinishDialog = false
     /// M4: the just-saved session awaiting its post-workout check-in.
@@ -69,6 +77,8 @@ struct WorkoutLoggerView: View {
                                 )
                             )
                     }
+
+                    addExerciseRow
 
                     finishSection
                     .padding(20)
@@ -132,6 +142,11 @@ struct WorkoutLoggerView: View {
                     addToCurrentWorkout: appendSupplementaryBlock,
                     currentWorkoutTitle: activeRoutine.name
                 )
+            }
+        }
+        .sheet(isPresented: $showAddExercisePicker) {
+            WorkoutAddExercisePicker(currentExerciseNames: activeRoutine.exercises) { exercise in
+                addExerciseToCurrentWorkout(exercise)
             }
         }
         .sheet(item: $durationFixPrompt, onDismiss: handleDurationFixDismiss) { prompt in
@@ -647,6 +662,29 @@ struct WorkoutLoggerView: View {
         return Int(volume).formatted(.number.grouping(.automatic))
     }
 
+    /// The direct mid-workout add: one obvious row at the bottom of the
+    /// exercise list, right where the user is when they want one more.
+    /// Neutral chrome — the finish button keeps this screen's accent.
+    private var addExerciseRow: some View {
+        Button {
+            showAddExercisePicker = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+
+                Text("Add Exercise")
+                    .font(.body.weight(.semibold))
+
+                Spacer()
+            }
+            .foregroundStyle(AppTheme.textPrimary)
+            .padding(20)
+            .glassCard()
+        }
+        .buttonStyle(.plain)
+    }
+
     @ViewBuilder
     private var finishSection: some View {
         if completed {
@@ -674,6 +712,30 @@ struct WorkoutLoggerView: View {
                     )
                     completionStat(title: "Sets", value: "\(loggedSetCount)")
                     completionStat(title: "Exercises", value: "\(completedExerciseCount)")
+                }
+
+                // The one keep-in-routine question — asked here in the wrap-up,
+                // never mid-workout. Keep = explicit tap, so review-before-save
+                // holds for session-added exercises too.
+                if !sessionAddedExercises.isEmpty && !keepAddedPromptResolved {
+                    HStack(spacing: 10) {
+                        Text(keepAddedPromptText)
+                            .font(.subheadline.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.textPrimary)
+
+                        Spacer()
+
+                        Button("Keep") {
+                            resolveKeepAddedPrompt(keep: true)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+
+                        Button("No") {
+                            resolveKeepAddedPrompt(keep: false)
+                        }
+                        .buttonStyle(TertiaryButtonStyle())
+                    }
                 }
 
                 Button("Done") {
@@ -807,6 +869,42 @@ struct WorkoutLoggerView: View {
         )
     }
 
+    private var keepAddedPromptText: String {
+        let count = sessionAddedExercises.count
+        return count == 1
+            ? "Keep 1 added exercise in the routine?"
+            : "Keep \(count) added exercises in the routine?"
+    }
+
+    /// Keep = upsert the SAME routine id with the session-added exercises
+    /// appended (their in-session set counts included). No = session-only;
+    /// either answer retires the prompt for good.
+    private func resolveKeepAddedPrompt(keep: Bool) {
+        keepAddedPromptResolved = true
+        guard keep else { return }
+
+        // Bridge (M1b partial): this screen writes "routines" directly, so
+        // sync the store off disk before building the upsert on top of it.
+        workoutStore.reload()
+        let base = workoutStore.routine(withID: activeRoutine.id)
+            ?? SessionAdditionLogic.routineStrippingSessionAdded(
+                activeRoutine,
+                sessionAdded: sessionAddedExercises
+            )
+        workoutStore.upsertRoutine(
+            SessionAdditionLogic.routineKeepingSessionAdded(
+                base,
+                sessionAdded: sessionAddedExercises,
+                preferredSetCounts: preferredSetCounts
+            )
+        )
+
+        // Kept exercises are routine exercises now — clear the session list so
+        // a later routine write (post-finish reorder or set-count tweak) never
+        // strips them back out.
+        sessionAddedExercises = []
+    }
+
     @ViewBuilder
     private func historySection(for exercise: String) -> some View {
         let allSessions = loadWorkoutSessions().reversed().filter(matchesRoutine)
@@ -915,6 +1013,20 @@ struct WorkoutLoggerView: View {
         for (exercise, count) in saved.preferredSetCounts {
             preferredSetCounts[exercise] = max(1, count)
         }
+
+        // Session-added exercises live only in this snapshot — put them back
+        // at the end of the session's order (skipping any the routine has
+        // since absorbed) so quit-and-resume keeps them loggable.
+        let restoredAdded = (saved.sessionAddedExercises ?? []).filter { name in
+            !activeRoutine.exercises.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
+        }
+        activeRoutine.exercises.append(contentsOf: restoredAdded)
+        for name in restoredAdded {
+            activeRoutine.preferredSetCounts[name] =
+                saved.preferredSetCounts[name] ?? SessionAdditionLogic.defaultSetCount
+        }
+        sessionAddedExercises = restoredAdded
+
         logs = saved.logs
         for exercise in activeRoutine.exercises {
             logs[exercise] = resize(sets: logs[exercise], to: setCount(for: exercise))
@@ -952,6 +1064,7 @@ struct WorkoutLoggerView: View {
         updated.routineName = activeRoutine.name
         updated.logs = logs
         updated.preferredSetCounts = preferredSetCounts
+        updated.sessionAddedExercises = sessionAddedExercises.isEmpty ? nil : sessionAddedExercises
         ActiveWorkoutStore.save(updated)
         activeWorkoutState = updated
     }
@@ -1008,7 +1121,13 @@ struct WorkoutLoggerView: View {
             return
         }
 
-        routines[index] = activeRoutine
+        // Session-added exercises stay out of the SAVED routine until the
+        // user's explicit Keep at finish — mid-workout writes (reorder, set
+        // counts, swaps) persist the routine's own exercises only.
+        routines[index] = SessionAdditionLogic.routineStrippingSessionAdded(
+            activeRoutine,
+            sessionAdded: sessionAddedExercises
+        )
 
         if let encoded = try? JSONEncoder().encode(routines) {
             UserDefaults.standard.set(encoded, forKey: "routines")
@@ -1369,16 +1488,28 @@ struct WorkoutLoggerView: View {
         return activeRoutine.allKnownNames.contains(session.routineName)
     }
 
+    /// SESSION-SCOPED add (picker rows and the detail page's "Add to This
+    /// Workout" both land here): appended to this session's order, seeded with
+    /// 3 empty sets, immediately loggable. The saved routine is untouched —
+    /// the finish wrap-up asks ONCE whether to keep the additions.
     private func addExerciseToCurrentWorkout(_ exercise: Exercise) -> AddExerciseResult {
-        guard !activeRoutine.exercises.contains(exercise.name) else {
+        guard let outcome = SessionAdditionLogic.addingExercise(
+            named: exercise.name,
+            toOrder: activeRoutine.exercises,
+            sessionAdded: sessionAddedExercises,
+            preferredSetCounts: preferredSetCounts,
+            logs: logs
+        ) else {
             return AddExerciseResult(message: "\(exercise.name) is already in this workout.", didMutate: false)
         }
 
-        activeRoutine.exercises.append(exercise.name)
-        activeRoutine.preferredSetCounts[exercise.name] = 3
-        preferredSetCounts[exercise.name] = 3
-        logs[exercise.name] = resize(sets: logs[exercise.name], to: 3)
-        saveActiveRoutine()
+        activeRoutine.exercises = outcome.order
+        sessionAddedExercises = outcome.sessionAdded
+        preferredSetCounts = outcome.preferredSetCounts
+        // Mirrored into the in-memory routine copy so re-appearing (detail
+        // push/pop) reseeds the same count — stripped before any persist.
+        activeRoutine.preferredSetCounts[exercise.name] = outcome.preferredSetCounts[exercise.name]
+        logs = outcome.logs
 
         return AddExerciseResult(message: "Added \(exercise.name) to this workout.", didMutate: true)
     }
@@ -1444,6 +1575,14 @@ struct WorkoutLoggerView: View {
 
         if activeRestExercise?.caseInsensitiveCompare(currentExerciseName) == .orderedSame {
             activeRestExercise = newExerciseName
+        }
+
+        // Swapping a session-added exercise keeps the ADDITION session-scoped
+        // under its new name (and keeps the finish prompt's count honest).
+        if let addedIndex = sessionAddedExercises.firstIndex(where: {
+            $0.caseInsensitiveCompare(currentExerciseName) == .orderedSame
+        }) {
+            sessionAddedExercises[addedIndex] = newExerciseName
         }
 
         if var context = activeRoutine.importContext,

@@ -17,6 +17,11 @@ struct ActiveWorkoutState: Codable, Equatable {
     var activeSeconds: TimeInterval? = nil
     var logs: [String: [WorkoutSet]]
     var preferredSetCounts: [String: Int]
+    /// Exercises added mid-workout (session-scoped — not in the saved
+    /// routine), in the order they were added, so quit-and-resume restores
+    /// them into the session's exercise list. Optional so blobs saved by a
+    /// build without the field still decode.
+    var sessionAddedExercises: [String]? = nil
 
     // MARK: - Thresholds (single home; every function takes `now` so the
     // logic check can inject fixed dates)
