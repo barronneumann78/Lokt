@@ -24,6 +24,12 @@ typical AI user ≈ $0.70/mo, heavy ≈ $2–4/mo. Tracker features cost $0 (on-
   the Logger, never Coach, never disguised as a routine card. Pro removes it.
 
 ## Principles
+- **No accounts, ever, for premium** (decided 2026-09-09): StoreKit ties Pro to
+  the Apple ID — purchases, restores, and multi-device entitlement need zero
+  sign-up, and the backend can verify transactions anonymously
+  (appAccountToken). Apple guideline 5.1.1 penalizes forced sign-up anyway.
+  "No account. No sign-up." is a moat, not a gap. Data sync, if ever wanted,
+  is CloudKit private DB (invisible iCloud identity) — still no sign-in UI.
 - Never unmetered free AI (the only feature with real marginal cost).
 - Price ≥3× marginal cost; revisit with real usage data.
 - The upgrade pitch is the adaptation loop, not "remove ads".
