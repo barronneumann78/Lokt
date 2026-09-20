@@ -25,8 +25,9 @@ enum AIWorkoutGenerationError: LocalizedError {
 
 enum AIBackendConfiguration {
     static let userDefaultsKey = "aiBackendBaseURL"
-    static let defaultBaseURLString = "http://127.0.0.1:8788"
+    static let defaultBaseURLString = "https://lokt-production.up.railway.app"
     private static let fallbackLocalBaseURLStrings = [
+        "http://127.0.0.1:8788",
         "http://127.0.0.1:8787",
         "http://localhost:8788",
         "http://localhost:8787"
