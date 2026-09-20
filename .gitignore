@@ -11,3 +11,4 @@ harness/personas/runs/
 
 # Local app secrets (mirror of backend/.env — copy AIBackendSecrets.swift.example)
 LockIn Set Tracker/AIBackendSecrets.swift
+xcuserdata/
