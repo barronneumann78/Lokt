@@ -51,7 +51,10 @@ enum AIBackendConfiguration {
     static var candidateBaseURLs: [URL] {
         let configured = currentBaseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
         let shouldTryLocalFallbacks = configured.isEmpty || isLocalTestingURLString(configured)
-        let candidates = [configured] + (shouldTryLocalFallbacks ? [defaultBaseURLString] + fallbackLocalBaseURLStrings : [])
+        // The production default is always tried after whatever is configured,
+        // so a stale saved URL (e.g. an old local IP from dev testing) can
+        // never permanently strand the app once it ships.
+        let candidates = [configured, defaultBaseURLString] + (shouldTryLocalFallbacks ? fallbackLocalBaseURLStrings : [])
 
         var seen = Set<String>()
 

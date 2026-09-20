@@ -184,7 +184,7 @@ private struct AIBackendSettingsView: View {
                         .autocorrectionDisabled(true)
                         .keyboardType(.URL)
 
-                    Button("Reset to Local Default") {
+                    Button("Reset to Default") {
                         aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
                     }
                     .buttonStyle(SecondaryButtonStyle())
