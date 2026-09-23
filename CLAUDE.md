@@ -143,7 +143,26 @@ else least-recently-done overall. The pill never pushes the logger: it calls
 `CoachRouter.requestWorkoutStart(routineID:)` and `WorkoutTabView` consumes
 the request through its own `requestStartWorkout` guard (replace-in-progress
 prompt included) — the Workout tab stays the sole owner of the logger.
-Later phases (per screen, not global): logger set table, coach draft pager.
+Phase 3 (done, Logger, commit `5a5eef2`): recording header (red dot under
+`.recordingGlow()`, REST accent chip), 20pt exercise name + TARGET chip,
+SET · PREV · LBS · REPS · check set table on elevated rows with the active
+row on `activeRowTint`, pinned `COMPLETE SET` / `WRAP UP` gradient pill with
+Wrap Up as a `GhostButtonStyle` beneath. Latency architecture untouched.
+Phase 4 (done, Coach): `CoachView` header is "Lokt Coach" (22pt) with the
+policy caption on the same row; sent messages are hairline bubbles on
+`surfaceElevated` (18pt corners, 4pt tail), coach prose is plain 14pt text
+with no bubble; the draft card is `glassCard()` under an `accentHairline`
+border — WORKOUT DRAFT micro label + the `accentChipFill` "1 OF 2" chip and
+accent/hairline dots, 18pt title, exercises • sets meta line (no minutes:
+the payload has no time estimate), hairline, numbered mono rows folded to
+four behind "+ N more", then the row `Save Workout` / `Update Workout`
+gradient pill (swapped for the Saved capsule) beside a fixed-width Revise
+ghost (`GhostButtonStyle(verticalPadding: 17)`, focuses the composer) and,
+for multi replies, `Save both` / `Save all` as a ghost pill beneath; the
+composer is a 50pt card-fill capsule with a 38pt `primaryGradient` send
+circle. The multi-draft seams (`drafts`/`focusedDraftIndex`, lineage,
+`persistDraft`) are unchanged. The v2 look is complete; further work is
+polish, not phases.
 
 ## Conventions & guardrails
 

@@ -144,6 +144,14 @@ enum AppTheme {
     /// surface, paired with an accent hairline. State encoding, not chrome.
     static var activeRowTint: Color { activeScheme.color.opacity(0.07) }
 
+    /// Accent hairline at 30%: the coach draft card's border (phase 4) — the
+    /// one card on that screen whose chrome carries the accent.
+    static var accentHairline: Color { activeScheme.color.opacity(0.3) }
+
+    /// Fill of an accent-tinted capsule chip whose label is the accent —
+    /// the coach's "1 OF 2" pager chip (phase 4).
+    static var accentChipFill: Color { activeScheme.color.opacity(0.12) }
+
     /// 1px inner top highlight on cards (Whoop-style depth) — sits inside the
     /// `cardBorder` hairline and fades out down the sides.
     static let cardHighlight = Color.white.opacity(0.04)
@@ -503,13 +511,17 @@ struct SecondaryButtonStyle: ButtonStyle {
 
 /// Full-width ghost pill: no fill, hairline capsule, secondary label — the
 /// quiet companion beneath a screen's one gradient pill (the logger's Wrap Up).
+/// `verticalPadding` 17 matches `PrimaryButtonStyle`'s height for a ghost that
+/// sits BESIDE the gradient pill (the coach draft's Revise).
 struct GhostButtonStyle: ButtonStyle {
+    var verticalPadding: CGFloat = 12
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, verticalPadding)
             .background(AppTheme.mutedFill.opacity(configuration.isPressed ? 1 : 0))
             .clipShape(Capsule())
             .overlay {

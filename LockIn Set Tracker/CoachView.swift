@@ -103,6 +103,15 @@ struct CoachView: View {
     /// versions decode fresh ids, so rows naturally start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
 
+    /// Draft ids whose exercise list is fully open. The card shows the
+    /// first four rows behind a "+ N more" line; new draft versions decode
+    /// fresh ids, so they start folded again.
+    @State private var expandedDraftListIDs: Set<UUID> = []
+
+    /// The draft card's Revise hands focus here — the existing revise path
+    /// (the next message replaces only the focused draft).
+    @FocusState private var composerFocused: Bool
+
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
     @ObservedObject private var hints = DiscoveryHints.shared
@@ -192,7 +201,7 @@ struct CoachView: View {
 
                             if showTypingIndicator {
                                 HStack {
-                                    TypingIndicatorBubble()
+                                    TypingIndicatorDots()
                                     Spacer(minLength: 56)
                                 }
                                 .id("typing-indicator")
@@ -213,8 +222,8 @@ struct CoachView: View {
                                 .frame(height: 6)
                                 .id("chat-bottom")
                         }
-                        .padding(.horizontal, 28)
-                        .padding(.top, 18)
+                        .padding(.horizontal, AppTheme.screenPadding)
+                        .padding(.top, 10)
                         .padding(.bottom, 12)
                     }
                     .onAppear {
@@ -288,27 +297,29 @@ struct CoachView: View {
         .allowsHitTesting(false)
     }
 
+    /// "Lokt Coach" with the policy line as a tiny caption on the same row.
     private var topBar: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Lokt Coach")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+        HStack(alignment: .firstTextBaseline) {
+            Text("Lokt Coach")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
 
-                Text(topBarSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
             Spacer()
+
+            Text("Lokt can make mistakes.")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textTertiary)
         }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, AppTheme.screenPadding)
         .padding(.top, 18)
-        .padding(.bottom, 12)
+        .padding(.bottom, 8)
     }
 
+    /// Prompt chips under the opener — small hairline capsules on the
+    /// elevated surface; tapping one drops it into the composer.
     private var promptSuggestionRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach(promptSuggestions, id: \.self) { suggestion in
                     Button(suggestion) {
                         messageText = suggestion
@@ -316,9 +327,9 @@ struct CoachView: View {
                     .buttonStyle(.plain)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(AppTheme.mutedFill)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.surfaceElevated)
                     .clipShape(Capsule())
                     .overlay {
                         Capsule()
@@ -330,68 +341,74 @@ struct CoachView: View {
         }
     }
 
+    /// 50pt capsule on the card fill with a hairline: the attachment menu as
+    /// a plain icon, the field, and the send control as a 38pt gradient
+    /// circle — the screen's only gradient besides the draft's Save pill.
+    /// The button stays put while sending (dimmed, disabled) — the typing
+    /// indicator carries the "coach is thinking" signal, not a spinner.
     private var composerBar: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 12) {
-                Menu {
-                    Button {
-                        attachmentDestination = .photo
-                    } label: {
-                        Label("Import photo or screenshot", systemImage: "photo.on.rectangle")
-                    }
-
-                    Button {
-                        attachmentDestination = .voice
-                    } label: {
-                        Label("Record a voice note", systemImage: "mic")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .frame(width: 28, height: 28)
-                }
-                .accessibilityLabel("Add a photo, screenshot, or voice note")
-
-                TrackerTextField("Ask anything", text: $messageText, axis: .vertical)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .tint(AppTheme.primary)
-                    .lineLimit(1...5)
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named(Self.chatSpaceName))
-                    } action: { frame in
-                        composerFieldFrame = frame
-                    }
-
-                // The button stays put while sending (dimmed, disabled) —
-                // the in-conversation typing indicator carries the "coach is
-                // thinking" signal, iMessage-style, instead of a spinner.
+        HStack(spacing: 6) {
+            Menu {
                 Button {
-                    sendMessage()
+                    attachmentDestination = .photo
                 } label: {
-                    Image(systemName: currentDraft == nil ? "arrow.up.circle.fill" : "waveform.circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(sendButtonColor)
+                    Label("Import photo or screenshot", systemImage: "photo.on.rectangle")
                 }
-                .buttonStyle(.plain)
-                .disabled(isSending || messageText.trimmingCharacters(in: .whitespacesAndNewlines).count < 4)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(AppTheme.surfaceElevated)
-            .clipShape(Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
-            .padding(.horizontal, 24)
 
-            Text("Lokt can make mistakes.")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.textTertiary)
-                .multilineTextAlignment(.center)
+                Button {
+                    attachmentDestination = .voice
+                } label: {
+                    Label("Record a voice note", systemImage: "mic")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .frame(width: 38, height: 38)
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("Add a photo, screenshot, or voice note")
+
+            // Measured before the vertical padding so the send morph lifts
+            // off the text itself, not the field's breathing room.
+            TrackerTextField("Ask anything", text: $messageText, axis: .vertical)
+                .font(ChatBubble.font)
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
+                .lineLimit(1...5)
+                .focused($composerFocused)
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named(Self.chatSpaceName))
+                } action: { frame in
+                    composerFieldFrame = frame
+                }
+                .padding(.vertical, 8)
+
+            Button {
+                sendMessage()
+            } label: {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(AppTheme.backgroundTop)
+                    .frame(width: 38, height: 38)
+                    .background(AppTheme.primaryGradient)
+                    .clipShape(Circle())
+                    .opacity(canSend ? 1 : 0.4)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSend)
+            .accessibilityLabel("Send")
         }
-        .padding(.top, 10)
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .background(AppTheme.card)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        }
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 8)
         .padding(.bottom, 10)
         .background(
             AppTheme.backgroundTop
@@ -399,13 +416,8 @@ struct CoachView: View {
         )
     }
 
-    private var sendButtonColor: Color {
-        if isSending {
-            return AppTheme.textSecondary.opacity(0.35)
-        }
-        return messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4
-            ? AppTheme.primary
-            : AppTheme.textSecondary.opacity(0.55)
+    private var canSend: Bool {
+        !isSending && messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4
     }
 
     private func finishAttachmentImport() {
@@ -462,11 +474,15 @@ struct CoachView: View {
 
                 Text(message.text)
                     .font(ChatBubble.font)
-                    .foregroundStyle(AppTheme.backgroundTop)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, ChatBubble.hPad)
                     .padding(.vertical, ChatBubble.vPad)
-                    .background(ChatBubble.userShape.fill(AppTheme.accent))
+                    .background(ChatBubble.userShape.fill(AppTheme.surfaceElevated))
+                    .overlay {
+                        ChatBubble.userShape
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .named(Self.chatSpaceName))
                     } action: { frame in
@@ -478,25 +494,20 @@ struct CoachView: View {
             .opacity(sendMorphs.contains { $0.id == message.id } ? 0 : 1)
             .transition(.opacity)
         } else {
+            // Coach prose is plain text on the canvas — no bubble.
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(message.text)
-                        .font(ChatBubble.font)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, ChatBubble.hPad)
-                        .padding(.vertical, ChatBubble.vPad)
-                        .background(ChatBubble.coachShape.fill(AppTheme.surfaceElevated))
-
-                    Spacer(minLength: 56)
-                }
+                Text(message.text)
+                    .font(ChatBubble.coachFont)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineSpacing(ChatBubble.coachLineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.trailing, 12)
 
                 if message.id == conversationMessages.last?.id, conversationMessages.count > 1 {
                     assistantActionRow(for: message)
-                        .padding(.leading, 4)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .transition(incomingTransition)
         }
     }
@@ -542,154 +553,237 @@ struct CoachView: View {
         }
     }
 
+    /// The card: WORKOUT DRAFT micro label with the pager chip and dots on
+    /// the right (multi replies only), 18pt title, an exercise/set meta line,
+    /// a hairline, the numbered exercise list, and the action row. The
+    /// accent hairline over `glassCard()` makes it the one accent-bordered
+    /// card on the screen.
     private func draftCardContent(for draft: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text("WORKOUT DRAFT")
-                            .microLabel()
+            HStack(alignment: .center, spacing: 10) {
+                Text("WORKOUT DRAFT")
+                    .microLabel(AppTheme.accent)
 
-                        if drafts.count > 1 {
-                            pagerChip
-                        }
+                Spacer(minLength: 8)
+
+                if drafts.count > 1 {
+                    pagerChip
+                    pagerDots
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(draft.title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // No "~min" segment: the draft payload carries no time estimate.
+                Text("\(draft.exercises.count) exercises • \(draft.totalSets) sets")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+
+                if changeSummaryDraftIDs.contains(draft.id),
+                   let latestChangeSummary = nonEmptyText(latestChangeSummary) {
+                    Text(latestChangeSummary)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Rectangle()
+                .fill(AppTheme.cardBorder)
+                .frame(height: 1)
+
+            draftExerciseList(for: draft)
+
+            draftActions(for: draft)
+        }
+        .padding(18)
+        .glassCard()
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                .stroke(AppTheme.accentHairline, lineWidth: 1)
+        }
+        .gesture(pagerSwipe)
+    }
+
+    // MARK: Draft exercise list
+
+    /// Rows past this count fold behind "+ N more" until tapped.
+    private static let foldedExerciseCount = 4
+
+    /// Width of the "1." column so names line up down the list.
+    private static let exerciseIndexWidth: CGFloat = 22
+
+    private func draftExerciseList(for draft: AIGeneratedRoutineDraft) -> some View {
+        let rows = Array(draft.exercises.enumerated())
+        let hiddenCount = rows.count - Self.foldedExerciseCount
+        let isFolded = hiddenCount > 0 && !expandedDraftListIDs.contains(draft.id)
+        let visibleRows = isFolded ? Array(rows.prefix(Self.foldedExerciseCount)) : rows
+
+        return VStack(alignment: .leading, spacing: 10) {
+            ForEach(visibleRows, id: \.element.id) { item in
+                draftExerciseRow(item.element, index: item.offset)
+            }
+
+            if isFolded {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        _ = expandedDraftListIDs.insert(draft.id)
+                    }
+                } label: {
+                    Text("+ \(hiddenCount) more")
+                        .font(.caption.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .padding(.leading, Self.exerciseIndexWidth + 10)
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(hiddenCount) more exercises")
+            }
+        }
+    }
+
+    /// One numbered line: index in mono, the name (a link into the exercise
+    /// detail, with the reasoning/tip chevron when the coach gave one), then
+    /// "3 sets • 8–10" in mono and the ask button on the right. The
+    /// "Recommended sets: N" chip sits beneath only while it differs — the
+    /// same one-tap restore as before.
+    private func draftExerciseRow(_ exercise: AIGeneratedExercise, index: Int) -> some View {
+        let reasoning = nonEmptyText(exercise.reasoning)
+        let tip = nonEmptyText(exercise.tip)
+        let isExpanded = expandedDetailIDs.contains(exercise.id)
+
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(index + 1).")
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textTertiary)
+                .frame(width: Self.exerciseIndexWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    ExerciseTextNavigationLink(
+                        exerciseName: exercise.name,
+                        exercises: exerciseStore.exercises
+                    ) {
+                        Text(exercise.name)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
                     }
 
-                    Text(draft.title)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                    if reasoning != nil || tip != nil {
+                        ExerciseDetailDisclosureChevron(
+                            id: exercise.id,
+                            expandedIDs: $expandedDetailIDs,
+                            font: .caption
+                        )
+                    }
 
-                    Text("\(draft.exercises.count) exercises • \(draft.totalSets) sets")
-                        .font(.caption)
+                    Spacer(minLength: 8)
+
+                    Text("\(exercise.sets) sets • \(exercise.reps)")
+                        .font(.system(.caption, design: .monospaced))
                         .monospacedDigit()
                         .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize()
+
+                    ExerciseAskButton(
+                        context: ExerciseAskContext(draft: exercise),
+                        askTarget: $askTarget,
+                        font: .footnote,
+                        hinted: hints.showAskHint(sessionCount: store.sessions.count)
+                    )
                 }
 
-                Spacer()
+                if let recommendedSets = exercise.recommendedSets,
+                   recommendedSets != max(1, exercise.sets) {
+                    RecommendedSetsChip(
+                        recommended: recommendedSets,
+                        count: draftSetBinding(for: index),
+                        font: .caption
+                    )
+                }
 
+                if isExpanded, let reasoning {
+                    Text(reasoning)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if isExpanded, let tip {
+                    Text(tip)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    // MARK: Draft actions
+
+    /// Bottom row: THE gradient pill of the screen — per-draft Save / Update,
+    /// swapped for the Saved capsule once written — beside a fixed-width
+    /// Revise ghost that hands focus to the composer (the existing revise
+    /// path: the next message replaces only this draft). A multi reply with
+    /// more than one unsaved draft adds Save both / Save all as a ghost pill
+    /// beneath, through the same persist path as each draft's own button.
+    private func draftActions(for draft: AIGeneratedRoutineDraft) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
                 if savedDraftIDs.contains(draft.id) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.success)
+                    savedCapsule(for: draft)
 
-                        Text(updatedDraftIDs.contains(draft.id) ? "Updated" : "Saved")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(AppTheme.cardBorder, lineWidth: 1)
-                    }
+                    Spacer(minLength: 0)
                 } else {
                     Button(hasSavedLineage(draft) ? "Update Workout" : "Save Workout") {
                         saveDraft(draft)
                     }
-                    .buttonStyle(SecondaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle())
                 }
-            }
 
-            if let overview = draft.briefOverview {
-                Text(overview)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if changeSummaryDraftIDs.contains(draft.id),
-               let latestChangeSummary = nonEmptyText(latestChangeSummary) {
-                Text(latestChangeSummary)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(draft.exercises.enumerated()), id: \.element.id) { item in
-                    let reasoning = nonEmptyText(item.element.reasoning)
-                    let tip = nonEmptyText(item.element.tip)
-                    let isExpanded = expandedDetailIDs.contains(item.element.id)
-
-                    HStack(alignment: .top, spacing: 10) {
-                        Text("\(item.offset + 1).")
-                            .font(.caption.weight(.bold))
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textTertiary)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 10) {
-                                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    ExerciseTextNavigationLink(
-                                        exerciseName: item.element.name,
-                                        exercises: exerciseStore.exercises
-                                    ) {
-                                        Text(item.element.name)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(AppTheme.textPrimary)
-                                    }
-
-                                    if reasoning != nil || tip != nil {
-                                        ExerciseDetailDisclosureChevron(
-                                            id: item.element.id,
-                                            expandedIDs: $expandedDetailIDs,
-                                            font: .footnote
-                                        )
-                                    }
-                                }
-
-                                Spacer(minLength: 8)
-
-                                ExerciseAskButton(
-                                    context: ExerciseAskContext(draft: item.element),
-                                    askTarget: $askTarget,
-                                    font: .subheadline,
-                                    hinted: hints.showAskHint(sessionCount: store.sessions.count)
-                                )
-                            }
-
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text("\(item.element.sets) sets • \(item.element.reps)")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .foregroundStyle(AppTheme.textSecondary)
-
-                                if let recommendedSets = item.element.recommendedSets {
-                                    RecommendedSetsChip(
-                                        recommended: recommendedSets,
-                                        count: draftSetBinding(for: item.offset),
-                                        font: .caption
-                                    )
-                                }
-                            }
-
-                            if isExpanded, let reasoning {
-                                Text(reasoning)
-                                    .font(.footnote)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            if isExpanded, let tip {
-                                Text(tip)
-                                    .font(.footnote)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
+                Button("Revise") {
+                    composerFocused = true
                 }
+                .buttonStyle(GhostButtonStyle(verticalPadding: 17))
+                .frame(width: 96)
             }
 
-            if drafts.count > 1 {
-                pagerFooter
+            if unsavedDraftCount > 1 {
+                Button(drafts.count == 2 ? "Save both" : "Save all") {
+                    saveAllDrafts()
+                }
+                .buttonStyle(GhostButtonStyle())
             }
         }
-        .padding(18)
-        .glassCard()
-        .gesture(pagerSwipe)
+        .padding(.top, 2)
+    }
+
+    private func savedCapsule(for draft: AIGeneratedRoutineDraft) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppTheme.success)
+
+            Text(updatedDraftIDs.contains(draft.id) ? "Updated" : "Saved")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(AppTheme.mutedFill)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        }
     }
 
     // MARK: Draft pager (multi-draft replies only)
@@ -700,50 +794,36 @@ struct CoachView: View {
             showDraft(at: (focusedDraftIndex + 1) % drafts.count, forward: true)
         } label: {
             Text("\(focusedDraftIndex + 1) OF \(drafts.count)")
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
                 .monospacedDigit()
-                .microLabel(AppTheme.textSecondary)
+                .foregroundStyle(AppTheme.accent)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(AppTheme.mutedFill)
+                .background(AppTheme.accentChipFill)
                 .clipShape(Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(AppTheme.cardBorder, lineWidth: 1)
-                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Draft \(focusedDraftIndex + 1) of \(drafts.count), show next")
     }
 
-    /// Dots to jump between drafts, plus one action to save every unsaved
-    /// draft — each through the same review-before-save path as its own button.
-    private var pagerFooter: some View {
-        HStack(spacing: 14) {
-            HStack(spacing: 6) {
-                ForEach(drafts.indices, id: \.self) { index in
-                    Button {
-                        showDraft(at: index, forward: index > focusedDraftIndex)
-                    } label: {
-                        Circle()
-                            .fill(index == focusedDraftIndex ? AppTheme.textPrimary : AppTheme.textTertiary)
-                            .frame(width: 6, height: 6)
-                            .frame(width: 16, height: 16)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Draft \(index + 1)")
+    /// Dots to jump between drafts: accent for the focused one, hairline
+    /// for the rest.
+    private var pagerDots: some View {
+        HStack(spacing: 2) {
+            ForEach(drafts.indices, id: \.self) { index in
+                Button {
+                    showDraft(at: index, forward: index > focusedDraftIndex)
+                } label: {
+                    Circle()
+                        .fill(index == focusedDraftIndex ? AppTheme.accent : AppTheme.cardBorder)
+                        .frame(width: 6, height: 6)
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
                 }
-            }
-
-            Spacer()
-
-            if unsavedDraftCount > 1 {
-                Button(drafts.count == 2 ? "Save both" : "Save all") {
-                    saveAllDrafts()
-                }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(.plain)
+                .accessibilityLabel("Draft \(index + 1)")
             }
         }
-        .padding(.top, 2)
     }
 
     private var unsavedDraftCount: Int {
@@ -793,23 +873,10 @@ struct CoachView: View {
         }
     }
 
-    private var topBarSubtitle: String {
-        switch contextKind {
-        case .planning:
-            return "Planning a new workout"
-        case .draftEditing:
-            return "Refining the current draft"
-        case .routineEditing:
-            return "Reviewing a routine"
-        case .activeWorkout:
-            return "Helping during your workout"
-        }
-    }
-
     private var contextBannerText: String? {
         switch initialContext {
         case .planning:
-            // The top bar subtitle already says "Planning a new workout" — no banner needed.
+            // The opener already frames the planning context — no banner needed.
             return nil
         case .activeWorkout(let snapshot):
             if let checkInNote = nonEmptyText(snapshot.checkInNote) {
@@ -1144,32 +1211,27 @@ struct CoachView: View {
     }
 }
 
-/// Shared geometry for chat bubbles — the real bubbles and the in-flight
+/// Shared geometry for the sent bubble — the real bubble and the in-flight
 /// morph render must agree on every one of these so the settle is seamless.
+/// Coach prose has no bubble; its font lives here too so both sides of the
+/// exchange stay one type system.
 private enum ChatBubble {
     static let radius: CGFloat = 18
-    static let tailRadius: CGFloat = 6
+    static let tailRadius: CGFloat = 4
     static let hPad: CGFloat = 14
     static let vPad: CGFloat = 9
-    static let font = Font.system(size: 17)
+    static let font = Font.system(size: 15)
 
-    /// Sent bubble: tight bottom-trailing corner, iMessage tail feel.
+    /// Coach prose: plain text, generous line height.
+    static let coachFont = Font.system(size: 14)
+    static let coachLineSpacing: CGFloat = 5
+
+    /// Sent bubble: 18pt corners with a tight 4pt bottom-trailing corner.
     static var userShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(
             topLeadingRadius: radius,
             bottomLeadingRadius: radius,
             bottomTrailingRadius: tailRadius,
-            topTrailingRadius: radius,
-            style: .continuous
-        )
-    }
-
-    /// Received bubble: tight bottom-leading corner.
-    static var coachShape: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(
-            topLeadingRadius: radius,
-            bottomLeadingRadius: tailRadius,
-            bottomTrailingRadius: radius,
             topTrailingRadius: radius,
             style: .continuous
         )
@@ -1209,10 +1271,11 @@ private struct SendMorphRender: ViewModifier, Animatable {
         let radius = lerp(startRadius, ChatBubble.radius, sizeT)
         let tail = lerp(startRadius, ChatBubble.tailRadius, sizeT)
 
-        // Color commits early — by half the flight the bubble reads as sent.
+        // Surface commits early — by half the flight the bubble has lifted
+        // off the composer's card fill onto the sent bubble's elevated
+        // surface and its hairline has faded in.
         let colorT = min(posT / 0.5, 1)
-        let fill = AppTheme.surfaceElevated.mix(with: AppTheme.accent, by: colorT)
-        let textColor = AppTheme.textPrimary.mix(with: AppTheme.backgroundTop, by: colorT)
+        let fill = AppTheme.card.mix(with: AppTheme.surfaceElevated, by: colorT)
 
         let shape = UnevenRoundedRectangle(
             topLeadingRadius: radius,
@@ -1227,7 +1290,7 @@ private struct SendMorphRender: ViewModifier, Animatable {
 
             Text(text)
                 .font(ChatBubble.font)
-                .foregroundStyle(textColor)
+                .foregroundStyle(AppTheme.textPrimary)
                 .padding(.horizontal, ChatBubble.hPad)
                 .padding(.vertical, ChatBubble.vPad)
                 .frame(width: width, alignment: .leading)
@@ -1235,6 +1298,11 @@ private struct SendMorphRender: ViewModifier, Animatable {
         }
         .frame(width: width, height: height, alignment: .topLeading)
         .clipShape(shape)
+        .overlay {
+            shape
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+                .opacity(colorT)
+        }
         .position(x: minX + width / 2, y: minY + height / 2)
     }
 
@@ -1243,9 +1311,9 @@ private struct SendMorphRender: ViewModifier, Animatable {
     }
 }
 
-/// iMessage-style "coach is typing" bubble: three dots pulsing in a wave.
-/// Reduce Motion shows the dots statically.
-private struct TypingIndicatorBubble: View {
+/// "Coach is typing": three dots pulsing in a wave, plain on the canvas like
+/// the coach's prose. Reduce Motion shows the dots statically.
+private struct TypingIndicatorDots: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulsing = false
 
@@ -1254,7 +1322,7 @@ private struct TypingIndicatorBubble: View {
             ForEach(0..<3) { index in
                 Circle()
                     .fill(AppTheme.textSecondary)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 7, height: 7)
                     .opacity(pulsing ? 1 : 0.35)
                     .scaleEffect(pulsing ? 1 : 0.82)
                     .animation(
@@ -1267,9 +1335,7 @@ private struct TypingIndicatorBubble: View {
                     )
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(ChatBubble.coachShape.fill(AppTheme.surfaceElevated))
+        .padding(.vertical, 8)
         .onAppear {
             pulsing = true
         }
