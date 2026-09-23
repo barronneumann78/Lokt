@@ -38,6 +38,30 @@ enum AccentScheme: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Pill-gradient stops for the primary action: a lighter tint (top-leading)
+    /// running into a darker shade (bottom-trailing) of the same accent. Every
+    /// pair keeps light > base > dark in luminance and the near-black label at
+    /// >= 5.9:1 on the dark stop (`harness/logic-checks/accent-gradient-stops`).
+    var gradientStops: (light: Color, dark: Color) {
+        switch self {
+        case .volt: return (Color(red: 0.922, green: 1.0, blue: 0.451), Color(red: 0.659, green: 0.831, blue: 0.0))     // #EBFF73 → #A8D400
+        case .ember: return (Color(red: 1.0, green: 0.682, blue: 0.420), Color(red: 0.851, green: 0.443, blue: 0.122))  // #FFAE6B → #D9711F
+        case .mint: return (Color(red: 0.494, green: 0.941, blue: 0.749), Color(red: 0.133, green: 0.722, blue: 0.486)) // #7EF0BF → #22B87C
+        case .gold: return (Color(red: 1.0, green: 0.867, blue: 0.478), Color(red: 0.851, green: 0.647, blue: 0.125))   // #FFDD7A → #D9A520
+        case .tide: return (Color(red: 0.471, green: 0.918, blue: 0.839), Color(red: 0.122, green: 0.702, blue: 0.612)) // #78EAD6 → #1FB39C
+        case .ice: return (Color(red: 1.0, green: 1.0, blue: 1.0), Color(red: 0.831, green: 0.831, blue: 0.847))        // #FFFFFF → #D4D4D8
+        }
+    }
+
+    /// Alpha of the pill glow (shadow color = the dark stop). Ice is near-white,
+    /// so its glow would read as a gray smear at full strength — keep it faint.
+    var glowOpacity: Double {
+        switch self {
+        case .ice: return 0.22
+        case .volt, .ember, .mint, .gold, .tide: return 0.5
+        }
+    }
+
     static let storageKey = "accentScheme"
 
     /// Missing or unrecognized stored value → volt, so a fresh install (or a
@@ -50,7 +74,12 @@ enum AccentScheme: String, CaseIterable, Identifiable {
 }
 
 // Dark athletic minimal: near-black canvas, one volt accent, hairline-separated
-// flat surfaces, oversized tabular numbers. No gradients, no glows, no shadows.
+// flat surfaces, oversized tabular numbers. Depth comes from glow and highlight
+// only — never from new colors — and it lives EXCLUSIVELY here: this file is
+// the one place `LinearGradient`/`RadialGradient`/`.shadow(` may appear
+// (`harness/checks.sh` sensor 1b). Views reach depth through the tokens below:
+// `primaryGradient` + `.primaryGlow()` (the one primary pill per screen),
+// `cardHighlight` (inside `glassCard()`), `.heroGlow()` (the hero number).
 enum AppTheme {
     static let screenPadding: CGFloat = 20
     static let cardPadding: CGFloat = 20
@@ -78,6 +107,35 @@ enum AppTheme {
 
     static var primary: Color { activeScheme.color }
     static var accent: Color { activeScheme.color }   // = primary, always
+
+    // Primary-action pill: the accent's light stop running into its dark stop
+    // at 135° (top-leading → bottom-trailing). Follows the chosen scheme.
+    static var primaryGradient: LinearGradient {
+        let stops = activeScheme.gradientStops
+        return LinearGradient(colors: [stops.light, stops.dark],
+                              startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    /// Soft glow under the primary pill: the gradient's dark stop at ~½ alpha,
+    /// dropped down so it reads as light spilling off the pill.
+    struct Glow {
+        let color: Color
+        let radius: CGFloat
+        let y: CGFloat
+    }
+    static var primaryGlow: Glow {
+        Glow(color: activeScheme.gradientStops.dark.opacity(activeScheme.glowOpacity),
+             radius: 14, y: 8)
+    }
+
+    /// 1px inner top highlight on cards (Whoop-style depth) — sits inside the
+    /// `cardBorder` hairline and fades out down the sides.
+    static let cardHighlight = Color.white.opacity(0.04)
+
+    /// Faint radial accent glow behind a hero number: accent at 14% fading to
+    /// nothing, ~1.4× the number's width.
+    static let heroGlowOpacity: Double = 0.14
+    static let heroGlowSpread: CGFloat = 1.4
 
     // Semantic colors — fixed, never restyled by the accent scheme.
     static let secondary = Color(red: 1.0, green: 0.722, blue: 0.302)  // #FFB84D warn/amber
@@ -207,7 +265,8 @@ struct AppBackground: View {
     }
 }
 
-// Flat card one shade lighter than the canvas, separated by a 1px hairline.
+// Flat card one shade lighter than the canvas, separated by a 1px hairline,
+// with a 1px inner top highlight just inside it (`AppTheme.cardHighlight`).
 // Keeps the `glassCard()` name so call sites don't change — no longer glassy.
 struct GlassCardModifier: ViewModifier {
     func body(content: Content) -> some View {
@@ -218,6 +277,49 @@ struct GlassCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
+            .overlay {
+                // Inset one point so the highlight sits inside the hairline;
+                // the vertical fade keeps it a top edge, not a full ring.
+                RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius - 1, style: .continuous)
+                    .inset(by: 1)
+                    .stroke(
+                        LinearGradient(colors: [AppTheme.cardHighlight, AppTheme.cardHighlight.opacity(0)],
+                                       startPoint: .top, endPoint: .center),
+                        lineWidth: 1
+                    )
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
+/// Glow under the primary pill — see `AppTheme.primaryGlow`. Applied after the
+/// capsule clip so the shadow takes the pill's shape.
+struct PrimaryGlowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        let glow = AppTheme.primaryGlow
+        return content.shadow(color: glow.color, radius: glow.radius, x: 0, y: glow.y)
+    }
+}
+
+/// Faint radial accent glow behind a hero number. Drawn as a circle 1.4× the
+/// number's width, squashed to an ellipse so it hugs the figure instead of
+/// bleeding into the label above and the caption below. Ends at 0-alpha accent
+/// (not `.clear`) so the fade never picks up a gray cast.
+struct HeroGlowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.background {
+            GeometryReader { geo in
+                let diameter = geo.size.width * AppTheme.heroGlowSpread
+                RadialGradient(
+                    colors: [AppTheme.primary.opacity(AppTheme.heroGlowOpacity), AppTheme.primary.opacity(0)],
+                    center: .center, startRadius: 0, endRadius: diameter / 2
+                )
+                .frame(width: diameter, height: diameter)
+                .scaleEffect(x: 1, y: 0.55)
+                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+            }
+            .allowsHitTesting(false)
+        }
     }
 }
 
@@ -245,6 +347,19 @@ extension View {
         modifier(SurfaceCardModifier(cornerRadius: cornerRadius, border: border))
     }
 
+    /// The primary pill's glow (`AppTheme.primaryGlow`). `PrimaryButtonStyle`
+    /// applies it for accent fills; views never call `.shadow(` themselves.
+    func primaryGlow() -> some View {
+        modifier(PrimaryGlowModifier())
+    }
+
+    /// Radial accent glow behind THE hero number of a screen. Phase 1 wears it
+    /// in exactly two places: Home's week volume and the Analytics headline
+    /// strip.
+    func heroGlow() -> some View {
+        modifier(HeroGlowModifier())
+    }
+
     func trackerTextEditorStyle() -> some View {
         self
             .foregroundColor(AppTheme.textPrimary)
@@ -261,6 +376,9 @@ extension View {
     }
 }
 
+// Full-width pill. The accent fill (the default — THE primary action of a
+// screen) renders `AppTheme.primaryGradient` under `.primaryGlow()`; every
+// other fill (dark surfaces, `success`) stays flat in the same capsule.
 struct PrimaryButtonStyle: ButtonStyle {
     var fill: Color = AppTheme.primary
 
@@ -270,16 +388,30 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(labelColor)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(fill.opacity(configuration.isPressed ? 0.82 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+            .background {
+                Group {
+                    if isAccentFill {
+                        AppTheme.primaryGradient
+                    } else {
+                        fill
+                    }
+                }
+                .opacity(configuration.isPressed ? 0.82 : 1)
+            }
+            .clipShape(Capsule())
             .overlay {
                 if isDarkFill {
-                    RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                    Capsule()
                         .stroke(AppTheme.cardBorder, lineWidth: 1)
                 }
             }
+            .modifier(ConditionalPrimaryGlow(isOn: isAccentFill))
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
             .animation(.easeOut(duration: 0.18), value: configuration.isPressed)
+    }
+
+    private var isAccentFill: Bool {
+        fill == AppTheme.primary
     }
 
     // Vivid fills (volt / green / amber) demand a near-black label; dark surface
@@ -291,6 +423,20 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     private var labelColor: Color {
         isDarkFill ? AppTheme.textPrimary : AppTheme.backgroundTop
+    }
+}
+
+/// Applies `.primaryGlow()` only when `isOn`, so flat fills carry no shadow
+/// without branching the whole button body.
+private struct ConditionalPrimaryGlow: ViewModifier {
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        if isOn {
+            content.primaryGlow()
+        } else {
+            content
+        }
     }
 }
 

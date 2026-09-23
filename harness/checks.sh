@@ -13,11 +13,28 @@ fail() { echo "  FAIL  $1"; FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); }
 echo "== Lokt harness checks =="
 
 # 1. Banned visual styles (the "AI slop" list — restyle commits c6a9680/2489105).
-#    Blue/purple accents, gradients, and shadows are design-system violations.
-BANNED=$(grep -rnE '0\.29, *0\.62, *1\.00|0\.56, *0\.53, *0\.96|Color\.blue|#2A5285|#4A9EFF|LinearGradient|RadialGradient|AngularGradient|\.shadow\(' \
+#    Blue/purple accents and AngularGradient are banned EVERYWHERE.
+BANNED=$(grep -rnE '0\.29, *0\.62, *1\.00|0\.56, *0\.53, *0\.96|Color\.blue|#2A5285|#4A9EFF|AngularGradient' \
   --include="*.swift" "$SRC" | grep -v "^Binary")
-if [ -n "$BANNED" ]; then fail "banned style (blue/purple/gradient/shadow) found:"; echo "$BANNED" | head -5
-else pass "no banned styles (blue/purple, gradients, shadows)"; fi
+if [ -n "$BANNED" ]; then fail "banned style (blue/purple/angular gradient) found:"; echo "$BANNED" | head -5
+else pass "no banned styles (blue/purple, angular gradients)"; fi
+
+# 1b. Depth stays in the token layer (v2 look, phase 1). Linear/radial
+#     gradients and `.shadow(` are allowed ONLY in Theme.swift — home of
+#     `AppTheme.primaryGradient`, `.primaryGlow()`, `AppTheme.cardHighlight` and
+#     `.heroGlow()`. Every view reaches depth through those tokens; a gradient
+#     or shadow written in a view file is the old AI-slop failure in new clothes.
+DEPTH=$(grep -rnE 'LinearGradient|RadialGradient|\.shadow\(' \
+  --include="*.swift" "$SRC" | grep -v "^Binary" | grep -v "^$SRC/Theme.swift:")
+if [ -n "$DEPTH" ]; then fail "gradient/shadow outside Theme.swift (use AppTheme.primaryGradient / .primaryGlow() / .heroGlow() / cardHighlight):"; echo "$DEPTH" | head -5
+else pass "gradients/shadows live only in Theme.swift (views use the depth tokens)"; fi
+
+# 1c. Per-scheme pill-gradient stops: every AccentScheme carries a light/dark
+#     pair ordered light > base > dark in luminance, the near-black label clears
+#     4.5:1 on the dark stop, and ice's glow stays subtle. Extracted from the
+#     REAL Theme.swift (Python: it imports UIKit, so no macOS swiftc harness);
+#     prints its own PASS/FAIL lines.
+if ! python3 harness/logic-checks/accent-gradient-stops/check.py; then FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); fi
 
 # 2. Color literals outside the token layer (Theme.swift is the only home).
 LITERALS=$(grep -rn 'Color(red:' --include="*.swift" "$SRC" | grep -v "Theme.swift")

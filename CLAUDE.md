@@ -112,10 +112,26 @@ Always build with the real compiler after Swift changes; fix errors, don't guess
 All colors route through `AppTheme` tokens in `Theme.swift`. Flat #0B0B0C bg,
 #141416 cards + #26262A hairlines, accent = volt #D6FF3F (user-selectable
 schemes exist; volt is default). **Banned** (checks.sh enforces): blue/purple,
-gradients, `.shadow(`, glassmorphism, `Color(red:...)` literals outside
-Theme.swift. Rules: volt ≤1–2×/screen (chrome; data encoding exempt),
-near-black labels on accent fills, `.monospacedDigit()` on every numeral, one
-hero number per screen, no gray explainer captions — labels carry the meaning.
+`AngularGradient`, glassmorphism, `Color(red:...)` literals outside Theme.swift,
+and — in every file EXCEPT Theme.swift — `LinearGradient`/`RadialGradient`/
+`.shadow(`. Depth is a token-layer concern: `AppTheme.primaryGradient` +
+`.primaryGlow()` (the one primary pill per screen; `PrimaryButtonStyle` renders
+them for accent fills), `AppTheme.cardHighlight` (1px inner top highlight inside
+`glassCard()`), `.heroGlow()` (radial accent glow behind the hero number). Views
+use those tokens and never write gradients or shadows themselves. Rules: volt
+≤1–2×/screen (chrome; data encoding exempt), near-black labels on accent fills,
+`.monospacedDigit()` on every numeral, one hero number per screen, no gray
+explainer captions — labels carry the meaning.
+
+**Concept → code (the "v2 dream app" look).** Palette untouched; depth comes
+from glow and highlight only, never new colors or full-screen washes.
+Phase 1 (done, global): the tokens above; `Primary/Secondary/TertiaryButtonStyle`
+are all capsules and the accent-filled primary is a lime→olive (per-scheme
+`AccentScheme.gradientStops` + `glowOpacity`, ice kept subtle) gradient pill
+with glow; every `glassCard()` carries the highlight; `.heroGlow()` sits on
+Home's week volume and the Analytics headline strip only.
+Later phases (per screen, not global): Home week strip, logger set table, coach
+draft pager.
 
 ## Conventions & guardrails
 

@@ -44,6 +44,15 @@ one directory, one `check.mjs`, extract-don't-copy.
 Coach multi-draft path; its extractor also skips destructured signatures
 (`function f({ a, b })`), which the original brace matcher cannot.
 
+## Token-layer variant
+
+`accent-gradient-stops/check.py` (sensor 1c) gives `Theme.swift` the same
+extract-don't-copy treatment in Python: the file imports UIKit, so no macOS
+`swiftc` harness can compile it. The script regex-extracts every
+`AccentScheme` case's base color, `gradientStops` pair and `glowOpacity` from
+the REAL source and asserts luminance order, label contrast and the subtle
+ice glow.
+
 ## Rules
 
 - Deterministic: fixed dates and a fixed timezone in the harness — never `Date()`.

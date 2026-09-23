@@ -106,6 +106,7 @@ struct HomeView: View {
                         .monospacedDigit()
                         .tracking(-1.5)
                         .foregroundStyle(AppTheme.textPrimary)
+                        .heroGlow()
 
                     Text(weekVolumeParts.unit)
                         .font(.title3.weight(.semibold))

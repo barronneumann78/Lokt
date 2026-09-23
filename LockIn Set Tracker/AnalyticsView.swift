@@ -161,6 +161,7 @@ struct AnalyticsView: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .heroGlow()
 
             if let delta {
                 Text(delta.text)
