@@ -600,6 +600,7 @@ private struct ExerciseAddSheet: View {
     var onComplete: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var workoutStore: WorkoutStore
     @State private var routines: [Routine] = []
 
     var body: some View {
@@ -628,7 +629,7 @@ private struct ExerciseAddSheet: View {
             }
         }
         .onAppear {
-            routines = RoutineLibrary.load()
+            routines = workoutStore.routines
         }
     }
 
@@ -656,7 +657,11 @@ private struct ExerciseAddSheet: View {
             } else {
                 ForEach(routines) { routine in
                     Button {
-                        let result = RoutineLibrary.addExercise(named: exercise.name, toRoutineID: routine.id)
+                        let result = RoutineLibrary.addExercise(
+                            named: exercise.name,
+                            toRoutineID: routine.id,
+                            in: workoutStore
+                        )
                         onComplete(result.message)
                         dismiss()
                     } label: {
@@ -696,7 +701,7 @@ private struct ExerciseAddSheet: View {
                 .microLabel()
 
             Button {
-                let routine = RoutineLibrary.createRoutine(from: exercise.name)
+                let routine = RoutineLibrary.createRoutine(from: exercise.name, in: workoutStore)
                 onComplete("Created \(routine.name).")
                 dismiss()
             } label: {

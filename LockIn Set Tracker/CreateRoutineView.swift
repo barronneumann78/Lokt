@@ -21,6 +21,7 @@ struct CreateRoutineView: View {
     @State private var hasLoadedRoutine = false
     @State private var draggedExercise: String?
     @State private var askTarget: ExerciseAskContext?
+    @State private var showRoutineCoach = false
 
     init(routineToEdit: Routine? = nil, onSave: @escaping () -> Void) {
         self.routineToEdit = routineToEdit
@@ -183,7 +184,12 @@ struct CreateRoutineView: View {
         // Cheap safety net: pick up custom exercises saved elsewhere.
         .onAppear(perform: exerciseStore.reloadCustomExercises)
         .sheet(item: $askTarget) { context in
-            ExerciseAskCoachSheet(context: context)
+            ExerciseAskCoachSheet(context: context) { suggestion in
+                switchExercise(context.name, to: suggestion.exerciseName)
+            }
+        }
+        .sheet(isPresented: $showRoutineCoach) {
+            RoutineEditorCoachSheet(snapshot: routineCoachSnapshot)
         }
     }
 
@@ -418,6 +424,30 @@ struct CreateRoutineView: View {
                     .clipShape(Capsule())
             }
 
+            TrackerTextField("Search this exercise list", text: $searchText)
+                .textFieldStyle(TrackerTextFieldStyle())
+                .autocorrectionDisabled()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    askCoachAboutRoutine()
+                } label: {
+                    Label("Ask Coach about this workout", systemImage: "message")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(selectedExercises.isEmpty)
+                .opacity(selectedExercises.isEmpty ? 0.55 : 1)
+
+                Text(
+                    selectedExercises.isEmpty
+                        ? "Add an exercise first, then Coach can review the workout as a whole."
+                        : "Coach sees the exercises you selected and gives advice without changing this routine."
+                )
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
             if filteredExercises.isEmpty {
                 Text("No exercises match those filters.")
                     .font(.subheadline)
@@ -619,6 +649,37 @@ struct CreateRoutineView: View {
         return AddExerciseResult(message: "Added \(exercise) to this routine.", didMutate: true)
     }
 
+    /// Replaces the selected exercise in place, retaining its set target and
+    /// order. If the suggested alternative already exists, keep that one and
+    /// remove the source rather than creating a duplicate exercise row.
+    private func switchExercise(_ currentExercise: String, to alternative: String) {
+        guard currentExercise != alternative,
+              let sourceIndex = selectedExercises.firstIndex(of: currentExercise) else { return }
+
+        let sourceSetCount = preferredSetCount(for: currentExercise)
+        if selectedExercises.contains(alternative) {
+            selectedExercises.remove(at: sourceIndex)
+            preferredSetCounts.removeValue(forKey: currentExercise)
+        } else {
+            selectedExercises[sourceIndex] = alternative
+            preferredSetCounts.removeValue(forKey: currentExercise)
+            preferredSetCounts[alternative] = sourceSetCount
+        }
+    }
+
+    private func askCoachAboutRoutine() {
+        guard !selectedExercises.isEmpty else { return }
+        showRoutineCoach = true
+    }
+
+    private var routineCoachSnapshot: CoachRoutineSnapshot {
+        CoachRoutineSnapshot(
+            routineID: routineToEdit?.id,
+            routineName: trimmedRoutineName.isEmpty ? "Routine in progress" : trimmedRoutineName,
+            exercises: selectedExercises
+        )
+    }
+
     private func saveRoutine() {
         guard !trimmedRoutineName.isEmpty, !selectedExercises.isEmpty else { return }
 
@@ -641,28 +702,10 @@ struct CreateRoutineView: View {
             importContext: syncedImportContext(using: selectedExercises, preferredCounts: preferredCounts)
         )
 
-        var routines = loadSavedRoutines()
-        if let index = routines.firstIndex(where: { $0.id == routine.id }) {
-            routines[index] = routine
-        } else {
-            routines.append(routine)
-        }
-
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
-        }
+        workoutStore.upsertRoutine(routine)
 
         onSave()
         dismiss()
-    }
-
-    private func loadSavedRoutines() -> [Routine] {
-        if let data = UserDefaults.standard.data(forKey: "routines"),
-           let decoded = try? JSONDecoder().decode([Routine].self, from: data) {
-            return decoded
-        }
-
-        return []
     }
 
     private func syncedImportContext(using exercises: [String], preferredCounts: [String: Int]) -> RoutineImportContext? {

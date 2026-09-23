@@ -717,9 +717,6 @@ struct WorkoutLoggerView: View {
         keepAddedPromptResolved = true
         guard keep else { return }
 
-        // Bridge (M1b partial): this screen writes "routines" directly, so
-        // sync the store off disk before building the upsert on top of it.
-        workoutStore.reload()
         let base = workoutStore.routine(withID: activeRoutine.id)
             ?? SessionAdditionLogic.routineStrippingSessionAdded(
                 activeRoutine,
@@ -880,23 +877,19 @@ struct WorkoutLoggerView: View {
     }
 
     private func saveActiveRoutine() {
-        guard let data = UserDefaults.standard.data(forKey: "routines"),
-              var routines = try? JSONDecoder().decode([Routine].self, from: data),
-              let index = routines.firstIndex(where: { $0.id == activeRoutine.id }) else {
+        guard workoutStore.routine(withID: activeRoutine.id) != nil else {
             return
         }
 
         // Session-added exercises stay out of the SAVED routine until the
         // user's explicit Keep at finish — mid-workout writes (reorder, set
         // counts, swaps) persist the routine's own exercises only.
-        routines[index] = SessionAdditionLogic.routineStrippingSessionAdded(
-            activeRoutine,
-            sessionAdded: sessionAddedExercises
+        workoutStore.upsertRoutine(
+            SessionAdditionLogic.routineStrippingSessionAdded(
+                activeRoutine,
+                sessionAdded: sessionAddedExercises
+            )
         )
-
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
-        }
     }
 
     private var workoutDurationText: String {
@@ -1157,21 +1150,7 @@ struct WorkoutLoggerView: View {
     }
 
     private func saveWorkoutSession(_ session: WorkoutSession) {
-        var saved = loadWorkoutSessions()
-        saved.append(session)
-        if let encoded = try? JSONEncoder().encode(saved) {
-            UserDefaults.standard.set(encoded, forKey: "workoutSessions")
-            // Keep the derived AI memory digest in step with the raw history.
-            UserMemoryStore.refresh()
-        }
-    }
-
-    private func loadWorkoutSessions() -> [WorkoutSession] {
-        if let data = UserDefaults.standard.data(forKey: "workoutSessions"),
-           let decoded = try? JSONDecoder().decode([WorkoutSession].self, from: data) {
-            return decoded
-        }
-        return []
+        workoutStore.addSession(session)
     }
 
     private func getLastSet(for exercise: String, at index: Int) -> WorkoutSet? {
@@ -1183,7 +1162,7 @@ struct WorkoutLoggerView: View {
     /// per-keystroke reads the cache. Sessions only change under this screen
     /// at finish (refreshed there) or while it's off-screen (onAppear).
     private func refreshRoutineSessionsCache() {
-        routineSessions = loadWorkoutSessions().filter(matchesRoutine)
+        routineSessions = workoutStore.sessions.filter(matchesRoutine)
     }
 
     private func matchesRoutine(_ session: WorkoutSession) -> Bool {

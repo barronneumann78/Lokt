@@ -21,11 +21,15 @@ holds the product thesis; the M4 adaptation loop is BUILT (see Architecture).
 - **Backend** — `backend/server.mjs`, single-file Node HTTP server proxying
   OpenAI (Responses API, **strict JSON schemas only** — never freeform parsing).
   Key lives ONLY in `backend/.env` (gitignored). Never read/print/commit it.
-  Deploy hardening (all optional, unset = open local dev): `APP_TOKEN` gates
-  `/api/*` behind an `x-app-token` header (401), `RATE_LIMIT_MAX`/
-  `RATE_LIMIT_WINDOW_SEC` (default 40/600s per token+IP, 429),
-  `MAX_BODY_BYTES` (default ~36MB, 413). `/health` stays open. Cloud deploy
-  runbook: `backend/DEPLOY.md` (+ `backend/Dockerfile`).
+  Deploy hardening: the production Docker image fails closed without
+  `APP_TOKEN`, which gates `/api/*` behind `x-app-token` (401). Limits include
+  per token+IP (40/600s), shared-token (80/600s), tighter media limits,
+  1MB normal-body / 36MB media-body caps, and in-flight/time-out caps.
+  `TRUST_PROXY=1` is required on Railway so its trusted client-IP header is
+  used. These are small-TestFlight abuse gates only: the shipped token is
+  shared, rotatable, and not user authentication; see `backend/DEPLOY.md`.
+  `/health` stays open. Cloud deploy runbook: `backend/DEPLOY.md` (+
+  `backend/Dockerfile`).
 - **App-side secret** — `LockIn Set Tracker/AIBackendSecrets.swift` (gitignored,
   mirror of the `.env` pattern; copy from the committed
   `AIBackendSecrets.swift.example`) holds the optional `appToken` that
@@ -40,18 +44,17 @@ harness/build.sh          # canonical build (destination pinned to OS=18.5 — r
                           # the active Xcode also ships iOS 26.5 sims with same names)
 harness/checks.sh         # fast sensors: banned patterns, dataset integrity, drift
 cd backend && npm start   # AI backend on :8787 (harness/backend-check.sh to verify)
-harness/backend-hardening-check.sh  # auth/rate-limit/body-cap gates (throwaway instance, zero cost)
+harness/backend-hardening-check.sh  # production-token/auth/rate/media/body-cap gates (throwaway instance, zero cost)
 ```
 
 Always build with the real compiler after Swift changes; fix errors, don't guess.
 
 ## Architecture (current, post-refactors)
 
-- **`WorkoutStore`** (`@EnvironmentObject`, app root): intended single owner of
+- **`WorkoutStore`** (`@EnvironmentObject`, app root): the single owner of
   `routines` + `sessions` (UserDefaults keys `"routines"`/`"workoutSessions"`).
-  M1b migration is PARTIAL — some screens still read/write those keys directly;
-  bridge with `store.reload()` before reading if staleness matters. Do not add
-  new direct UserDefaults access for these keys.
+  Screens must read and write those collections through the store; do not add
+  direct UserDefaults access for these keys.
 - **`ExerciseStore`** (`@EnvironmentObject`, app root): the ONE instance decoding
   the bundled `exercises.json` (1,094 exercises + merged customs).
   `harness/checks.sh` enforces exactly one `ExerciseStore()` construction.

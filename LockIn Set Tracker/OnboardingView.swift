@@ -7,9 +7,12 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var goingForward = true
 
-    @State private var selectedLocation: OnboardingTrainingLocation?
+    @State private var selectedExperience: TrainingExperience?
     @State private var selectedGoal: OnboardingPrimaryGoal?
+    @State private var selectedLocation: OnboardingTrainingLocation?
     @State private var selectedTimeLimit: OnboardingTimeLimit?
+    @State private var ageText = ""
+    @State private var selectedInjuryFlags: Set<InjuryFlag> = []
     @State private var limitations = ""
 
     private let totalSteps = 4
@@ -81,12 +84,12 @@ struct OnboardingView: View {
         switch step {
         case 0:
             questionStep(
-                eyebrow: "Where you train",
-                title: "Where do you train most?",
-                options: OnboardingTrainingLocation.allCases,
-                selection: selectedLocation
+                eyebrow: "Your starting point",
+                title: "What best describes you right now?",
+                options: TrainingExperience.allCases,
+                selection: selectedExperience
             ) { option in
-                selectedLocation = option
+                selectedExperience = option
                 scheduleAdvance()
             }
         case 1:
@@ -100,17 +103,9 @@ struct OnboardingView: View {
                 scheduleAdvance()
             }
         case 2:
-            questionStep(
-                eyebrow: "Session length",
-                title: "How much time do you usually have?",
-                options: OnboardingTimeLimit.allCases,
-                selection: selectedTimeLimit
-            ) { option in
-                selectedTimeLimit = option
-                scheduleAdvance()
-            }
+            setupStep
         default:
-            limitationsStep
+            safetyStep
         }
     }
 
@@ -140,47 +135,218 @@ struct OnboardingView: View {
         }
     }
 
-    private var limitationsStep: some View {
+    private var setupStep: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
                 stepHeader(
-                    eyebrow: "Almost done",
-                    title: "Anything to work around?",
-                    subtitle: "Optional — a quick note helps Lokt avoid aggravating anything. You can edit this later in Settings."
+                    eyebrow: "Your setup",
+                    title: "What can your plan use?",
+                    subtitle: "Pick where you train and the time you usually have."
                 )
 
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                        .fill(AppTheme.fieldBackground)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("WHERE YOU TRAIN")
+                        .microLabel()
 
-                    if limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text("Shoulder irritation, knee pain, low back sensitivity")
-                            .font(.body)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
+                    ForEach(OnboardingTrainingLocation.allCases) { option in
+                        optionCard(
+                            option: option,
+                            isSelected: selectedLocation?.id == option.id,
+                            action: { selectedLocation = option }
+                        )
                     }
+                }
 
-                    TextEditor(text: $limitations)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 120)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .trackerTextEditorStyle()
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("USUAL SESSION")
+                        .microLabel()
+
+                    HStack(spacing: 10) {
+                        ForEach(OnboardingTimeLimit.allCases) { option in
+                            timeLimitButton(option)
+                        }
+                    }
                 }
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+
+                Button("Continue") {
+                    scheduleAdvance()
                 }
+                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
+                .disabled(selectedLocation == nil || selectedTimeLimit == nil)
+                .opacity(selectedLocation == nil || selectedTimeLimit == nil ? 0.5 : 1)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+        }
+    }
+
+    private func timeLimitButton(_ option: OnboardingTimeLimit) -> some View {
+        let isSelected = selectedTimeLimit == option
+
+        return Button {
+            selectedTimeLimit = option
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            VStack(spacing: 4) {
+                Text(option.title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+
+                Text(option.shortTitle)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(isSelected ? AppTheme.primary.opacity(0.16) : AppTheme.fieldBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                    .stroke(isSelected ? AppTheme.primary.opacity(0.65) : AppTheme.cardBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var safetyStep: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 24) {
+                stepHeader(
+                    eyebrow: "A safer starting plan",
+                    title: "Anything we should work around?",
+                    subtitle: "These details help Lokt keep your first plan simple. You can change them anytime in Settings."
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("AGE")
+                        .microLabel()
+
+                    TrackerTextField("Your age", text: $ageText)
+                        .textFieldStyle(TrackerTextFieldStyle())
+                        .keyboardType(.numberPad)
+
+                    Text("Required to personalize your starting point.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+
+                    if !ageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       AIUserPreferences.validAge(from: ageText) == nil {
+                        Text("Enter an age from 13 to 120 to continue.")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.danger)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("AREAS TO WORK AROUND")
+                        .microLabel()
+
+                    Button {
+                        selectedInjuryFlags.removeAll()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: selectedInjuryFlags.isEmpty ? "checkmark.circle.fill" : "circle")
+                            Text("None right now")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(selectedInjuryFlags.isEmpty ? AppTheme.primary : AppTheme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                        spacing: 10
+                    ) {
+                        ForEach(InjuryFlag.allCases) { flag in
+                            injuryFlagButton(flag)
+                        }
+                    }
+                }
+
+                multilineLimitationsField
+
+                Text("Lokt is not medical care. Stop if a movement hurts, and get professional guidance before training with symptoms or a medical condition.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .surfaceCard(cornerRadius: AppTheme.rowCornerRadius)
 
                 Button("Finish Setup") {
                     finish()
                 }
                 .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
+                .disabled(!hasValidAge)
+                .opacity(hasValidAge ? 1 : 0.5)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 28)
         }
+    }
+
+    private var multilineLimitationsField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ANYTHING ELSE TO AVOID? (OPTIONAL)")
+                .microLabel()
+
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                    .fill(AppTheme.fieldBackground)
+
+                if limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("For example: avoid overhead pressing or deep knee bends")
+                        .font(.body)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                }
+
+                TextEditor(text: $limitations)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 86)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .trackerTextEditorStyle()
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
+        }
+    }
+
+    private func injuryFlagButton(_ flag: InjuryFlag) -> some View {
+        let isSelected = selectedInjuryFlags.contains(flag)
+
+        return Button {
+            if isSelected {
+                selectedInjuryFlags.remove(flag)
+            } else {
+                selectedInjuryFlags.insert(flag)
+            }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.subheadline)
+                Text(flag.title)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textPrimary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? AppTheme.primary.opacity(0.14) : AppTheme.fieldBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                    .stroke(isSelected ? AppTheme.primary.opacity(0.65) : AppTheme.cardBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func stepHeader(eyebrow: String, title: String, subtitle: String?) -> some View {
@@ -268,11 +434,17 @@ struct OnboardingView: View {
     }
 
     private func finish() {
+        guard hasValidAge else { return }
         savePreferences()
         onComplete()
     }
 
+    private var hasValidAge: Bool {
+        AIUserPreferences.validAge(from: ageText) != nil
+    }
+
     private func savePreferences() {
+        let experience = selectedExperience ?? .newToTraining
         let location = selectedLocation ?? .commercialGym
         let goal = selectedGoal ?? .buildMuscle
         let timeLimit = selectedTimeLimit ?? .minutes45
@@ -283,7 +455,10 @@ struct OnboardingView: View {
             primaryGoal: goal.title,
             limitations: limitations.trimmingCharacters(in: .whitespacesAndNewlines),
             trainingStyle: goal.trainingStyleHint,
-            defaultTimeLimitMinutes: timeLimit.minutes
+            defaultTimeLimitMinutes: timeLimit.minutes,
+            trainingExperience: experience,
+            age: AIUserPreferences.validAge(from: ageText),
+            injuryFlags: InjuryFlag.allCases.filter(selectedInjuryFlags.contains)
         )
 
         AIUserPreferencesStore.save(preferences)
@@ -294,6 +469,8 @@ private protocol OnboardingOption: Identifiable, CaseIterable, Hashable where Al
     var title: String { get }
     var subtitle: String { get }
 }
+
+extension TrainingExperience: OnboardingOption {}
 
 private enum OnboardingTrainingLocation: String, CaseIterable, Hashable, OnboardingOption {
     case commercialGym
@@ -414,6 +591,17 @@ private enum OnboardingTimeLimit: String, CaseIterable, Hashable, OnboardingOpti
             return 45
         case .minutes60:
             return 60
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .minutes30:
+            return "Quick"
+        case .minutes45:
+            return "Balanced"
+        case .minutes60:
+            return "Full"
         }
     }
 }

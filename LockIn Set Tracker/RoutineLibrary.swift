@@ -1,55 +1,51 @@
 import Foundation
 
 enum RoutineLibrary {
-    static let storageKey = "routines"
-
-    static func load() -> [Routine] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([Routine].self, from: data) else {
-            return []
-        }
-
-        return decoded
-    }
-
-    static func save(_ routines: [Routine]) {
-        guard let encoded = try? JSONEncoder().encode(routines) else { return }
-        UserDefaults.standard.set(encoded, forKey: storageKey)
-    }
-
-    static func addExercise(named exerciseName: String, toRoutineID routineID: UUID, preferredSetCount: Int = 3) -> AddExerciseResult {
-        var routines = load()
-        guard let index = routines.firstIndex(where: { $0.id == routineID }) else {
+    @MainActor
+    static func addExercise(
+        named exerciseName: String,
+        toRoutineID routineID: UUID,
+        preferredSetCount: Int = 3,
+        in store: WorkoutStore
+    ) -> AddExerciseResult {
+        guard var routine = store.routine(withID: routineID) else {
             return AddExerciseResult(message: "That routine could not be found.", didMutate: false)
         }
 
-        if routines[index].exercises.contains(exerciseName) {
-            return AddExerciseResult(message: "\(exerciseName) is already in \(routines[index].name).", didMutate: false)
+        if routine.exercises.contains(exerciseName) {
+            return AddExerciseResult(message: "\(exerciseName) is already in \(routine.name).", didMutate: false)
         }
 
-        routines[index].exercises.append(exerciseName)
-        routines[index].preferredSetCounts[exerciseName] = max(1, preferredSetCount)
-        save(routines)
+        routine.exercises.append(exerciseName)
+        routine.preferredSetCounts[exerciseName] = max(1, preferredSetCount)
+        store.upsertRoutine(routine)
 
-        return AddExerciseResult(message: "Added to \(routines[index].name).", didMutate: true)
+        return AddExerciseResult(message: "Added to \(routine.name).", didMutate: true)
     }
 
-    static func createRoutine(from exerciseName: String, preferredSetCount: Int = 3) -> Routine {
+    @MainActor
+    static func createRoutine(
+        from exerciseName: String,
+        preferredSetCount: Int = 3,
+        in store: WorkoutStore
+    ) -> Routine {
         let routine = Routine(
             name: exerciseName,
             exercises: [exerciseName],
             preferredSetCounts: [exerciseName: max(1, preferredSetCount)]
         )
 
-        var routines = load()
-        routines.append(routine)
-        save(routines)
+        store.addRoutine(routine)
         return routine
     }
 
-    static func addExercises(from draft: AIGeneratedRoutineDraft, toRoutineID routineID: UUID) -> AddExerciseResult {
-        var routines = load()
-        guard let index = routines.firstIndex(where: { $0.id == routineID }) else {
+    @MainActor
+    static func addExercises(
+        from draft: AIGeneratedRoutineDraft,
+        toRoutineID routineID: UUID,
+        in store: WorkoutStore
+    ) -> AddExerciseResult {
+        guard var routine = store.routine(withID: routineID) else {
             return AddExerciseResult(message: "That routine could not be found.", didMutate: false)
         }
 
@@ -67,30 +63,31 @@ enum RoutineLibrary {
             let name = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { continue }
 
-            if routines[index].exercises.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+            if routine.exercises.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
                 continue
             }
 
-            routines[index].exercises.append(name)
-            routines[index].preferredSetCounts[name] = max(1, exercise.sets)
+            routine.exercises.append(name)
+            routine.preferredSetCounts[name] = max(1, exercise.sets)
             addedCount += 1
         }
 
         guard addedCount > 0 else {
-            return AddExerciseResult(message: "Those exercises are already in \(routines[index].name).", didMutate: false)
+            return AddExerciseResult(message: "Those exercises are already in \(routine.name).", didMutate: false)
         }
 
-        save(routines)
+        store.upsertRoutine(routine)
 
         return AddExerciseResult(
             message: addedCount == 1
-                ? "Added 1 exercise to \(routines[index].name)."
-                : "Added \(addedCount) exercises to \(routines[index].name).",
+                ? "Added 1 exercise to \(routine.name)."
+                : "Added \(addedCount) exercises to \(routine.name).",
             didMutate: true
         )
     }
 
-    static func createRoutine(from draft: AIGeneratedRoutineDraft) -> Routine? {
+    @MainActor
+    static func createRoutine(from draft: AIGeneratedRoutineDraft, in store: WorkoutStore) -> Routine? {
         let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let exercises = draft.exercises
             .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -110,9 +107,7 @@ enum RoutineLibrary {
             preferredSetCounts: preferredSetCounts
         )
 
-        var routines = load()
-        routines.append(routine)
-        save(routines)
+        store.addRoutine(routine)
         return routine
     }
 }

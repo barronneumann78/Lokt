@@ -9,7 +9,6 @@ struct AIWorkoutGeneratorView: View {
     var onSave: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(AIBackendConfiguration.userDefaultsKey) private var aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
     @EnvironmentObject private var exerciseStore: ExerciseStore
     @EnvironmentObject private var workoutStore: WorkoutStore
     @ObservedObject private var hints = DiscoveryHints.shared
@@ -555,7 +554,7 @@ struct AIWorkoutGeneratorView: View {
 
     private func saveGeneratedRoutine() {
         guard let generatedRoutine, canSave(generatedRoutine) else { return }
-        AIWorkoutRoutineSaver.save(generatedRoutine)
+        AIWorkoutRoutineSaver.save(generatedRoutine, to: workoutStore)
         onSave()
         dismiss()
     }

@@ -1,5 +1,71 @@
 import Foundation
 
+/// A plain-language training baseline selected during onboarding. The raw
+/// values are intentionally stable because this value is persisted and sent to
+/// the AI backend as part of the user's preference profile.
+enum TrainingExperience: String, Codable, CaseIterable, Hashable, Identifiable {
+    case newToTraining = "new_to_training"
+    case returningToTraining = "returning_to_training"
+    case trainingConsistently = "training_consistently"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .newToTraining:
+            return "New to training"
+        case .returningToTraining:
+            return "Getting back into it"
+        case .trainingConsistently:
+            return "Training consistently"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .newToTraining:
+            return "I am new to structured strength workouts."
+        case .returningToTraining:
+            return "I have trained before but have had time away."
+        case .trainingConsistently:
+            return "I have been training regularly for at least six months."
+        }
+    }
+}
+
+/// Broad areas the user wants a plan to work around. These are preference
+/// flags, not diagnoses; a free-form note remains available for needed detail.
+enum InjuryFlag: String, Codable, CaseIterable, Hashable, Identifiable {
+    case shoulder
+    case elbowWrist = "elbow_wrist"
+    case lowerBack = "lower_back"
+    case hip
+    case knee
+    case ankleFoot = "ankle_foot"
+    case other
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .shoulder:
+            return "Shoulder"
+        case .elbowWrist:
+            return "Elbow or wrist"
+        case .lowerBack:
+            return "Low back"
+        case .hip:
+            return "Hip"
+        case .knee:
+            return "Knee"
+        case .ankleFoot:
+            return "Ankle or foot"
+        case .other:
+            return "Another area"
+        }
+    }
+}
+
 struct AIUserPreferences: Codable, Hashable {
     var preferredEquipment: [String]
     var dislikedExercises: [String]
@@ -7,6 +73,11 @@ struct AIUserPreferences: Codable, Hashable {
     var limitations: String
     var trainingStyle: String
     var defaultTimeLimitMinutes: Int?
+    /// Optional fields preserve decoding of preferences saved before the
+    /// safety-aware onboarding shipped.
+    var trainingExperience: TrainingExperience? = nil
+    var age: Int? = nil
+    var injuryFlags: [InjuryFlag]? = nil
 
     static let empty = AIUserPreferences(
         preferredEquipment: [],
@@ -14,7 +85,10 @@ struct AIUserPreferences: Codable, Hashable {
         primaryGoal: "",
         limitations: "",
         trainingStyle: "",
-        defaultTimeLimitMinutes: nil
+        defaultTimeLimitMinutes: nil,
+        trainingExperience: nil,
+        age: nil,
+        injuryFlags: nil
     )
 
     var isEmpty: Bool {
@@ -23,7 +97,10 @@ struct AIUserPreferences: Codable, Hashable {
         primaryGoal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         trainingStyle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        defaultTimeLimitMinutes == nil
+        defaultTimeLimitMinutes == nil &&
+        trainingExperience == nil &&
+        age == nil &&
+        (injuryFlags?.isEmpty ?? true)
     }
 
     var summaryLines: [String] {
@@ -54,6 +131,19 @@ struct AIUserPreferences: Codable, Hashable {
 
         if let defaultTimeLimitMinutes {
             lines.append("Default time limit: \(defaultTimeLimitMinutes) minutes")
+        }
+
+        if let trainingExperience {
+            lines.append("Training experience: \(trainingExperience.title)")
+        }
+
+        if let age {
+            lines.append("Age: \(age)")
+        }
+
+        let injuryFlags = injuryFlags ?? []
+        if !injuryFlags.isEmpty {
+            lines.append("Areas to work around: \(injuryFlags.map(\.title).joined(separator: ", "))")
         }
 
         return lines
@@ -89,6 +179,9 @@ struct AIUserPreferencesPayload: Codable {
     var limitations: String?
     var trainingStyle: String?
     var defaultTimeLimitMinutes: Int?
+    var trainingExperience: String?
+    var age: Int?
+    var injuryFlags: [String]
 
     init(preferences: AIUserPreferences) {
         let trimmedGoal = preferences.primaryGoal.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -101,6 +194,9 @@ struct AIUserPreferencesPayload: Codable {
         limitations = trimmedLimitations.isEmpty ? nil : trimmedLimitations
         trainingStyle = trimmedStyle.isEmpty ? nil : trimmedStyle
         defaultTimeLimitMinutes = preferences.defaultTimeLimitMinutes
+        trainingExperience = preferences.trainingExperience?.rawValue
+        age = preferences.age
+        injuryFlags = (preferences.injuryFlags ?? []).map(\.rawValue)
     }
 }
 
@@ -111,7 +207,10 @@ extension AIUserPreferences {
         primaryGoal: String,
         limitations: String,
         trainingStyle: String,
-        defaultTimeLimitText: String
+        defaultTimeLimitText: String,
+        trainingExperience: TrainingExperience? = nil,
+        age: Int? = nil,
+        injuryFlags: [InjuryFlag] = []
     ) -> AIUserPreferences {
         AIUserPreferences(
             preferredEquipment: preferredEquipmentText.commaSeparatedValues,
@@ -119,8 +218,20 @@ extension AIUserPreferences {
             primaryGoal: primaryGoal.trimmingCharacters(in: .whitespacesAndNewlines),
             limitations: limitations.trimmingCharacters(in: .whitespacesAndNewlines),
             trainingStyle: trainingStyle.trimmingCharacters(in: .whitespacesAndNewlines),
-            defaultTimeLimitMinutes: Int(defaultTimeLimitText.trimmingCharacters(in: .whitespacesAndNewlines))
+            defaultTimeLimitMinutes: Int(defaultTimeLimitText.trimmingCharacters(in: .whitespacesAndNewlines)),
+            trainingExperience: trainingExperience,
+            age: age,
+            injuryFlags: injuryFlags
         )
+    }
+
+    static func validAge(from text: String) -> Int? {
+        guard let age = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (13...120).contains(age) else {
+            return nil
+        }
+
+        return age
     }
 }
 

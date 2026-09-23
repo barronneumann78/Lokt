@@ -9,7 +9,7 @@ import Foundation
 ///
 /// Deliberately excluded (derived or settings noise, not user data):
 /// `exerciseInsightsV1` cache, `userMemoryDigestV1` (pure function of the raw
-/// history), discovery-hint counters, accent scheme, backend URL/app token.
+/// history), discovery-hint counters, accent scheme, and app credentials.
 enum DataExport {
     static let schemaName = "lokt-export"
     static let schemaVersion = 1

@@ -22,9 +22,10 @@ sensor in `checks.sh` exists because that exact failure occurred once.
 | `../CLAUDE.md` | guide | Current architecture, conventions, seams, gotchas |
 | `AGENT_PLAYBOOK.md` | guide | Standing rules for delegated agents |
 | `build.sh` | sensor | Canonical build, correct pinned destination |
+| `test.sh` | sensor | Boots a dedicated iOS 18.5 simulator and runs deterministic unit tests |
 | `checks.sh` | sensor | Fast greps: banned styles, secrets, dataset validity, singleton drift, M1b tracker |
 | `backend-check.sh` | sensor | Backend health + zero-cost validation probes |
-| `backend-hardening-check.sh` | sensor | Boots a throwaway hardened instance; asserts app-token 401s, 429 rate limit, 413 body cap (zero cost) |
+| `backend-hardening-check.sh` | sensor | Boots a throwaway hardened instance; asserts production fails closed without a token, auth, media/per-client 429s, and normal-body 413 (zero cost) |
 | `logic-checks/` | sensor | Convention for compiled logic harnesses (see its README) |
 | `install-hooks.sh` | wiring | Installs the pre-commit hook (checks.sh gates every commit) — run once per clone |
 | `dashboard.sh` | display | Renders run history (`history.jsonl`, gitignored) to `dashboard.html`; `--open` to view |

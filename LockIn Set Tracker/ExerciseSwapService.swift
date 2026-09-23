@@ -32,6 +32,7 @@ struct ExerciseSwapRequestPayload: Codable {
     var currentExercise: ExerciseSwapCandidatePayload
     var reason: String
     var candidates: [ExerciseSwapCandidatePayload]
+    var preferences: AIUserPreferencesPayload
 }
 
 private struct ExerciseSwapResponseEnvelope: Codable {
@@ -59,7 +60,7 @@ enum ExerciseSwapError: LocalizedError {
         case .invalidReason:
             return "Add a little more detail so Lokt knows what kind of swap you want."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before using smart swaps."
+            return "Lokt’s AI service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The backend responded, but the swap suggestions were not usable."
         case .noSuggestions:
@@ -90,14 +91,11 @@ struct ExerciseSwapSuggestionService {
             throw ExerciseSwapError.noSuggestions
         }
 
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw ExerciseSwapError.invalidBackendURL
-        }
-
         let payload = ExerciseSwapRequestPayload(
             currentExercise: candidatePayload(for: currentExercise),
             reason: trimmedReason,
-            candidates: candidates.map(candidatePayload(for:))
+            candidates: candidates.map(candidatePayload(for:)),
+            preferences: AIUserPreferencesPayload(preferences: AIUserPreferencesStore.load())
         )
 
         let (data, response): (Data, URLResponse)
@@ -111,7 +109,7 @@ struct ExerciseSwapSuggestionService {
             (data, response) = (result.data, result.response)
         } catch {
             throw ExerciseSwapError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

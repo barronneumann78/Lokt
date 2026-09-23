@@ -104,10 +104,6 @@ struct ExerciseInsightService {
     }
 
     private func requestInsight(for exercise: Exercise, mode: String) async throws -> Data {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw ExerciseCoachError.invalidBackendURL
-        }
-
         let payload = ExerciseInsightRequestPayload(
             exercise: ExerciseSwapCandidatePayload(
                 name: exercise.name,
@@ -133,7 +129,7 @@ struct ExerciseInsightService {
             (data, response) = (result.data, result.response)
         } catch {
             throw ExerciseCoachError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

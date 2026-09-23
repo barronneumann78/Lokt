@@ -46,8 +46,28 @@ railway variables \
   --set "APP_TOKEN=...output of openssl rand..." \
   --set "OPENAI_MODEL=gpt-4.1" \
   --set "OPENAI_PHOTO_IMPORT_MODEL=gpt-4.1-mini" \
-  --set "OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe"
+  --set "OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe" \
+  --set "REQUIRE_APP_TOKEN=1" \
+  --set "TRUST_PROXY=1" \
+  --set "RATE_LIMIT_MAX=40" \
+  --set "RATE_LIMIT_WINDOW_SEC=600" \
+  --set "SHARED_RATE_LIMIT_MAX=80" \
+  --set "MEDIA_RATE_LIMIT_MAX=4" \
+  --set "SHARED_MEDIA_RATE_LIMIT_MAX=12" \
+  --set "MAX_IN_FLIGHT=12" \
+  --set "MAX_IN_FLIGHT_PER_KEY=2" \
+  --set "MAX_TEXT_BODY_BYTES=1000000" \
+  --set "MAX_BODY_BYTES=36000000" \
+  --set "MAX_IMAGE_BYTES=5000000" \
+  --set "MAX_AUDIO_BYTES=25000000" \
+  --set "OPENAI_TIMEOUT_MS=60000"
 ```
+
+These are deliberately modest defaults for a small friends TestFlight group:
+normal use is not cramped, but one installed copy cannot burst expensive calls
+forever. `TRUST_PROXY=1` is correct for Railway's public proxy; do not set it
+on a server that accepts direct client traffic. The Docker image also sets
+`NODE_ENV=production`, so deployment fails closed if `APP_TOKEN` is missing.
 
 Setting variables redeploys automatically (if not: `railway up` again).
 
@@ -83,17 +103,25 @@ fly launch --no-deploy        # accept defaults; uses the Dockerfile
 # check fly.toml: internal_port should be 8787
 fly secrets set OPENAI_API_KEY="sk-..." APP_TOKEN="..." \
   OPENAI_MODEL=gpt-4.1 OPENAI_PHOTO_IMPORT_MODEL=gpt-4.1-mini \
-  OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe
+  OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe REQUIRE_APP_TOKEN=1 \
+  RATE_LIMIT_MAX=40 RATE_LIMIT_WINDOW_SEC=600 SHARED_RATE_LIMIT_MAX=80 \
+  MEDIA_RATE_LIMIT_MAX=4 SHARED_MEDIA_RATE_LIMIT_MAX=12 \
+  MAX_IN_FLIGHT=12 MAX_IN_FLIGHT_PER_KEY=2 MAX_TEXT_BODY_BYTES=1000000 \
+  MAX_BODY_BYTES=36000000 MAX_IMAGE_BYTES=5000000 MAX_AUDIO_BYTES=25000000 \
+  OPENAI_TIMEOUT_MS=60000
 fly deploy
 ```
 
-URL: `https://<app-name>.fly.dev`. Same smoke test as step 4.
+URL: `https://<app-name>.fly.dev`. Same smoke test as step 4. Set
+`TRUST_PROXY=1` only after confirming Fly supplies and overwrites
+`x-forwarded-for` at its public proxy; otherwise leave it unset and accept a
+coarser per-proxy IP limit.
 
 ## 6. Point the app at it
 
-1. In the app: **Settings → AI Backend** → paste the full https URL
-   (e.g. `https://lokt-backend-production.up.railway.app`). When a non-local
-   URL is set, the app talks only to it — no localhost fallback probing.
+1. Confirm `AIBackendConfiguration.defaultBaseURLString` is the Railway HTTPS
+   domain you intend to ship. TestFlight has no editable backend setting and
+   no local fallback; changing the backend requires a new app build.
 2. In Xcode: copy `LockIn Set Tracker/AIBackendSecrets.swift.example` to
    `AIBackendSecrets.swift` (if not already there) and set:
    `static let appToken: String? = "...your token..."`.
@@ -101,15 +129,42 @@ URL: `https://<app-name>.fly.dev`. Same smoke test as step 4.
    secret — rotate it if it leaks.
 3. Rebuild the app onto your phone. Generate a workout to confirm end to end.
 
-To go back to local dev: Settings → AI Backend → **Reset to Local Default**
-(the token header is ignored by a local server started without `APP_TOKEN`).
+## What the backend now enforces
 
-## Knobs (already defaulted, change only if needed)
+- Production refuses to start without `APP_TOKEN`; `/api/*` rejects a missing
+  or wrong token before it parses a request or contacts OpenAI.
+- Normal requests are limited per token+IP (40 per 10 minutes) and the entire
+  shared token is limited to 80 requests per 10 minutes. Media imports have
+  tighter per-client (4) and shared (12) ceilings in that same window.
+- Only photo and voice-upload routes can use the 36MB body allowance. Other
+  JSON is capped at 1MB; images must be PNG/JPEG up to 5MB and audio is capped
+  at 25MB after base64 decoding. Prompt fields and model-bound objects are
+  shortened, and model calls time out after 60 seconds.
+- At most 12 AI requests run at once, with at most 2 for the same token+IP.
+  Responses are marked `Cache-Control: no-store`.
 
-- `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_SEC` — per token+IP sliding window,
-  default 40 requests / 600s. `RATE_LIMIT_MAX=0` disables.
-- `MAX_BODY_BYTES` — POST body cap, default ~36MB (sized for photo/voice
-  base64 payloads).
+Set a limit to `0` only for a local diagnostic session; it disables that
+specific protection.
 
-If the token ever leaks (or a TestFlight friend goes wild): set a new
-`APP_TOKEN` on the host, update `AIBackendSecrets.swift`, rebuild.
+## The remaining limits of a shared app token
+
+This is intentionally not an account system. The token is embedded in each
+TestFlight build, so a determined recipient can extract it and share it. The
+backend cannot tell which friend made a request, give one person a quota,
+ban one person without disrupting everyone, or revoke a single installed
+copy. Rotation is the emergency control: it invalidates every installed build
+until you update `AIBackendSecrets.swift` and ship a new one.
+
+The limits are in memory in one Railway process. A deploy/restart clears them,
+and multiple backend instances each keep their own counters. They reduce
+bursts; they are not a durable monthly dollar budget or a defense against a
+coordinated group holding the shared token. The IP component is only as
+trustworthy as the proxy configuration, which is why `TRUST_PROXY=1` is
+explicit rather than automatic.
+
+Before inviting friends, put the OpenAI key in a dedicated project and set a
+conservative project budget/usage alert in the OpenAI dashboard. Keep an eye
+on Railway logs for the server's `[usage]` lines and 429 responses. If usage
+looks wrong, rotate `APP_TOKEN` immediately; if you need an immediate hard
+stop, revoke the OpenAI key or take the service offline. Move to real accounts
+and a server-side identity/quota store before a wider beta or any paid launch.

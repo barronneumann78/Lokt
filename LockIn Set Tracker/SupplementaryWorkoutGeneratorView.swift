@@ -11,7 +11,6 @@ struct SupplementaryWorkoutGeneratorView: View {
     var currentWorkoutTitle: String? = nil
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(AIBackendConfiguration.userDefaultsKey) private var aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
     @EnvironmentObject private var exerciseStore: ExerciseStore
     @EnvironmentObject private var workoutStore: WorkoutStore
     @ObservedObject private var hints = DiscoveryHints.shared
@@ -532,6 +531,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
     var onComplete: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var workoutStore: WorkoutStore
     @State private var routines: [Routine] = []
 
     var body: some View {
@@ -565,7 +565,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
             }
         }
         .onAppear {
-            routines = RoutineLibrary.load()
+            routines = workoutStore.routines
         }
     }
 
@@ -631,7 +631,11 @@ private struct SupplementaryWorkoutDestinationSheet: View {
             } else {
                 ForEach(routines) { routine in
                     Button {
-                        let result = RoutineLibrary.addExercises(from: draft, toRoutineID: routine.id)
+                        let result = RoutineLibrary.addExercises(
+                            from: draft,
+                            toRoutineID: routine.id,
+                            in: workoutStore
+                        )
                         if result.didMutate {
                             onComplete(result.message)
                             dismiss()
@@ -673,7 +677,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                 .microLabel()
 
             Button {
-                if let routine = RoutineLibrary.createRoutine(from: draft) {
+                if let routine = RoutineLibrary.createRoutine(from: draft, in: workoutStore) {
                     onComplete("Created \(routine.name).")
                     dismiss()
                 }

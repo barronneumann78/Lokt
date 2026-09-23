@@ -11,7 +11,7 @@ enum WorkoutNudgeError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings."
+            return "Lokt’s AI service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The backend responded, but the adjustment format was not usable."
         case .safetyRefused:
@@ -28,10 +28,6 @@ enum WorkoutNudgeError: LocalizedError {
 struct WorkoutNudgeService {
 
     func fetchNudge(for routine: Routine, checkIn: SessionCheckIn) async throws -> WorkoutNudge {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw WorkoutNudgeError.invalidBackendURL
-        }
-
         let progression = routine.progression ?? [:]
         let importedReps = Self.importedRepTargets(for: routine)
 
@@ -68,7 +64,7 @@ struct WorkoutNudgeService {
             (data, response) = (result.data, result.response)
         } catch {
             throw WorkoutNudgeError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

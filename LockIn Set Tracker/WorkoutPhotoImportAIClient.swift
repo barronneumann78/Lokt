@@ -25,10 +25,6 @@ struct PhotoWorkoutAIExtractionExercise: Codable, Hashable {
 
 struct WorkoutPhotoAIClient {
     func extractWorkout(from image: UIImage) async throws -> PhotoWorkoutAIExtractionResult {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw WorkoutPhotoImportError.invalidBackendURL
-        }
-
         let payload = try image.preparedPhotoImportPayload()
         let (data, response): (Data, URLResponse)
 
@@ -49,7 +45,7 @@ struct WorkoutPhotoAIClient {
             (data, response) = (result.data, result.response)
         } catch {
             throw WorkoutPhotoImportError.requestFailed(
-                "I could not reach the photo import backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach photo import. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

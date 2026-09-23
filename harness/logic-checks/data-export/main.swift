@@ -130,8 +130,39 @@ let preferences = AIUserPreferences(
     primaryGoal: "Build muscle",
     limitations: "Sensitive shoulders",
     trainingStyle: "Hypertrophy",
-    defaultTimeLimitMinutes: 45
+    defaultTimeLimitMinutes: 45,
+    trainingExperience: .returningToTraining,
+    age: 36,
+    injuryFlags: [.shoulder, .knee]
 )
+
+let legacyPreferencesJSON = """
+{
+  "preferredEquipment": ["Dumbbells"],
+  "dislikedExercises": [],
+  "primaryGoal": "General fitness",
+  "limitations": "",
+  "trainingStyle": "Simple",
+  "defaultTimeLimitMinutes": 30
+}
+""".data(using: .utf8)!
+let decodedLegacyPreferences = try? JSONDecoder().decode(AIUserPreferences.self, from: legacyPreferencesJSON)
+check(
+    "legacy AI preferences decode without safety fields",
+    decodedLegacyPreferences?.trainingExperience == nil &&
+        decodedLegacyPreferences?.age == nil &&
+        decodedLegacyPreferences?.injuryFlags == nil
+)
+
+let profilePayload = AIUserPreferencesPayload(preferences: preferences)
+check(
+    "AI preference payload includes safe-profile fields",
+    profilePayload.trainingExperience == "returning_to_training" &&
+        profilePayload.age == 36 &&
+        profilePayload.injuryFlags == ["shoulder", "knee"]
+)
+check("age validation accepts a plausible age", AIUserPreferences.validAge(from: "36") == 36)
+check("age validation rejects out-of-range input", AIUserPreferences.validAge(from: "121") == nil)
 
 let customExercise = Exercise(
     id: "custom-landmine-press",

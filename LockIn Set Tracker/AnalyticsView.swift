@@ -40,8 +40,7 @@ struct AnalyticsView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            // Pick up sessions written directly by screens not yet on the store.
-            store.reload()
+            rebuild(with: store.sessions)
         }
         .onReceive(store.$sessions) { sessions in
             rebuild(with: sessions)

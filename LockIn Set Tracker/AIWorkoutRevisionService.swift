@@ -11,7 +11,7 @@ enum ImportedWorkoutRevisionError: LocalizedError {
         case .invalidPrompt:
             return "Add a little more detail so the AI knows how to revise the workout."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before revising a workout."
+            return "Lokt’s AI service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The backend responded, but the revised workout format was not usable."
         case .requestFailed(let message):
@@ -67,10 +67,6 @@ private struct ImportedWorkoutRevisionClient {
             throw ImportedWorkoutRevisionError.invalidPrompt
         }
 
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw ImportedWorkoutRevisionError.invalidBackendURL
-        }
-
         let (data, response): (Data, URLResponse)
 
         do {
@@ -90,7 +86,7 @@ private struct ImportedWorkoutRevisionClient {
             (data, response) = (result.data, result.response)
         } catch {
             throw ImportedWorkoutRevisionError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

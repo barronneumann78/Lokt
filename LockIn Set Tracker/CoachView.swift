@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct CoachView: View {
     let initialContext: CoachLaunchContext
@@ -10,6 +11,8 @@ struct CoachView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var saveNotice: SaveNotice?
+    @State private var copiedReplyID: UUID?
+    @State private var attachmentDestination: CoachAttachmentDestination?
 
     /// Live frame of the composer text field in chat space — the launch pad
     /// for the send morph.
@@ -76,6 +79,13 @@ struct CoachView: View {
         var text: String
     }
 
+    private enum CoachAttachmentDestination: String, Identifiable {
+        case photo
+        case voice
+
+        var id: String { rawValue }
+    }
+
     private let coachService = CoachChatService()
 
     init(initialContext: CoachLaunchContext = .planning) {
@@ -90,6 +100,25 @@ struct CoachView: View {
         }
         .sheet(item: $askTarget) { context in
             ExerciseAskCoachSheet(context: context)
+        }
+        .sheet(item: $attachmentDestination) { destination in
+            NavigationStack {
+                Group {
+                    switch destination {
+                    case .photo:
+                        WorkoutPhotoImportView(onSave: finishAttachmentImport)
+                    case .voice:
+                        VoiceWorkoutImportView(onSave: finishAttachmentImport)
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            attachmentDestination = nil
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -229,32 +258,15 @@ struct CoachView: View {
     private var topBar: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text("Lokt Coach")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+                Text("Lokt Coach")
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 Text(topBarSubtitle)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
             }
-
             Spacer()
-
-            HStack(spacing: 14) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary.opacity(0.9))
-
-                Image(systemName: "ellipsis")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary.opacity(0.9))
-            }
         }
         .padding(.horizontal, 28)
         .padding(.top, 18)
@@ -288,15 +300,25 @@ struct CoachView: View {
     private var composerBar: some View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
-                Button {
-                    messageText = promptSuggestions.randomElement() ?? ""
+                Menu {
+                    Button {
+                        attachmentDestination = .photo
+                    } label: {
+                        Label("Import photo or screenshot", systemImage: "photo.on.rectangle")
+                    }
+
+                    Button {
+                        attachmentDestination = .voice
+                    } label: {
+                        Label("Record a voice note", systemImage: "mic")
+                    }
                 } label: {
                     Image(systemName: "plus")
                         .font(.title3.weight(.medium))
                         .foregroundStyle(AppTheme.textSecondary)
                         .frame(width: 28, height: 28)
                 }
-                .buttonStyle(.plain)
+                .accessibilityLabel("Add a photo, screenshot, or voice note")
 
                 TrackerTextField("Ask anything", text: $messageText, axis: .vertical)
                     .foregroundStyle(AppTheme.textPrimary)
@@ -351,6 +373,16 @@ struct CoachView: View {
         return messageText.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4
             ? AppTheme.primary
             : AppTheme.textSecondary.opacity(0.55)
+    }
+
+    private func finishAttachmentImport() {
+        attachmentDestination = nil
+        withAnimation(.easeOut(duration: 0.18)) {
+            saveNotice = SaveNotice(
+                title: "Imported routine saved",
+                text: "Your imported workout is ready in Routines."
+            )
+        }
     }
 
     private func contextBanner(text: String) -> some View {
@@ -427,8 +459,8 @@ struct CoachView: View {
                     Spacer(minLength: 56)
                 }
 
-                if message.id == conversationMessages.last?.id {
-                    assistantActionRow
+                if message.id == conversationMessages.last?.id, conversationMessages.count > 1 {
+                    assistantActionRow(for: message)
                         .padding(.leading, 4)
                 }
             }
@@ -436,12 +468,31 @@ struct CoachView: View {
         }
     }
 
-    private var assistantActionRow: some View {
+    private func assistantActionRow(for message: AIWorkoutConversationMessage) -> some View {
         HStack(spacing: 18) {
-            ForEach(["doc.on.doc", "hand.thumbsup", "hand.thumbsdown", "square.and.arrow.up", "ellipsis"], id: \.self) { systemName in
-                Image(systemName: systemName)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textSecondary.opacity(0.92))
+            Button {
+                UIPasteboard.general.string = message.text
+                copiedReplyID = message.id
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    if copiedReplyID == message.id {
+                        copiedReplyID = nil
+                    }
+                }
+            } label: {
+                Label(
+                    copiedReplyID == message.id ? "Copied" : "Copy",
+                    systemImage: copiedReplyID == message.id ? "checkmark" : "doc.on.doc"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            ShareLink(item: message.text) {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
         .padding(.top, 2)
@@ -604,6 +655,8 @@ struct CoachView: View {
             return "Planning a new workout"
         case .draftEditing:
             return "Refining the current draft"
+        case .routineEditing:
+            return "Reviewing a routine"
         case .activeWorkout:
             return "Helping during your workout"
         }
@@ -625,7 +678,7 @@ struct CoachView: View {
         }
     }
 
-    private var activeWorkoutSnapshot: CoachWorkoutSnapshot? {
+    private var activeWorkoutSnapshot: CoachRoutineSnapshot? {
         if case .activeWorkout(let snapshot) = initialContext {
             return snapshot
         }
@@ -646,6 +699,12 @@ struct CoachView: View {
                 "Make it shorter",
                 "Swap this for dumbbells",
                 "Make it easier on my shoulders"
+            ]
+        case .routineEditing:
+            return [
+                "Does this workout look balanced?",
+                "Is this exercise order good?",
+                "What might this workout be missing?"
             ]
         case .activeWorkout:
             return [
@@ -691,36 +750,19 @@ struct CoachView: View {
     private func saveDraft(_ draft: AIGeneratedRoutineDraft) {
         guard savedDraftIDs.insert(draft.id).inserted else { return }
 
-        // Unmigrated screens still write the "routines" key directly (M1b),
-        // and persisting through a stale store would drop their changes —
-        // sync with UserDefaults before touching the library.
-        store.reload()
+        guard let result = CoachRoutinePersistence.save(
+            draft,
+            replacing: savedRoutineIDsByDraft[draft.id],
+            in: store
+        ) else { return }
 
-        guard let routine = AIWorkoutRoutineSaver.makeRoutine(from: draft) else { return }
-
-        if let lineageID = savedRoutineIDsByDraft[draft.id],
-           let existing = store.routine(withID: lineageID) {
-            // Coach revision of an already-saved routine: same identity,
-            // updated content. Name history and adaptation state survive so
-            // session history and the progression loop stay attached.
-            var updated = Routine(
-                id: existing.id,
-                name: routine.name,
-                exercises: routine.exercises,
-                preferredSetCounts: routine.preferredSetCounts,
-                historyNames: existing.allKnownNames + [routine.name],
-                importContext: existing.importContext
-            )
-            updated.progression = existing.progression
-            store.upsertRoutine(updated)
+        switch result {
+        case .updated(let routine):
             updatedDraftIDs.insert(draft.id)
             withAnimation(.easeOut(duration: 0.18)) {
                 saveNotice = SaveNotice(title: "Routine updated", text: "\(routine.name) now matches this draft.")
             }
-        } else {
-            // First save of this lineage — or its routine was deleted, in
-            // which case we append fresh rather than resurrect the old id.
-            store.addRoutine(routine)
+        case .added(let routine):
             savedRoutineIDsByDraft[draft.id] = routine.id
             withAnimation(.easeOut(duration: 0.18)) {
                 saveNotice = SaveNotice(title: "Saved to routines", text: "\(draft.title) is now saved in your routines.")
@@ -773,10 +815,8 @@ struct CoachView: View {
 
         scheduleTypingIndicator()
 
-        // The coach always sees the full routine library. Unmigrated screens
-        // still write the "routines" key directly (M1b), so re-read from
-        // UserDefaults first — the snapshot must never be stale.
-        store.reload()
+        // The coach always sees the full routine library through its single
+        // published owner, so this snapshot cannot lag behind another save.
         let savedRoutines = store.routines
 
         Task { @MainActor in

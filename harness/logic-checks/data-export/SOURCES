@@ -1,4 +1,5 @@
 LockIn Set Tracker/Models.swift
 LockIn Set Tracker/AIUserPreferences.swift
 LockIn Set Tracker/ExerciseCSVLoader.swift
+LockIn Set Tracker/ExerciseAliases.swift
 LockIn Set Tracker/DataExport.swift

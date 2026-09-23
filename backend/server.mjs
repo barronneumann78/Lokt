@@ -8,7 +8,7 @@ const photoImportModel = process.env.OPENAI_PHOTO_IMPORT_MODEL ?? "gpt-4.1-mini"
 const transcriptionModel = process.env.OPENAI_TRANSCRIBE_MODEL ?? "gpt-4o-mini-transcribe";
 const apiKey = process.env.OPENAI_API_KEY ?? "";
 
-// --- Deployment hardening (all optional; local dev behavior is unchanged when unset) ---
+// --- Deployment hardening (production fails closed; local dev stays simple) ---
 
 function envInt(name, fallback) {
   const raw = process.env[name];
@@ -17,20 +17,50 @@ function envInt(name, fallback) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-// Shared app token. When set, every /api/* request must carry it in the
-// x-app-token header. It gates abuse of a deployed backend; it is not a
-// per-user credential. Unset = open (local dev).
+function envFlag(name, fallback = false) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  return raw === "1" || raw.toLowerCase() === "true";
+}
+
+// Shared app token. It is an abuse gate, not a per-user credential. Local
+// development can leave it unset, but a production deployment must fail
+// closed instead of accidentally exposing the OpenAI key.
 const appToken = (process.env.APP_TOKEN ?? "").trim();
+const appTokenRequired = envFlag("REQUIRE_APP_TOKEN", process.env.NODE_ENV === "production");
+
+if (appTokenRequired && !appToken) {
+  throw new Error("APP_TOKEN is required in production. Refusing to start an unauthenticated AI backend.");
+}
+
+// Railway supplies x-forwarded-for at its public proxy. Trust it only when
+// the deployment explicitly opts in; blindly trusting a client-supplied value
+// would let a copied app token evade the per-client limiter.
+const trustProxy = envFlag("TRUST_PROXY");
 
 // Sliding-window rate limit per token+IP. 0 disables the limiter.
 const rateLimitMax = envInt("RATE_LIMIT_MAX", 40);
 const rateLimitWindowMs = Math.max(1, envInt("RATE_LIMIT_WINDOW_SEC", 600)) * 1000;
+// A shared app token needs an aggregate ceiling too, so changing IP addresses
+// cannot turn one leaked token into unbounded OpenAI usage. This is applied
+// only when APP_TOKEN auth is on; 0 disables it for local development.
+const sharedRateLimitMax = envInt("SHARED_RATE_LIMIT_MAX", 80);
+// Photo and audio uploads are materially more expensive than text requests.
+const mediaRateLimitMax = envInt("MEDIA_RATE_LIMIT_MAX", 4);
+const sharedMediaRateLimitMax = envInt("SHARED_MEDIA_RATE_LIMIT_MAX", 12);
 
-// Max accepted POST body in bytes. Sized so the cap never rejects a payload
-// OpenAI itself would accept: photo import sends up to ~5MB PNG (~6.7MB as
-// base64) and voice import sends uncompressed WAV whose upstream limit is a
-// 25MB decoded file (~33.4MB as base64 JSON).
+// Keep normal JSON requests small. Only the two media-upload endpoints receive
+// the larger cap needed for base64 photo/audio payloads.
 const maxBodyBytes = Math.max(1, envInt("MAX_BODY_BYTES", 36_000_000));
+const maxTextBodyBytes = Math.min(maxBodyBytes, Math.max(1, envInt("MAX_TEXT_BODY_BYTES", 1_000_000)));
+const maxImageBytes = Math.max(1, envInt("MAX_IMAGE_BYTES", 5_000_000));
+const maxAudioBytes = Math.max(1, envInt("MAX_AUDIO_BYTES", 25_000_000));
+
+// Do not let a burst of slow OpenAI calls tie up the small TestFlight backend.
+// 0 disables an individual cap for local debugging.
+const maxInFlight = envInt("MAX_IN_FLIGHT", 12);
+const maxInFlightPerKey = envInt("MAX_IN_FLIGHT_PER_KEY", 2);
+const openAiTimeoutMs = Math.max(1_000, envInt("OPENAI_TIMEOUT_MS", 60_000));
 
 function timingSafeTokenMatch(provided, expected) {
   // Hash both sides so lengths always match; comparison stays constant-time.
@@ -42,9 +72,47 @@ function timingSafeTokenMatch(provided, expected) {
 // key -> array of request timestamps (ms) inside the current window.
 const rateLimitWindows = new Map();
 const rateLimitMaxKeys = 10_000;
+const inFlightByKey = new Map();
+let inFlightTotal = 0;
+
+const mediaPaths = new Set([
+  "/api/ai/photo-to-workout/extract",
+  "/api/ai/voice-to-workout/transcribe"
+]);
+const allowedImageMimeTypes = new Set(["image/jpeg", "image/png"]);
+const allowedAudioMimeTypes = new Set(["audio/m4a", "audio/wav", "application/octet-stream"]);
+
+function requestPath(request) {
+  try {
+    return new URL(request.url ?? "/", "http://localhost").pathname;
+  } catch {
+    return "";
+  }
+}
+
+function maxBodyBytesFor(request) {
+  return mediaPaths.has(requestPath(request)) ? maxBodyBytes : maxTextBodyBytes;
+}
+
+function isMediaRequest(request) {
+  return mediaPaths.has(requestPath(request));
+}
+
+function decodedBase64Bytes(value) {
+  // The app uses Data.base64EncodedString(), which is padded standard base64.
+  // Reject malformed data before a media provider sees it or Buffer allocates it.
+  if (typeof value !== "string" || value.length === 0 || value.length % 4 !== 0) {
+    return null;
+  }
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
+    return null;
+  }
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return (value.length / 4) * 3 - padding;
+}
 
 function rateLimitKey(request) {
-  const forwarded = request.headers["x-forwarded-for"];
+  const forwarded = trustProxy ? request.headers["x-forwarded-for"] : undefined;
   const forwardedIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : "";
   const ip = forwardedIp || request.socket.remoteAddress || "unknown";
   const rawToken = request.headers["x-app-token"];
@@ -54,29 +122,79 @@ function rateLimitKey(request) {
   return `${tokenPart}|${ip}`;
 }
 
-function checkRateLimit(key) {
-  if (rateLimitMax === 0) return { allowed: true, retryAfter: 0 };
+function sharedTokenRateLimitKey(request) {
+  const rawToken = request.headers["x-app-token"];
+  const tokenPart = typeof rawToken === "string" && rawToken
+    ? createHash("sha256").update(rawToken).digest("hex").slice(0, 16)
+    : "anon";
+  return `shared:${tokenPart}`;
+}
+
+function storeRateLimitWindow(key, timestamps) {
+  // Treat the cap as LRU. In particular, the shared-token window is refreshed
+  // on every authenticated request so a flood of forged client identities
+  // cannot evict the aggregate cost guard from this bounded map.
+  if (rateLimitWindows.has(key)) {
+    rateLimitWindows.delete(key);
+  } else if (rateLimitWindows.size >= rateLimitMaxKeys) {
+    const oldestKey = rateLimitWindows.keys().next().value;
+    rateLimitWindows.delete(oldestKey);
+  }
+  rateLimitWindows.set(key, timestamps);
+}
+
+function checkRateLimit(key, maximum = rateLimitMax) {
+  if (maximum === 0) return { allowed: true, retryAfter: 0 };
 
   const now = Date.now();
   const cutoff = now - rateLimitWindowMs;
   const timestamps = (rateLimitWindows.get(key) ?? []).filter((ts) => ts > cutoff);
 
-  if (timestamps.length >= rateLimitMax) {
-    rateLimitWindows.set(key, timestamps);
+  if (timestamps.length >= maximum) {
+    storeRateLimitWindow(key, timestamps);
     const retryAfter = Math.max(1, Math.ceil((timestamps[0] + rateLimitWindowMs - now) / 1000));
     return { allowed: false, retryAfter };
   }
 
   timestamps.push(now);
+  storeRateLimitWindow(key, timestamps);
+  return { allowed: true, retryAfter: 0 };
+}
 
-  // Memory bound: hard cap on tracked keys (evict oldest insertion first).
-  if (!rateLimitWindows.has(key) && rateLimitWindows.size >= rateLimitMaxKeys) {
-    const oldestKey = rateLimitWindows.keys().next().value;
-    rateLimitWindows.delete(oldestKey);
+function acquireInFlight(key) {
+  const currentForKey = inFlightByKey.get(key) ?? 0;
+  const atGlobalLimit = maxInFlight > 0 && inFlightTotal >= maxInFlight;
+  const atKeyLimit = maxInFlightPerKey > 0 && currentForKey >= maxInFlightPerKey;
+
+  if (atGlobalLimit || atKeyLimit) {
+    return { acquired: false };
   }
 
-  rateLimitWindows.set(key, timestamps);
-  return { allowed: true, retryAfter: 0 };
+  inFlightTotal += 1;
+  inFlightByKey.set(key, currentForKey + 1);
+  let released = false;
+
+  return {
+    acquired: true,
+    release() {
+      if (released) return;
+      released = true;
+      inFlightTotal = Math.max(0, inFlightTotal - 1);
+      const remaining = (inFlightByKey.get(key) ?? 1) - 1;
+      if (remaining <= 0) {
+        inFlightByKey.delete(key);
+      } else {
+        inFlightByKey.set(key, remaining);
+      }
+    }
+  };
+}
+
+function fetchOpenAI(url, options) {
+  return fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(openAiTimeoutMs)
+  });
 }
 
 // Periodic sweep so idle keys do not accumulate between requests.
@@ -657,9 +775,18 @@ const coachVoiceGuidelines = [
 
 const preferenceInstructions = [
   "You may receive a saved user preference profile.",
-  "Use those preferences when they help, especially for equipment, disliked exercises, limitations, preferred style, and default time limits.",
+  "Use those preferences when they help, especially for training experience, age, equipment, disliked exercises, flagged areas, limitation notes, preferred style, and default time limits.",
   "Treat the user's current request or imported content as the highest priority if it conflicts with the saved profile.",
   "Do not mention the saved profile explicitly unless it helps explain a coaching choice."
+].join(" ");
+
+// The profile is useful practical context, never a medical assessment. These
+// instructions travel with every AI route that can create or change a plan.
+const safePersonalizationInstructions = [
+  "Treat saved training experience, age, flagged body areas, and limitation notes as practical planning constraints, not a diagnosis or medical clearance.",
+  "For someone new to training or returning after time away, favor a small number of familiar movements, conservative starting volume, clear rest guidance, and plain everyday language. Do not invent starting weights when no lifting history is provided.",
+  "When a flagged area or limitation could conflict with a movement, favor a comfortable alternative or leave the movement out; never tell the user to push through pain or claim that a plan treats, fixes, or is safe for an injury.",
+  "If the user asks for medical, injury-treatment, or symptom advice, keep the response general and encourage appropriate guidance from a qualified clinician or professional."
 ].join(" ");
 
 // Persona report 2026-08-31 #1: a "30-Minute" routine carried 16 work sets.
@@ -745,6 +872,7 @@ const workoutGeneratorInstructions = [
   routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
+  safePersonalizationInstructions,
   userMemoryInstructions,
   "Use working sets only.",
   "Make rep targets concise, such as 5-8, 8-10, 10-15, or 30 sec.",
@@ -765,6 +893,7 @@ const supplementaryWorkoutInstructions = [
   routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
+  safePersonalizationInstructions,
   "Use working sets only unless the user explicitly asks for a warm-up series.",
   "Make rep targets concise, such as 8-12, 12-20, 30 sec, or 60 sec.",
   "Only add exercise notes when they are actually helpful.",
@@ -831,6 +960,7 @@ const workoutRevisionInstructions = [
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
   coachVoiceGuidelines,
   preferenceInstructions,
+  safePersonalizationInstructions,
   userMemoryInstructions,
   "Only return JSON matching the schema."
 ].join(" ");
@@ -847,6 +977,8 @@ const workoutNudgeInstructions = [
   "suggestedWeightText is short text with a unit, matching how the user logs (145 lb, bodyweight). repText is a plain rep target like 8 or 8-10.",
   "Each whyNote is at most 12 words, grounded in what the user reported or lifted. Plain language, no jargon.",
   "overallNote is one short plain sentence describing the session-level adjustment.",
+  preferenceInstructions,
+  safePersonalizationInstructions,
   userMemoryInstructions,
   "Only return JSON matching the schema."
 ].join(" ");
@@ -867,6 +999,7 @@ const importRevisionInstructions = [
   "When action is reply_only or suggestion, set extraction to null and changeSummary to null.",
   coachVoiceGuidelines,
   preferenceInstructions,
+  safePersonalizationInstructions,
   "rawText should be a clean plain-text reconstruction of the revised routine.",
   "Only return JSON matching the schema."
 ].join(" ");
@@ -888,6 +1021,7 @@ const coachChatInstructions = [
   "Choose action updated_draft when the user clearly wants the current routine or a specific saved routine changed right now.",
   "Set editedRoutineID to the exact id of the saved routine your draft modifies, copied verbatim from the list, or the active workout's routine id when you are modifying that. Set editedRoutineID to null whenever the draft is brand-new or you return no routine.",
   "If the user is in active workout context, prefer practical coaching help unless they clearly ask for the rest of the workout to be rebuilt.",
+  "If the Coach context is Routine editing, it reflects a local form that may still be unsaved. Give whole-workout advice only: use reply_only or suggestion, set routine and changeSummary to null, and never create or edit a routine from that context.",
   "When action is created_draft or updated_draft, return a complete routine in the schema and write a short changeSummary.",
   "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
   "If a routine is returned, keep the name field to exercise names only, never sets, reps, numbering, or prescription text.",
@@ -899,6 +1033,7 @@ const coachChatInstructions = [
   routineFieldGuidelines,
   coachVoiceGuidelines,
   preferenceInstructions,
+  safePersonalizationInstructions,
   userMemoryInstructions,
   "Only return JSON matching the schema."
 ].join(" ");
@@ -910,6 +1045,8 @@ const exerciseSwapInstructions = [
   "Favor similar movement pattern, muscle emphasis, and practical equipment fit.",
   "If the user asks for shoulder-friendly, easier, dumbbell, or home-gym options, prioritize those constraints clearly.",
   coachVoiceGuidelines,
+  preferenceInstructions,
+  safePersonalizationInstructions,
   "reason should be a short coach-style explanation of why the replacement fits.",
   "preserves should be short phrases like upper chest focus, horizontal press pattern, or lower setup time.",
   "caution should be null unless there is one quick tradeoff worth mentioning.",
@@ -924,6 +1061,8 @@ const exerciseCoachInstructions = [
   "Keep the answer short, direct, and practical.",
   "Focus on what the movement trains, why someone would use it, setup simplicity, joint comfort, or substitute logic when relevant.",
   coachVoiceGuidelines,
+  preferenceInstructions,
+  safePersonalizationInstructions,
   "Only include suggestions when a substitution, easier option, or alternative genuinely helps.",
   "If you include suggestions, only choose names from the provided candidate list.",
   "Each suggestion reason should be one short coach-style sentence.",
@@ -960,12 +1099,17 @@ const routineSimpleExplanationInstructions = [
   "First say in one or two sentences what this workout as a whole does for the body.",
   "Then walk through the exercises in order, one short line each, saying in everyday terms what it works and why it is in the plan.",
   "Mention how it should roughly feel, like tiring but doable, when that helps.",
+  preferenceInstructions,
+  safePersonalizationInstructions,
   "Go deeper than a one-line overview, but stay under 160 words.",
   "Use short sentences in a few flowing paragraphs. No markdown, no lists, no headings.",
   "Do not include anything outside the JSON schema."
 ].join(" ");
 
 const server = http.createServer(async (request, response) => {
+  let releaseInFlight = null;
+
+  try {
   if (request.method === "OPTIONS") {
     sendJson(response, 204, {});
     return;
@@ -995,7 +1139,8 @@ const server = http.createServer(async (request, response) => {
       }
     }
 
-    const rateLimit = checkRateLimit(rateLimitKey(request));
+    const clientKey = rateLimitKey(request);
+    const rateLimit = checkRateLimit(`client:${clientKey}`);
     if (!rateLimit.allowed) {
       response.setHeader("Retry-After", String(rateLimit.retryAfter));
       sendJson(response, 429, {
@@ -1004,6 +1149,56 @@ const server = http.createServer(async (request, response) => {
       });
       return;
     }
+
+    if (appToken && sharedRateLimitMax > 0) {
+      const sharedRateLimit = checkRateLimit(sharedTokenRateLimitKey(request), sharedRateLimitMax);
+      if (!sharedRateLimit.allowed) {
+        response.setHeader("Retry-After", String(sharedRateLimit.retryAfter));
+        sendJson(response, 429, {
+          error: "The shared AI request limit has been reached. Try again shortly.",
+          retryAfter: sharedRateLimit.retryAfter
+        });
+        return;
+      }
+    }
+
+    if (isMediaRequest(request)) {
+      const mediaRateLimit = checkRateLimit(`media:${clientKey}`, mediaRateLimitMax);
+      if (!mediaRateLimit.allowed) {
+        response.setHeader("Retry-After", String(mediaRateLimit.retryAfter));
+        sendJson(response, 429, {
+          error: "Too many photo or voice imports. Try again shortly.",
+          retryAfter: mediaRateLimit.retryAfter
+        });
+        return;
+      }
+
+      if (appToken && sharedMediaRateLimitMax > 0) {
+        const sharedMediaRateLimit = checkRateLimit(
+          `shared-media:${sharedTokenRateLimitKey(request)}`,
+          sharedMediaRateLimitMax
+        );
+        if (!sharedMediaRateLimit.allowed) {
+          response.setHeader("Retry-After", String(sharedMediaRateLimit.retryAfter));
+          sendJson(response, 429, {
+            error: "The shared photo and voice import limit has been reached. Try again shortly.",
+            retryAfter: sharedMediaRateLimit.retryAfter
+          });
+          return;
+        }
+      }
+    }
+
+    const inFlight = acquireInFlight(clientKey);
+    if (!inFlight.acquired) {
+      response.setHeader("Retry-After", "5");
+      sendJson(response, 429, {
+        error: "An AI request is already in progress. Try again shortly.",
+        retryAfter: 5
+      });
+      return;
+    }
+    releaseInFlight = inFlight.release;
   }
 
   if (request.method === "POST" && request.url === "/api/ai/workout-generator") {
@@ -1016,7 +1211,7 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+      const prompt = typeof body?.prompt === "string" ? body.prompt.trim().slice(0, 2_000) : "";
       const preferences = normalizePreferences(body?.preferences);
       const memory = normalizeUserMemory(body?.memory);
 
@@ -1052,7 +1247,7 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+      const prompt = typeof body?.prompt === "string" ? body.prompt.trim().slice(0, 2_000) : "";
       const preferences = normalizePreferences(body?.preferences);
 
       if (prompt.length < 8) {
@@ -1087,8 +1282,8 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const editPrompt = typeof body?.editPrompt === "string" ? body.editPrompt.trim() : "";
-      const currentRoutine = body?.currentRoutine ?? null;
+      const editPrompt = typeof body?.editPrompt === "string" ? body.editPrompt.trim().slice(0, 2_000) : "";
+      const currentRoutine = limitModelObject(body?.currentRoutine);
       const conversation = normalizeConversation(body?.conversation);
       const preferences = normalizePreferences(body?.preferences);
       const memory = normalizeUserMemory(body?.memory);
@@ -1191,6 +1386,7 @@ const server = http.createServer(async (request, response) => {
 
       const body = await readJsonBody(request, response);
       const routine = normalizeRoutineExplainInput(body?.routine);
+      const preferences = normalizePreferences(body?.preferences);
 
       if (!routine) {
         sendJson(response, 400, {
@@ -1199,7 +1395,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const explainResult = await explainWorkoutRoutine(routine);
+      const explainResult = await explainWorkoutRoutine(routine, preferences);
 
       sendJson(response, 200, {
         ...explainResult,
@@ -1224,13 +1420,21 @@ const server = http.createServer(async (request, response) => {
 
       const body = await readJsonBody(request, response);
       const imageBase64 = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
-      const fileName = typeof body?.fileName === "string" && body.fileName.trim() ? body.fileName.trim() : "photo-workout-import.png";
-      const mimeType = typeof body?.mimeType === "string" && body.mimeType.trim() ? body.mimeType.trim() : "image/png";
+      const fileName = typeof body?.fileName === "string" && body.fileName.trim() ? body.fileName.trim().slice(0, 160) : "photo-workout-import.png";
+      const mimeType = typeof body?.mimeType === "string" && body.mimeType.trim() ? body.mimeType.trim().toLowerCase().slice(0, 100) : "image/png";
       const preferences = normalizePreferences(body?.preferences);
 
       if (!imageBase64) {
         sendJson(response, 400, {
           error: "Image data is required."
+        });
+        return;
+      }
+
+      const imageBytes = decodedBase64Bytes(imageBase64);
+      if (!allowedImageMimeTypes.has(mimeType) || imageBytes === null || imageBytes > maxImageBytes) {
+        sendJson(response, 400, {
+          error: `Image must be a valid PNG or JPEG no larger than ${maxImageBytes} bytes.`
         });
         return;
       }
@@ -1265,8 +1469,8 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const editPrompt = typeof body?.editPrompt === "string" ? body.editPrompt.trim() : "";
-      const currentDraft = body?.currentDraft ?? null;
+      const editPrompt = typeof body?.editPrompt === "string" ? body.editPrompt.trim().slice(0, 2_000) : "";
+      const currentDraft = limitModelObject(body?.currentDraft);
       const conversation = normalizeConversation(body?.conversation);
       const preferences = normalizePreferences(body?.preferences);
 
@@ -1312,9 +1516,9 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const message = typeof body?.message === "string" ? body.message.trim() : "";
+      const message = typeof body?.message === "string" ? body.message.trim().slice(0, 1_200) : "";
       const conversation = normalizeConversation(body?.conversation);
-      const currentRoutine = body?.currentRoutine ?? null;
+      const currentRoutine = limitModelObject(body?.currentRoutine);
       const context = normalizeCoachContext(body?.context);
       const savedRoutines = normalizeSavedRoutines(body?.savedRoutines);
       const preferences = normalizePreferences(body?.preferences);
@@ -1364,9 +1568,10 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const currentExercise = body?.currentExercise ?? null;
-      const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
-      const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
+      const currentExercise = limitModelObject(body?.currentExercise);
+      const reason = typeof body?.reason === "string" ? body.reason.trim().slice(0, 600) : "";
+      const candidates = limitModelArray(body?.candidates);
+      const preferences = normalizePreferences(body?.preferences);
 
       if (!currentExercise || typeof currentExercise !== "object") {
         sendJson(response, 400, {
@@ -1389,7 +1594,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const swapResult = await suggestExerciseSwaps({ currentExercise, reason, candidates });
+      const swapResult = await suggestExerciseSwaps({ currentExercise, reason, candidates, preferences });
 
       sendJson(response, 200, {
         suggestions: swapResult.suggestions,
@@ -1414,9 +1619,10 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const currentExercise = body?.currentExercise ?? null;
-      const question = typeof body?.question === "string" ? body.question.trim() : "";
-      const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
+      const currentExercise = limitModelObject(body?.currentExercise);
+      const question = typeof body?.question === "string" ? body.question.trim().slice(0, 600) : "";
+      const candidates = limitModelArray(body?.candidates);
+      const preferences = normalizePreferences(body?.preferences);
 
       if (!currentExercise || typeof currentExercise !== "object") {
         sendJson(response, 400, {
@@ -1432,7 +1638,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const coachResult = await answerExerciseQuestion({ currentExercise, question, candidates });
+      const coachResult = await answerExerciseQuestion({ currentExercise, question, candidates, preferences });
 
       sendJson(response, 200, {
         answer: coachResult.answer,
@@ -1458,7 +1664,7 @@ const server = http.createServer(async (request, response) => {
       }
 
       const body = await readJsonBody(request, response);
-      const exercise = body?.exercise ?? null;
+      const exercise = limitModelObject(body?.exercise);
       const mode = typeof body?.mode === "string" ? body.mode.trim().toLowerCase() : "";
 
       if (!exercise || typeof exercise !== "object" || typeof exercise.name !== "string" || !exercise.name.trim()) {
@@ -1500,12 +1706,20 @@ const server = http.createServer(async (request, response) => {
 
       const body = await readJsonBody(request, response);
       const audioBase64 = typeof body?.audioBase64 === "string" ? body.audioBase64 : "";
-      const fileName = typeof body?.fileName === "string" && body.fileName.trim() ? body.fileName.trim() : "voice-workout.m4a";
-      const mimeType = typeof body?.mimeType === "string" && body.mimeType.trim() ? body.mimeType.trim() : "audio/m4a";
+      const fileName = typeof body?.fileName === "string" && body.fileName.trim() ? body.fileName.trim().slice(0, 160) : "voice-workout.m4a";
+      const mimeType = typeof body?.mimeType === "string" && body.mimeType.trim() ? body.mimeType.trim().toLowerCase().slice(0, 100) : "audio/m4a";
 
       if (!audioBase64) {
         sendJson(response, 400, {
           error: "Audio data is required."
+        });
+        return;
+      }
+
+      const audioBytes = decodedBase64Bytes(audioBase64);
+      if (!allowedAudioMimeTypes.has(mimeType) || audioBytes === null || audioBytes > maxAudioBytes) {
+        sendJson(response, 400, {
+          error: `Audio must be valid base64 no larger than ${maxAudioBytes} bytes.`
         });
         return;
       }
@@ -1562,6 +1776,9 @@ const server = http.createServer(async (request, response) => {
   sendJson(response, 404, {
     error: "Route not found."
   });
+  } finally {
+    releaseInFlight?.();
+  }
 });
 
 server.listen(port, () => {
@@ -1569,7 +1786,10 @@ server.listen(port, () => {
   const limitStatus = rateLimitMax === 0
     ? "rate limit OFF"
     : `rate limit ${rateLimitMax}/${Math.round(rateLimitWindowMs / 1000)}s`;
-  console.log(`Lokt AI backend listening on port ${port} — ${authStatus}, ${limitStatus}`);
+  const sharedLimitStatus = appToken && sharedRateLimitMax > 0
+    ? `shared token limit ${sharedRateLimitMax}/${Math.round(rateLimitWindowMs / 1000)}s`
+    : "shared token limit OFF";
+  console.log(`Lokt AI backend listening on port ${port} — ${authStatus}, ${limitStatus}, ${sharedLimitStatus}`);
 });
 
 async function generateWorkoutRoutine(prompt, preferences, memory = null) {
@@ -1617,7 +1837,7 @@ async function generateWorkoutRoutine(prompt, preferences, memory = null) {
 
 // One model round-trip for the generator: fetch, parse, sanitize.
 async function requestGeneratedRoutine(input) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -1833,7 +2053,7 @@ function retitleForHonestDuration(routine, limitMinutes, estimatedMinutes) {
 }
 
 async function generateSupplementaryWorkout(prompt, preferences) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -1884,7 +2104,7 @@ async function generateSupplementaryWorkout(prompt, preferences) {
 }
 
 async function reviseWorkoutRoutine({ editPrompt, currentRoutine, conversation, preferences, memory = null }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2043,7 +2263,7 @@ function appendActualDiff(changeSummary, beforeRoutine, afterRoutine) {
 }
 
 async function nudgeWorkoutRoutine({ routine, checkIn, preferences, memory = null }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2134,7 +2354,7 @@ function formatNudgeCheckIn(checkIn) {
 }
 
 async function extractWorkoutFromImage({ imageBase64, mimeType, preferences }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2201,7 +2421,7 @@ async function extractWorkoutFromImage({ imageBase64, mimeType, preferences }) {
 }
 
 async function reviseImportedWorkout({ editPrompt, currentDraft, conversation, preferences }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2274,7 +2494,7 @@ async function reviseImportedWorkout({ editPrompt, currentDraft, conversation, p
 }
 
 async function chatWithCoach({ message, conversation, currentRoutine, context, savedRoutines, preferences, memory = null }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2360,8 +2580,14 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
     throw new Error("OpenAI returned malformed coach JSON.");
   }
 
-  const sanitizedRoutine = sanitizeOptionalRoutine(coachResponse?.routine, coachResponse?.action);
-  const action = sanitizeCoachAction(coachResponse?.action);
+  const isRoutineEditingContext = context?.kind === "routine_editing";
+  // The routine editor sends an in-progress local form for whole-workout
+  // questions. It has no review/apply path in Coach, so never let a malformed
+  // or over-eager model response turn that advice into a hidden new draft.
+  const action = coachActionForContext(coachResponse?.action, context);
+  const sanitizedRoutine = isRoutineEditingContext
+    ? null
+    : sanitizeOptionalRoutine(coachResponse?.routine, action);
   const editedRoutineID = sanitizedRoutine
     ? sanitizeEditedRoutineID(coachResponse?.editedRoutineID, savedRoutines, context)
     : null;
@@ -2388,8 +2614,8 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
   };
 }
 
-async function suggestExerciseSwaps({ currentExercise, reason, candidates }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+async function suggestExerciseSwaps({ currentExercise, reason, candidates, preferences }) {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2411,6 +2637,9 @@ async function suggestExerciseSwaps({ currentExercise, reason, candidates }) {
                 "",
                 "Swap reason:",
                 reason,
+                "",
+                "Saved user preferences:",
+                formatPreferences(preferences),
                 "",
                 "Candidate replacements JSON:",
                 JSON.stringify(candidates, null, 2)
@@ -2455,8 +2684,8 @@ async function suggestExerciseSwaps({ currentExercise, reason, candidates }) {
   };
 }
 
-async function answerExerciseQuestion({ currentExercise, question, candidates }) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+async function answerExerciseQuestion({ currentExercise, question, candidates, preferences }) {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2478,6 +2707,9 @@ async function answerExerciseQuestion({ currentExercise, question, candidates })
                 "",
                 "User question:",
                 question,
+                "",
+                "Saved user preferences:",
+                formatPreferences(preferences),
                 "",
                 "Related exercise candidates JSON:",
                 JSON.stringify(candidates, null, 2)
@@ -2526,7 +2758,7 @@ async function answerExerciseQuestion({ currentExercise, question, candidates })
 async function explainExercise({ exercise, mode }) {
   const isCuesMode = mode === "cues";
 
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2634,8 +2866,8 @@ function normalizeRoutineExplainInput(routine) {
   return { title, summary, exercises };
 }
 
-async function explainWorkoutRoutine(routine) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+async function explainWorkoutRoutine(routine, preferences) {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2653,7 +2885,10 @@ async function explainWorkoutRoutine(routine) {
               type: "input_text",
               text: [
                 "Workout routine JSON:",
-                JSON.stringify(routine, null, 2)
+                JSON.stringify(routine, null, 2),
+                "",
+                "Saved user preferences:",
+                formatPreferences(preferences)
               ].join("\n")
             }
           ]
@@ -2710,7 +2945,7 @@ async function transcribeVoiceRecording({ audioBase64, fileName, mimeType }) {
   formData.append("model", transcriptionModel);
   formData.append("response_format", "json");
 
-  const apiResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`
@@ -2737,7 +2972,7 @@ async function transcribeVoiceRecording({ audioBase64, fileName, mimeType }) {
 }
 
 async function parseVoiceWorkoutTranscript(transcript) {
-  const apiResponse = await fetch("https://api.openai.com/v1/responses", {
+  const apiResponse = await fetchOpenAI("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -2854,13 +3089,56 @@ function extractOutputText(payload) {
   return "";
 }
 
+// The app normally sends small routine objects, but a copied shared token can
+// submit arbitrary JSON. Bound the structures that are interpolated directly
+// into a model prompt so input-token cost has a predictable ceiling even when
+// a request fits the HTTP body cap.
+function limitModelValue(value, depth = 0) {
+  if (value === null || typeof value === "boolean" || typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().slice(0, 500);
+  }
+
+  if (depth >= 5) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 30).map((item) => limitModelValue(item, depth + 1));
+  }
+
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 40)
+        .map(([key, item]) => [key.slice(0, 80), limitModelValue(item, depth + 1)])
+    );
+  }
+
+  return null;
+}
+
+function limitModelObject(value) {
+  const limited = limitModelValue(value);
+  return limited && typeof limited === "object" && !Array.isArray(limited) ? limited : null;
+}
+
+function limitModelArray(value) {
+  const limited = limitModelValue(value);
+  return Array.isArray(limited) ? limited : [];
+}
+
 function normalizeConversation(value) {
   const items = Array.isArray(value) ? value : [];
 
   return items
+    .slice(-12)
     .map((item) => ({
       role: typeof item?.role === "string" ? item.role.trim().toLowerCase() : "",
-      text: typeof item?.text === "string" ? item.text.trim() : ""
+      text: typeof item?.text === "string" ? item.text.trim().slice(0, 1_200) : ""
     }))
     .filter((item) => (item.role === "user" || item.role === "assistant") && item.text);
 }
@@ -2870,15 +3148,15 @@ function normalizeCoachContext(value) {
   const activeWorkout = value?.activeWorkout ?? null;
 
   return {
-    kind: kind === "draft_editing" || kind === "active_workout" ? kind : "planning",
+    kind: kind === "draft_editing" || kind === "routine_editing" || kind === "active_workout" ? kind : "planning",
     activeWorkout: activeWorkout && typeof activeWorkout === "object"
       ? {
           routineID: typeof activeWorkout.routineID === "string" ? activeWorkout.routineID.trim().slice(0, 64) : "",
-          routineName: typeof activeWorkout.routineName === "string" ? activeWorkout.routineName.trim() : "",
+          routineName: typeof activeWorkout.routineName === "string" ? activeWorkout.routineName.trim().slice(0, 120) : "",
           exercises: Array.isArray(activeWorkout.exercises)
-            ? activeWorkout.exercises.map((item) => String(item).trim()).filter(Boolean).slice(0, 20)
+            ? activeWorkout.exercises.map((item) => String(item).trim().slice(0, 80)).filter(Boolean).slice(0, 20)
             : [],
-          nextExercise: typeof activeWorkout.nextExercise === "string" ? activeWorkout.nextExercise.trim() : "",
+          nextExercise: typeof activeWorkout.nextExercise === "string" ? activeWorkout.nextExercise.trim().slice(0, 80) : "",
           // M4 safety branch: post-workout check-in summary (pain flag /
           // repeated too-hard) riding along so the coach addresses it first.
           checkInNote: typeof activeWorkout.checkInNote === "string"
@@ -3019,17 +3297,34 @@ function sanitizeEditedRoutineID(editedRoutineID, savedRoutines, context) {
 
 function normalizePreferences(value) {
   const preferredEquipment = Array.isArray(value?.preferredEquipment)
-    ? value.preferredEquipment.map((item) => String(item).trim()).filter(Boolean).slice(0, 10)
+    ? value.preferredEquipment.map((item) => String(item).trim().slice(0, 80)).filter(Boolean).slice(0, 10)
     : [];
   const dislikedExercises = Array.isArray(value?.dislikedExercises)
-    ? value.dislikedExercises.map((item) => String(item).trim()).filter(Boolean).slice(0, 12)
+    ? value.dislikedExercises.map((item) => String(item).trim().slice(0, 80)).filter(Boolean).slice(0, 12)
     : [];
-  const primaryGoal = typeof value?.primaryGoal === "string" ? value.primaryGoal.trim() : "";
-  const limitations = typeof value?.limitations === "string" ? value.limitations.trim() : "";
-  const trainingStyle = typeof value?.trainingStyle === "string" ? value.trainingStyle.trim() : "";
+  const primaryGoal = typeof value?.primaryGoal === "string" ? value.primaryGoal.trim().slice(0, 160) : "";
+  const limitations = typeof value?.limitations === "string" ? value.limitations.trim().slice(0, 500) : "";
+  const trainingStyle = typeof value?.trainingStyle === "string" ? value.trainingStyle.trim().slice(0, 120) : "";
   const defaultTimeLimitMinutes = Number.isFinite(value?.defaultTimeLimitMinutes)
     ? Math.max(5, Math.min(240, Number(value.defaultTimeLimitMinutes)))
     : null;
+  const trainingExperience = typeof value?.trainingExperience === "string" && [
+    "new_to_training",
+    "returning_to_training",
+    "training_consistently"
+  ].includes(value.trainingExperience)
+    ? value.trainingExperience
+    : "";
+  const age = Number.isInteger(value?.age) && value.age >= 13 && value.age <= 120
+    ? value.age
+    : null;
+  const injuryFlags = Array.isArray(value?.injuryFlags)
+    ? value.injuryFlags
+      .map((item) => String(item).trim())
+      .filter((item) => ["shoulder", "elbow_wrist", "lower_back", "hip", "knee", "ankle_foot", "other"].includes(item))
+      .filter((item, index, flags) => flags.indexOf(item) === index)
+      .slice(0, 7)
+    : [];
 
   return {
     preferredEquipment,
@@ -3037,7 +3332,10 @@ function normalizePreferences(value) {
     primaryGoal,
     limitations,
     trainingStyle,
-    defaultTimeLimitMinutes
+    defaultTimeLimitMinutes,
+    trainingExperience,
+    age,
+    injuryFlags
   };
 }
 
@@ -3066,6 +3364,18 @@ function formatPreferences(preferences) {
 
   if (Number.isFinite(preferences?.defaultTimeLimitMinutes)) {
     lines.push(`Default time limit: ${preferences.defaultTimeLimitMinutes} minutes`);
+  }
+
+  if (preferences?.trainingExperience) {
+    lines.push(`Training experience: ${preferences.trainingExperience.replaceAll("_", " ")}`);
+  }
+
+  if (Number.isInteger(preferences?.age)) {
+    lines.push(`Age: ${preferences.age}`);
+  }
+
+  if (Array.isArray(preferences?.injuryFlags) && preferences.injuryFlags.length > 0) {
+    lines.push(`Areas to work around: ${preferences.injuryFlags.map((flag) => flag.replaceAll("_", " ")).join(", ")}`);
   }
 
   return lines.length > 0 ? lines.join("\n") : "None.";
@@ -3278,11 +3588,13 @@ function formatConversation(conversation) {
 function formatCoachContext(context) {
   const label = context?.kind === "draft_editing"
     ? "Draft editing"
+    : context?.kind === "routine_editing"
+      ? "Routine editing"
     : context?.kind === "active_workout"
       ? "Active workout"
       : "Planning";
 
-  if (context?.kind !== "active_workout" || !context?.activeWorkout) {
+  if ((context?.kind !== "active_workout" && context?.kind !== "routine_editing") || !context?.activeWorkout) {
     return label;
   }
 
@@ -3296,11 +3608,11 @@ function formatCoachContext(context) {
     lines.push(`Routine id: ${context.activeWorkout.routineID}`);
   }
 
-  if (context.activeWorkout.nextExercise) {
+  if (context?.kind === "active_workout" && context.activeWorkout.nextExercise) {
     lines.push(`Next exercise: ${context.activeWorkout.nextExercise}`);
   }
 
-  if (context.activeWorkout.checkInNote) {
+  if (context?.kind === "active_workout" && context.activeWorkout.checkInNote) {
     lines.push(`Post-workout check-in that needs a real conversation (address it directly in your first reply): ${context.activeWorkout.checkInNote}`);
   }
 
@@ -3320,6 +3632,14 @@ function sanitizeCoachAction(action) {
   }
 
   return "reply_only";
+}
+
+function coachActionForContext(action, context) {
+  const sanitized = sanitizeCoachAction(action);
+  if (context?.kind === "routine_editing" && (sanitized === "created_draft" || sanitized === "updated_draft")) {
+    return "suggestion";
+  }
+  return sanitized;
 }
 
 function sanitizeChangeSummary(changeSummary, action) {
@@ -3631,6 +3951,7 @@ function readJsonBody(request, response) {
     let rawBody = "";
     let receivedBytes = 0;
     let rejectedForSize = false;
+    const bodyLimit = maxBodyBytesFor(request);
 
     const rejectTooLarge = () => {
       rejectedForSize = true;
@@ -3638,13 +3959,13 @@ function readJsonBody(request, response) {
       // chunks are discarded (rejectedForSize guard), so memory stays flat.
       response.on("finish", () => request.destroy());
       sendJson(response, 413, {
-        error: `Request body too large. Limit is ${maxBodyBytes} bytes.`
+        error: `Request body too large. Limit is ${bodyLimit} bytes.`
       });
       reject(new Error("Request body too large."));
     };
 
     const declaredLength = Number(request.headers["content-length"]);
-    if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+    if (Number.isFinite(declaredLength) && declaredLength > bodyLimit) {
       rejectTooLarge();
       return;
     }
@@ -3653,7 +3974,7 @@ function readJsonBody(request, response) {
       if (rejectedForSize) return;
 
       receivedBytes += chunk.length;
-      if (receivedBytes > maxBodyBytes) {
+      if (receivedBytes > bodyLimit) {
         rejectTooLarge();
         return;
       }
@@ -3687,7 +4008,9 @@ function sendJson(response, statusCode, payload) {
   if (response.writableEnded) return;
 
   response.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8"
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff"
   });
   response.end(JSON.stringify(payload));
 }

@@ -42,10 +42,11 @@ enum TabResetPolicy {
     }
 }
 
-struct CoachWorkoutSnapshot: Hashable {
-    /// Identity of the routine being logged, so the backend can resolve
-    /// "edit this workout" during a session to the actual saved routine.
-    var routineID: UUID
+struct CoachRoutineSnapshot: Hashable {
+    /// Present for a saved routine. A manual routine that is still being
+    /// composed has no identity yet, but Coach can still discuss its exercise
+    /// list without treating it as a saved routine.
+    var routineID: UUID?
     var routineName: String
     var exercises: [String]
     var nextExercise: String?
@@ -60,11 +61,19 @@ struct CoachWorkoutSnapshot: Hashable {
         self.nextExercise = nextExercise
         self.checkInNote = checkInNote
     }
+
+    init(routineID: UUID?, routineName: String, exercises: [String]) {
+        self.routineID = routineID
+        self.routineName = routineName
+        self.exercises = exercises
+        self.nextExercise = nil
+        self.checkInNote = nil
+    }
 }
 
 enum CoachLaunchContext: Hashable {
     case planning
-    case activeWorkout(CoachWorkoutSnapshot)
+    case activeWorkout(CoachRoutineSnapshot)
 }
 
 struct CoachLaunchRequest: Identifiable {
@@ -119,7 +128,7 @@ final class CoachRouter: ObservableObject {
 
     func openActiveWorkout(routine: Routine, nextExercise: String?, checkInNote: String? = nil) {
         launchRequest = CoachLaunchRequest(
-            context: .activeWorkout(CoachWorkoutSnapshot(
+            context: .activeWorkout(CoachRoutineSnapshot(
                 routine: routine,
                 nextExercise: nextExercise,
                 checkInNote: checkInNote
@@ -127,4 +136,5 @@ final class CoachRouter: ObservableObject {
         )
         selectedTab = .coach
     }
+
 }

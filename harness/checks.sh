@@ -64,10 +64,28 @@ KEYS=$(grep -rnE 'sk-[A-Za-z0-9_-]{20,}' --include="*.swift" --include="*.mjs" -
 if [ -n "$KEYS" ]; then fail "possible API key committed in sources:"; echo "$KEYS" | head -3
 else pass "no API keys in sources"; fi
 
-# 6. M1b drift tracker (informational): direct UserDefaults access to the
-#    store-owned keys. Should only ever DECREASE as screens migrate to WorkoutStore.
+# 6. M1b ownership gate: only WorkoutStore may access the legacy persistence
+#    keys for routines and sessions.
 DIRECT=$(grep -rnE 'forKey: *"(routines|workoutSessions)"' --include="*.swift" "$SRC" | grep -v "WorkoutStore.swift" | wc -l | tr -d ' ')
-echo "  INFO  M1b tracker: $DIRECT direct 'routines'/'workoutSessions' accesses outside WorkoutStore (should only decrease)"
+if [ "$DIRECT" = "0" ]; then pass "WorkoutStore exclusively owns routines/workoutSessions persistence"
+else fail "found $DIRECT direct 'routines'/'workoutSessions' accesses outside WorkoutStore"; fi
+
+# 7. TestFlight always uses the shipped backend. A user-editable server URL or
+# localhost fallback lets a stale development setting strand a beta build.
+BACKEND_ESCAPE=$(grep -rnE 'aiBackendBaseURL|AIBackendSettingsView|fallbackLocalBaseURLStrings|persistWorkingBaseURL|127\.0\.0\.1|localhost' --include="*.swift" "$SRC")
+if [ -n "$BACKEND_ESCAPE" ]; then fail "TestFlight backend override/fallback found:"; echo "$BACKEND_ESCAPE" | head -5
+else pass "TestFlight backend is fixed to the shipped Railway URL"; fi
+
+# 8. Coach response chrome must have a real action, not decorative social
+# icons left over from the chat mockup.
+COACH_PLACEHOLDERS=$(grep -nF 'ForEach(["doc.on.doc", "hand.thumbsup", "hand.thumbsdown", "square.and.arrow.up", "ellipsis"]' "$SRC/CoachView.swift")
+if [ -n "$COACH_PLACEHOLDERS" ]; then fail "Coach placeholder action row found"
+else pass "Coach response actions are functional"; fi
+
+# 9. Screenshot staging must never ship into a TestFlight build.
+STAGING=$(grep -rn 'LOKT_STAGE' --include="*.swift" "$SRC")
+if [ -n "$STAGING" ]; then fail "temporary screenshot staging found:"; echo "$STAGING" | head -5
+else pass "no temporary screenshot staging"; fi
 
 echo "=========================="
 if [ $FAIL -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "CHECKS FAILED"; fi

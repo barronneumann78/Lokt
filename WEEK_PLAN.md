@@ -18,8 +18,9 @@ via agents (per harness/AGENT_PLAYBOOK.md).
 - [ ] YOU: `openssl rand -hex 24` → app token
 - [ ] YOU: Railway deploy per `backend/DEPLOY.md` (login, init, up, domain, set 5 vars)
 - [ ] CLAUDE: verify the deployed gates (401/400/429 probes) once URL exists
-- [ ] YOU: URL → Settings → AI Backend; token → `AIBackendSecrets.swift`; ⌘R to
-      your iPhone (free provisioning — Xcode: add Apple ID, pick personal team)
+- [ ] YOU: confirm the shipped Railway URL in `AIBackendConfiguration`; token
+      → `AIBackendSecrets.swift`; ⌘R to your iPhone (free provisioning —
+      Xcode: add Apple ID, pick personal team)
 - [ ] CLAUDE (parallel): **data export** — Settings button sharing full history
       as JSON (testers' trust insurance; protects against delete-the-app data loss)
 

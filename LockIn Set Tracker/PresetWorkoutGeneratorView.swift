@@ -365,17 +365,8 @@ struct PresetWorkoutGeneratorView: View {
     }
 
     private func saveRoutines(_ routinesToAdd: [Routine]) {
-        var routines = [Routine]()
-
-        if let data = UserDefaults.standard.data(forKey: "routines"),
-           let decoded = try? JSONDecoder().decode([Routine].self, from: data) {
-            routines = decoded
-        }
-
-        routines.append(contentsOf: routinesToAdd)
-
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
+        for routine in routinesToAdd {
+            workoutStore.addRoutine(routine)
         }
     }
 }

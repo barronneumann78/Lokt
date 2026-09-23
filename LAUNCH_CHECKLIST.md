@@ -22,7 +22,8 @@ Supersedes WEEK_PLAN.md. Statuses are honest as of writing. Owner in [brackets].
       (done 2026-09-07) + APP_TOKEN into Railway variables, get https URL
 - [ ] [Claude] Verify deployed gates (401/400/429 probes) against the URL
 - [ ] [Claude] Flip the app's default backend URL to the Railway address
-      (AIBackendConfiguration), keep localhost fallbacks for dev; build 2
+      (AIBackendConfiguration); TestFlight has no editable URL or local
+      fallback; build 2
 - [ ] [Barron] Upload build 2 → TestFlight → External group "Friends" →
       Test Information (beta description + feedback email) → Beta App
       Review (~1 day) → enable public link → text 2–3 friends

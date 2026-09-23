@@ -21,10 +21,6 @@ struct SettingsView: View {
                                     .fill(AppTheme.accent)
                                     .frame(width: 12, height: 12)
                             }
-
-                            hairline
-
-                            hubRow(title: "AI Backend", destination: AIBackendSettingsView())
                         }
                         .glassCard()
                     }
@@ -164,42 +160,6 @@ private struct AppearanceSettingsView: View {
     }
 }
 
-// MARK: - AI Backend
-
-private struct AIBackendSettingsView: View {
-    @AppStorage(AIBackendConfiguration.userDefaultsKey) private var aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
-
-    var body: some View {
-        ZStack {
-            AppBackground()
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("BACKEND URL")
-                        .microLabel()
-
-                    TrackerTextField("Backend URL", text: $aiBackendBaseURL)
-                        .textFieldStyle(TrackerTextFieldStyle())
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .keyboardType(.URL)
-
-                    Button("Reset to Default") {
-                        aiBackendBaseURL = AIBackendConfiguration.defaultBaseURLString
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-                .padding(20)
-                .glassCard()
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
-            }
-        }
-        .navigationTitle("AI Backend")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
 // MARK: - Workout Preferences
 
 private struct WorkoutPreferencesSettingsView: View {
@@ -210,6 +170,10 @@ private struct WorkoutPreferencesSettingsView: View {
     @State private var limitationsText = ""
     @State private var trainingStyleText = ""
     @State private var defaultTimeLimitText = ""
+    @State private var trainingExperience: TrainingExperience?
+    @State private var ageText = ""
+    @State private var selectedInjuryFlags: Set<InjuryFlag> = []
+    @State private var ageValidationMessage: String?
 
     var body: some View {
         ZStack {
@@ -232,9 +196,11 @@ private struct WorkoutPreferencesSettingsView: View {
                         text: $dislikedExercisesText
                     )
 
+                    safetyProfileFields
+
                     multilinePreferenceField(
-                        title: "Injuries or Limitations",
-                        placeholder: "Sensitive shoulders, avoid deep knee flexion, low back gets irritated",
+                        title: "Notes About Limitations",
+                        placeholder: "For example: avoid overhead pressing or deep knee bends",
                         text: $limitationsText
                     )
 
@@ -290,20 +256,156 @@ private struct WorkoutPreferencesSettingsView: View {
         limitationsText = preferences.limitations
         trainingStyleText = preferences.trainingStyle
         defaultTimeLimitText = preferences.defaultTimeLimitMinutes.map(String.init) ?? ""
+        trainingExperience = preferences.trainingExperience
+        ageText = preferences.age.map(String.init) ?? ""
+        selectedInjuryFlags = Set(preferences.injuryFlags ?? [])
+        ageValidationMessage = nil
     }
 
     private func savePreferences() {
+        let trimmedAge = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let age: Int?
+        if trimmedAge.isEmpty {
+            age = nil
+        } else if let parsedAge = AIUserPreferences.validAge(from: trimmedAge) {
+            age = parsedAge
+        } else {
+            ageValidationMessage = "Enter an age from 13 to 120, or clear the field."
+            return
+        }
+
         let preferences = AIUserPreferences.fromForm(
             preferredEquipmentText: preferredEquipmentText,
             dislikedExercisesText: dislikedExercisesText,
             primaryGoal: primaryGoalText,
             limitations: limitationsText,
             trainingStyle: trainingStyleText,
-            defaultTimeLimitText: defaultTimeLimitText
+            defaultTimeLimitText: defaultTimeLimitText,
+            trainingExperience: trainingExperience,
+            age: age,
+            injuryFlags: InjuryFlag.allCases.filter(selectedInjuryFlags.contains)
         )
 
         AIUserPreferencesStore.save(preferences)
         loadPreferences()
+    }
+
+    private var safetyProfileFields: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("SAFETY PROFILE")
+                .microLabel()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Training Experience")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+
+                Menu {
+                    Button("Not set") {
+                        trainingExperience = nil
+                    }
+
+                    ForEach(TrainingExperience.allCases) { option in
+                        Button(option.title) {
+                            trainingExperience = option
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(trainingExperience?.title ?? "Not set")
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 13)
+                    .background(AppTheme.fieldBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+                }
+            }
+
+            preferenceField(
+                title: "Age",
+                placeholder: "Optional",
+                text: $ageText,
+                keyboardType: .numberPad
+            )
+
+            if let ageValidationMessage {
+                Text(ageValidationMessage)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.danger)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Areas to Work Around")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+
+                Button {
+                    selectedInjuryFlags.removeAll()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: selectedInjuryFlags.isEmpty ? "checkmark.circle.fill" : "circle")
+                        Text("None right now")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(selectedInjuryFlags.isEmpty ? AppTheme.primary : AppTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                    spacing: 10
+                ) {
+                    ForEach(InjuryFlag.allCases) { flag in
+                        injuryFlagButton(flag)
+                    }
+                }
+            }
+
+            Text("Lokt uses these as plan constraints, not medical advice.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+    }
+
+    private func injuryFlagButton(_ flag: InjuryFlag) -> some View {
+        let isSelected = selectedInjuryFlags.contains(flag)
+
+        return Button {
+            if isSelected {
+                selectedInjuryFlags.remove(flag)
+            } else {
+                selectedInjuryFlags.insert(flag)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.subheadline)
+                Text(flag.title)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textPrimary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? AppTheme.primary.opacity(0.14) : AppTheme.fieldBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                    .stroke(isSelected ? AppTheme.primary.opacity(0.65) : AppTheme.cardBorder, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func retakeQuiz() {
@@ -488,12 +590,8 @@ private struct WorkoutHistorySettingsView: View {
     }
 
     /// Builds the full-data JSON export and hands it to the share sheet.
-    /// Reads through `WorkoutStore` (after `reload()`, so screens that still
-    /// write UserDefaults directly are captured) — never a second persistence
-    /// path.
+    /// Raw routine and session history has one owner: `WorkoutStore`.
     private func exportData() {
-        store.reload()
-
         let now = Date()
         let document = DataExport.buildDocument(
             routines: store.routines,
@@ -524,24 +622,17 @@ private struct WorkoutHistorySettingsView: View {
     }
 
     private func loadWorkoutSessions() {
-        if let data = UserDefaults.standard.data(forKey: "workoutSessions"),
-           let decoded = try? JSONDecoder().decode([WorkoutSession].self, from: data) {
-            workoutSessions = decoded
-        } else {
-            workoutSessions = []
-        }
+        workoutSessions = store.sessions
     }
 
     private func saveWorkoutSessions(_ sessions: [WorkoutSession]) {
-        if let encoded = try? JSONEncoder().encode(sessions) {
-            UserDefaults.standard.set(encoded, forKey: "workoutSessions")
-        }
-        workoutSessions = sessions
+        store.replaceSessions(sessions)
+        workoutSessions = store.sessions
     }
 
     private func deleteAllWorkoutHistory() {
-        UserDefaults.standard.removeObject(forKey: "workoutSessions")
-        workoutSessions = []
+        store.deleteAllSessions()
+        workoutSessions = store.sessions
     }
 
     private func deleteHistory(for exercise: String) {

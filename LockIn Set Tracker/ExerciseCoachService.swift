@@ -17,6 +17,7 @@ private struct ExerciseCoachRequestPayload: Codable {
     var currentExercise: ExerciseSwapCandidatePayload
     var question: String
     var candidates: [ExerciseSwapCandidatePayload]
+    var preferences: AIUserPreferencesPayload
 }
 
 /// Request payload for draft exercises that never matched the library. The
@@ -37,6 +38,7 @@ private struct DraftExerciseCoachRequestPayload: Codable {
     var currentExercise: DraftExercisePayload
     var question: String
     var candidates: [ExerciseSwapCandidatePayload]
+    var preferences: AIUserPreferencesPayload
 }
 
 private struct ExerciseCoachResponseEnvelope: Codable {
@@ -61,7 +63,7 @@ enum ExerciseCoachError: LocalizedError {
         case .invalidQuestion:
             return "Ask a slightly more specific question so Lokt knows what to help with."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before using coach answers."
+            return "Lokt’s AI service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The coach answer came back in a format that Lokt could not use."
         case .requestFailed(let message):
@@ -134,10 +136,6 @@ struct ExerciseCoachService {
             throw ExerciseCoachError.invalidQuestion
         }
 
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw ExerciseCoachError.invalidBackendURL
-        }
-
         let payload = DraftExerciseCoachRequestPayload(
             currentExercise: DraftExercisePayload(
                 name: context.name,
@@ -149,7 +147,8 @@ struct ExerciseCoachService {
                 libraryStatus: "Not in the exercise library — answer from the draft context above."
             ),
             question: trimmedQuestion,
-            candidates: []
+            candidates: [],
+            preferences: AIUserPreferencesPayload(preferences: AIUserPreferencesStore.load())
         )
 
         let (data, response): (Data, URLResponse)
@@ -163,7 +162,7 @@ struct ExerciseCoachService {
             (data, response) = (result.data, result.response)
         } catch {
             throw ExerciseCoachError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 
@@ -269,14 +268,11 @@ struct ExerciseCoachService {
         exercise: Exercise,
         exercises: [Exercise]
     ) async throws -> ExerciseCoachReply {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw ExerciseCoachError.invalidBackendURL
-        }
-
         let payload = ExerciseCoachRequestPayload(
             currentExercise: candidatePayload(for: exercise),
             question: question,
-            candidates: coachCandidates(for: exercise, question: question, exercises: exercises).map(candidatePayload(for:))
+            candidates: coachCandidates(for: exercise, question: question, exercises: exercises).map(candidatePayload(for:)),
+            preferences: AIUserPreferencesPayload(preferences: AIUserPreferencesStore.load())
         )
 
         let (data, response): (Data, URLResponse)
@@ -290,7 +286,7 @@ struct ExerciseCoachService {
             (data, response) = (result.data, result.response)
         } catch {
             throw ExerciseCoachError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

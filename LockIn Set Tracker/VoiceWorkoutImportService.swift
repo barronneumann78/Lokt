@@ -24,7 +24,7 @@ enum VoiceWorkoutImportError: LocalizedError {
         case .unreadableRecording:
             return "That voice recording could not be read."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before using voice import."
+            return "Lokt’s voice service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The voice import backend responded, but the result could not be understood."
         case .emptyTranscript:
@@ -383,10 +383,6 @@ struct VoiceWorkoutImportPipeline {
 
 private struct VoiceWorkoutTranscriptionClient {
     func transcribeAudio(at fileURL: URL) async throws -> VoiceWorkoutTranscriptionResult {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw VoiceWorkoutImportError.invalidBackendURL
-        }
-
         let baseURL = try await verifyBackendReachability()
 
         let audioData: Data
@@ -449,51 +445,30 @@ private struct VoiceWorkoutTranscriptionClient {
     }
 
     private func verifyBackendReachability() async throws -> URL {
-        var lastError: Error = VoiceWorkoutImportError.requestFailed("The voice import backend is not responding correctly.")
+        let baseURL = AIBackendConfiguration.productionBaseURL
+        let healthURL = baseURL.appending(path: "health")
+        var request = URLRequest(url: healthURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 8
 
-        for baseURL in AIBackendConfiguration.candidateBaseURLs {
-            let healthURL = baseURL.appending(path: "health")
-            var request = URLRequest(url: healthURL)
-            request.httpMethod = "GET"
-            request.timeoutInterval = 8
-
-            do {
-                let (_, response) = try await URLSession.shared.data(for: request)
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode) else {
-                    lastError = VoiceWorkoutImportError.requestFailed(
-                        "The voice import backend is not responding correctly. Check that your backend URL in Settings matches the running server."
-                    )
-                    continue
-                }
-
-                AIBackendConfiguration.persistWorkingBaseURL(baseURL)
-                return baseURL
-            } catch {
-                lastError = error
-
-                if AIBackendConfiguration.isLocalTestingURL(baseURL),
-                   isRetryableAIBackendConnectionError(error) {
-                    continue
-                }
-
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
                 throw VoiceWorkoutImportError.requestFailed(
-                    detailedBackendErrorMessage(for: error, endpoint: healthURL)
+                    "Lokt’s voice service is unavailable right now. \(AIBackendConfiguration.connectionHelp)"
                 )
             }
+            return baseURL
+        } catch {
+            throw VoiceWorkoutImportError.requestFailed(
+                detailedBackendErrorMessage(for: error, endpoint: healthURL)
+            )
         }
-
-        let fallbackEndpoint = AIBackendConfiguration.candidateBaseURLs.first?.appending(path: "health")
-            ?? URL(string: AIBackendConfiguration.defaultBaseURLString)?.appending(path: "health")
-            ?? URL(fileURLWithPath: "/health")
-
-        throw VoiceWorkoutImportError.requestFailed(
-            detailedBackendErrorMessage(for: lastError, endpoint: fallbackEndpoint)
-        )
     }
 
     private func detailedBackendErrorMessage(for error: Error, endpoint: URL) -> String {
-        let host = endpoint.host(percentEncoded: false) ?? AIBackendConfiguration.currentBaseURLString
+        let host = endpoint.host(percentEncoded: false) ?? AIBackendConfiguration.defaultBaseURLString
 
         if case let VoiceWorkoutImportError.requestFailed(message) = error {
             return message
@@ -502,15 +477,15 @@ private struct VoiceWorkoutTranscriptionClient {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .timedOut:
-                return "The voice import backend took too long to respond. Make sure it is still running and try a shorter recording."
+                return "Lokt’s voice service took too long to respond. Try a shorter recording."
             case .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .notConnectedToInternet:
-                return "I could not reach the voice import backend at \(host). Make sure your local backend is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                return "I could not reach Lokt’s voice service at \(host). \(AIBackendConfiguration.connectionHelp)"
             default:
                 break
             }
         }
 
-        return "I could not reach the voice import backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+        return "I could not reach Lokt’s voice service. \(AIBackendConfiguration.connectionHelp)"
     }
 
     private func mimeType(for fileURL: URL) -> String {
@@ -527,10 +502,6 @@ private struct VoiceWorkoutTranscriptionClient {
 
 private struct VoiceWorkoutParseClient {
     func parseTranscript(_ transcript: String) async throws -> VoiceWorkoutParsePayload {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw VoiceWorkoutImportError.invalidBackendURL
-        }
-
         let (data, response): (Data, URLResponse)
 
         do {
@@ -542,7 +513,7 @@ private struct VoiceWorkoutParseClient {
             (data, response) = (result.data, result.response)
         } catch {
             throw VoiceWorkoutImportError.requestFailed(
-                "I could not reach the voice import backend to read your exercises. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s voice service to read your exercises. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

@@ -14,7 +14,7 @@ enum WorkoutPhotoImportError: LocalizedError {
         case .unreadableImage:
             return "That image could not be read. Try another photo or screenshot."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before using photo import."
+            return "Lokt’s photo service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The photo import backend responded, but the result could not be understood."
         case .noTextDetected:
@@ -196,7 +196,8 @@ struct WorkoutPhotoImportPipeline {
 }
 
 enum ImportedWorkoutSaver {
-    static func save(_ draft: ImportedWorkoutDraft) {
+    @MainActor
+    static func save(_ draft: ImportedWorkoutDraft, to store: WorkoutStore) {
         let customExercises = draft.days
             .flatMap(\.exercises)
             .compactMap { exercise in
@@ -204,8 +205,6 @@ enum ImportedWorkoutSaver {
             }
 
         CustomExerciseLibrary.upsert(customExercises)
-
-        var routines = loadRoutines()
 
         let importedRoutines = draft.days.compactMap { day -> Routine? in
             let exercises = day.exercises.map(\.resolvedExerciseName)
@@ -244,20 +243,9 @@ enum ImportedWorkoutSaver {
             )
         }
 
-        routines.append(contentsOf: importedRoutines)
-
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
+        for routine in importedRoutines {
+            store.addRoutine(routine)
         }
-    }
-
-    private static func loadRoutines() -> [Routine] {
-        guard let data = UserDefaults.standard.data(forKey: "routines"),
-              let decoded = try? JSONDecoder().decode([Routine].self, from: data) else {
-            return []
-        }
-
-        return decoded
     }
 }
 

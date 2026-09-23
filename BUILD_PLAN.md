@@ -37,19 +37,11 @@ Single source of truth so the loop has trustworthy history.
   `"routines"`/`"workoutSessions"` keys, injected at app root as `@EnvironmentObject`.
 - `Models.swift`: added `CheckInOutcome`, `SessionCheckIn`, `ExerciseProgressionState`;
   added optional `Routine.progression` and `WorkoutSession.checkIn`.
-- **Not yet compiled in Xcode — build and fix errors before continuing.**
 
-### M1b — Migrate call sites onto WorkoutStore — TODO (do this next)
-Replace direct `UserDefaults` access with the store so it's the *actual* owner.
-Sites (grep `"routines"` / `"workoutSessions"`):
-- `RoutineLibrary.swift` (make it delegate to the store, or fold it in)
-- `HomeView.swift` (~481/492), `CreateRoutineView.swift` (~661/669)
-- `PresetWorkoutGeneratorView.swift` (~364/372), `WorkoutPhotoImportService.swift` (~249/254)
-- `AIWorkoutGeneratorService.swift` (~389/394)
-- `WorkoutLoggerView.swift` (routines ~639/648; sessions ~1149/1154)
-- `AnalyticsView.swift` (~335), `SettingsView.swift` (~260/299/305)
-Migrate one file at a time; build between each. `WorkoutStore.reload()` bridges any
-screen still writing directly until it's converted.
+### M1b — Migrate call sites onto WorkoutStore — DONE
+`WorkoutStore` is the actual owner of routines and workout sessions. Creation,
+library, logger, analytics, coach, adaptation, and settings flows all read and
+write through it; the legacy keys remain an internal persistence detail only.
 
 ### M2 — Rebuild intake against the spine table — TODO
 Rework `OnboardingView.swift` + `AIUserPreferences.swift` to exactly the intake

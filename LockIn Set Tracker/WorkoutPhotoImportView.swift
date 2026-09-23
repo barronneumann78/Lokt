@@ -8,6 +8,7 @@ struct WorkoutPhotoImportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @EnvironmentObject private var workoutStore: WorkoutStore
     @State private var stage: WorkoutPhotoImportStage = .input
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImage: UIImage?
@@ -601,7 +602,7 @@ struct WorkoutPhotoImportView: View {
 
     private func saveImportedWorkout() {
         guard let importedWorkout else { return }
-        ImportedWorkoutSaver.save(importedWorkout)
+        ImportedWorkoutSaver.save(importedWorkout, to: workoutStore)
         // The save may have added custom exercises; refresh the shared library.
         exerciseStore.reloadCustomExercises()
         onSave()

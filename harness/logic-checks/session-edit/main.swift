@@ -3,9 +3,9 @@
 //   the logger: unchecking always works, checking needs parseable numbers),
 //   exercise ordering, duration round-trip, applyingEdits invariants
 //   (id/routineID/routineName/checkIn preserved; zero-set exercises dropped).
-// - WorkoutStore.updateSession: replace-by-id, never inserts, persists
-//   legacy-compatible JSON under "workoutSessions", triggers the user-memory
-//   refresh hook like every other session-writing path.
+// - WorkoutStore session writes: replace-by-id, bulk replacement, and full
+//   deletion persist legacy-compatible JSON under "workoutSessions" and trigger
+//   the user-memory refresh hook like every other session-writing path.
 // Compiles against the REAL Models/WorkoutStore/AnalyticsModels/SessionEditLogic.
 import Foundation
 
@@ -299,6 +299,29 @@ func runChecks() {
         stranger.id = strangerID
         store.updateSession(stranger)
         check("updateSession never inserts unknown sessions", store.sessions.count == 1)
+
+        // History settings replace every session after deleting one exercise
+        // across the collection. The store owns that bulk write and keeps the
+        // user-memory digest aligned with the newly persisted history.
+        let refreshesBeforeReplace = UserMemoryStore.refreshCount
+        store.replaceSessions([])
+        check("replaceSessions clears the published history", store.sessions.isEmpty)
+        check("replaceSessions triggers user-memory refresh hook",
+              UserMemoryStore.refreshCount == refreshesBeforeReplace + 1)
+        let afterReplace = WorkoutStore(defaults: defaults)
+        check("replaceSessions persists an empty legacy-compatible array",
+              afterReplace.sessions.isEmpty
+              && (defaults.data(forKey: "workoutSessions")
+                  .flatMap { try? JSONDecoder().decode([WorkoutSession].self, from: $0) })?.isEmpty == true)
+
+        store.addSession(makeSession())
+        let refreshesBeforeDelete = UserMemoryStore.refreshCount
+        store.deleteAllSessions()
+        check("deleteAllSessions clears the published history", store.sessions.isEmpty)
+        check("deleteAllSessions removes the legacy persistence key",
+              defaults.data(forKey: "workoutSessions") == nil)
+        check("deleteAllSessions triggers user-memory refresh hook",
+              UserMemoryStore.refreshCount == refreshesBeforeDelete + 1)
 
         defaults.removePersistentDomain(forName: suiteName)
     }

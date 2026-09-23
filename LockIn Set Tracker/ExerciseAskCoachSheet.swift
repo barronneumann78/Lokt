@@ -77,7 +77,11 @@ struct ExerciseAskButton: View {
 /// leaving the draft.
 struct ExerciseAskCoachSheet: View {
     let context: ExerciseAskContext
+    /// Present only when the host can safely replace the exercise in its own
+    /// draft or editor state. The sheet never persists a swap itself.
+    var onSwitchAlternative: ((ExerciseCoachSuggestion) -> Void)? = nil
 
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var exerciseStore: ExerciseStore
 
     @State private var question = ""
@@ -127,11 +131,23 @@ struct ExerciseAskCoachSheet: View {
                     }
 
                     if let reply {
-                        ExerciseCoachReplyCard(
-                            reply: reply,
-                            exercises: exerciseStore.exercises,
-                            allowsSuggestionNavigation: false
-                        )
+                        if let onSwitchAlternative {
+                            ExerciseCoachReplyCard(
+                                reply: reply,
+                                exercises: exerciseStore.exercises,
+                                allowsSuggestionNavigation: false,
+                                onSelectSuggestion: { suggestion in
+                                    onSwitchAlternative(suggestion)
+                                    dismiss()
+                                }
+                            )
+                        } else {
+                            ExerciseCoachReplyCard(
+                                reply: reply,
+                                exercises: exerciseStore.exercises,
+                                allowsSuggestionNavigation: false
+                            )
+                        }
                     }
 
                     if let errorMessage {
@@ -201,6 +217,9 @@ struct ExerciseCoachReplyCard: View {
     var exercises: [Exercise] = []
     var primaryAddAction: ExerciseDetailPrimaryAddAction? = nil
     var allowsSuggestionNavigation = true
+    /// Lets a review surface apply an alternative directly. A caller owns the
+    /// actual data mutation; this shared card only exposes the intent.
+    var onSelectSuggestion: ((ExerciseCoachSuggestion) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -218,7 +237,15 @@ struct ExerciseCoachReplyCard: View {
                         .microLabel()
 
                     ForEach(reply.suggestions) { suggestion in
-                        if allowsSuggestionNavigation {
+                        if let onSelectSuggestion {
+                            Button {
+                                onSelectSuggestion(suggestion)
+                            } label: {
+                                suggestionRow(suggestion, trailingLabel: "Switch")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Switch to \(suggestion.exerciseName)")
+                        } else if allowsSuggestionNavigation {
                             ExerciseTextNavigationLink(
                                 exerciseName: suggestion.exerciseName,
                                 exercises: exercises,
@@ -237,7 +264,11 @@ struct ExerciseCoachReplyCard: View {
         .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
     }
 
-    private func suggestionRow(_ suggestion: ExerciseCoachSuggestion, showsChevron: Bool) -> some View {
+    private func suggestionRow(
+        _ suggestion: ExerciseCoachSuggestion,
+        showsChevron: Bool = false,
+        trailingLabel: String? = nil
+    ) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "arrow.triangle.swap")
                 .font(.subheadline.weight(.semibold))
@@ -257,7 +288,16 @@ struct ExerciseCoachReplyCard: View {
 
             Spacer(minLength: 0)
 
-            if showsChevron {
+            if let trailingLabel {
+                Text(trailingLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(AppTheme.mutedFill)
+                    .clipShape(Capsule())
+                    .padding(.top, 1)
+            } else if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(AppTheme.textSecondary.opacity(0.8))

@@ -382,7 +382,6 @@ struct SessionCheckInSheet: View {
     }
 
     private func openCoach(with checkIn: SessionCheckIn) {
-        store.reload()
         guard let routine = store.routine(withID: prompt.routineID) else {
             dismiss()
             return
@@ -440,9 +439,6 @@ struct SessionCheckInSheet: View {
         didSubmit = true
         AdaptationMetrics.increment(.checkInAnswered)
 
-        // The logger still writes sessions to UserDefaults directly (M1b) —
-        // sync the store before recording against the just-saved session.
-        store.reload()
         store.recordCheckIn(checkIn, forSessionID: prompt.sessionID)
 
         if checkIn.hadPain || routineNeedsRealCheckIn {
@@ -489,7 +485,6 @@ struct SessionCheckInSheet: View {
     }
 
     private func applyNudge(_ nudge: WorkoutNudge) {
-        store.reload()
         guard let routine = store.routine(withID: prompt.routineID) else {
             dismiss()
             return

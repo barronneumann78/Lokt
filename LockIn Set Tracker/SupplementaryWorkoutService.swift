@@ -12,7 +12,7 @@ enum SupplementaryWorkoutError: LocalizedError {
         case .invalidPrompt:
             return "Give Lokt a little more direction so it can build a useful add-on block."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before generating an add-on."
+            return "Lokt’s AI service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The backend responded, but the add-on block format was not usable."
         case .emptyRoutine:
@@ -30,22 +30,24 @@ struct SupplementaryWorkoutClient {
             throw SupplementaryWorkoutError.invalidPrompt
         }
 
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw SupplementaryWorkoutError.invalidBackendURL
-        }
-
         let (data, response): (Data, URLResponse)
 
         do {
+            let preferences = AIUserPreferencesPayload(preferences: AIUserPreferencesStore.load())
             let result = try await sendAIBackendRequest(
                 path: "api/ai/workout-addon",
                 timeout: 60,
-                body: try JSONEncoder().encode(SupplementaryWorkoutRequest(prompt: trimmedPrompt))
+                body: try JSONEncoder().encode(
+                    SupplementaryWorkoutRequest(
+                        prompt: trimmedPrompt,
+                        preferences: preferences
+                    )
+                )
             )
             (data, response) = (result.data, result.response)
         } catch {
             throw SupplementaryWorkoutError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 
@@ -76,6 +78,7 @@ struct SupplementaryWorkoutClient {
 
 private struct SupplementaryWorkoutRequest: Codable {
     var prompt: String
+    var preferences: AIUserPreferencesPayload
 }
 
 private struct SupplementaryWorkoutResponseEnvelope: Codable {

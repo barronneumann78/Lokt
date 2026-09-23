@@ -1,0 +1,6 @@
+LockIn Set Tracker/Models.swift
+LockIn Set Tracker/WorkoutStore.swift
+LockIn Set Tracker/AIUserPreferences.swift
+LockIn Set Tracker/AIWorkoutGeneratorModels.swift
+LockIn Set Tracker/AIWorkoutGeneratorService.swift
+LockIn Set Tracker/CoachRoutinePersistence.swift

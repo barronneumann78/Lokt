@@ -3,6 +3,7 @@ import Foundation
 enum CoachContextKind: String, Codable {
     case planning = "planning"
     case draftEditing = "draft_editing"
+    case routineEditing = "routine_editing"
     case activeWorkout = "active_workout"
 }
 
@@ -74,7 +75,7 @@ struct CoachChatService {
         _ message: String,
         contextKind: CoachContextKind,
         currentDraft: AIGeneratedRoutineDraft?,
-        activeWorkout: CoachWorkoutSnapshot?,
+        activeWorkout: CoachRoutineSnapshot?,
         savedRoutines: [Routine],
         conversation: [AIWorkoutConversationMessage]
     ) async throws -> CoachChatResult {
@@ -92,7 +93,7 @@ struct CoachChatService {
                 kind: contextKind.rawValue,
                 activeWorkout: activeWorkout.map {
                     CoachActiveWorkoutPayload(
-                        routineID: $0.routineID.uuidString,
+                        routineID: $0.routineID?.uuidString,
                         routineName: $0.routineName,
                         exercises: $0.exercises,
                         nextExercise: $0.nextExercise,
@@ -174,7 +175,7 @@ struct CoachChatService {
             response = result.response
         } catch {
             throw CoachChatError.requestFailed(
-                "I could not reach the coach backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt Coach. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 

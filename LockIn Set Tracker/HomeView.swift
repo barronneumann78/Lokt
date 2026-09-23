@@ -45,9 +45,6 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
-            .onAppear {
-                store.reload()
-            }
         }
         .tint(AppTheme.textPrimary)
     }

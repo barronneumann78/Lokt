@@ -47,7 +47,13 @@ const functionNames = [
   "estimateRoutineMinutes",
   "routinePostCheckIssues",
   "retitleForHonestDuration",
-  "preferredEquipmentSet"
+  "preferredEquipmentSet",
+  "normalizePreferences",
+  "formatPreferences",
+  "normalizeCoachContext",
+  "formatCoachContext",
+  "sanitizeCoachAction",
+  "coachActionForContext"
 ];
 const estimatorConsts = (source.match(/^const estimator\w+ = \d+;$/gm) ?? []).join("\n");
 const equipmentAliasPairs = extractFunction("preferredEquipmentSet").includes("equipmentAliasPairs")
@@ -80,6 +86,43 @@ const routineWith = (exercises) => ({ title: "Test Routine", summary: "s", ratio
 
 console.log("== backend-sanitize-merge logic check ==");
 
+// --- 0. Safety-aware preference profile (backward-compatible normalization) --
+{
+  const normalized = fns.normalizePreferences({
+    preferredEquipment: ["Dumbbells"],
+    trainingExperience: "returning_to_training",
+    age: 36,
+    injuryFlags: ["shoulder", "knee", "shoulder", "made_up_flag"]
+  });
+  check("safe profile keeps a recognized training experience", normalized.trainingExperience === "returning_to_training");
+  check("safe profile keeps a plausible age", normalized.age === 36);
+  check("safe profile keeps only unique recognized injury flags", normalized.injuryFlags.join(",") === "shoulder,knee");
+
+  const legacy = fns.normalizePreferences({ preferredEquipment: ["Bands"] });
+  check(
+    "legacy preference payload remains valid without safe-profile fields",
+    legacy.trainingExperience === "" && legacy.age === null && legacy.injuryFlags.length === 0
+  );
+
+  const invalid = fns.normalizePreferences({
+    trainingExperience: "advanced",
+    age: 121,
+    injuryFlags: ["unknown"]
+  });
+  check(
+    "safe profile rejects unknown experience, invalid age, and unknown flags",
+    invalid.trainingExperience === "" && invalid.age === null && invalid.injuryFlags.length === 0
+  );
+
+  const profileText = fns.formatPreferences(normalized);
+  check(
+    "formatted profile carries experience, age, and flagged areas to every AI prompt",
+    profileText.includes("Training experience: returning to training") &&
+      profileText.includes("Age: 36") &&
+      profileText.includes("Areas to work around: shoulder, knee")
+  );
+}
+
 // --- 1. Frank's percent ramp survives as one merged multi-scheme entry ------
 {
   const out = fns.sanitizeRoutine(routineWith([
@@ -103,6 +146,36 @@ console.log("== backend-sanitize-merge logic check ==");
   check("Frank ramp: RDL untouched", out.exercises[1].name === "Romanian Deadlift" && out.exercises[1].reps === "8");
   check("merge is logged as [sanitize] merged", logs.some((line) => line.includes('[sanitize] merged duplicate exercise "Barbell back squat"')));
   check("nothing is logged as dropped", !logs.some((line) => line.includes("dropped duplicate")));
+}
+
+// --- 1a. Routine-editor Coach context stays whole-workout and advice-only ---
+{
+  const context = fns.normalizeCoachContext({
+    kind: "routine_editing",
+    activeWorkout: {
+      routineID: "1F6CBFD0-7C36-4A6E-A1C6-22E7BD4EBEFA",
+      routineName: "Thursday Push",
+      exercises: ["Bench Press", "Seated Dumbbell Shoulder Press"],
+      nextExercise: "This must not be treated as active"
+    }
+  });
+  const rendered = fns.formatCoachContext(context);
+  check("routine editor Coach context is preserved", context.kind === "routine_editing");
+  check(
+    "routine editor Coach context carries the in-progress exercise list",
+    rendered.includes("Routine editing") &&
+      rendered.includes("Thursday Push") &&
+      rendered.includes("Bench Press")
+  );
+  check(
+    "routine editor Coach context does not present an active-workout next exercise",
+    !rendered.includes("This must not be treated as active")
+  );
+  check(
+    "routine editor Coach context cannot produce a draft",
+    fns.coachActionForContext("updated_draft", context) === "suggestion" &&
+      fns.coachActionForContext("created_draft", context) === "suggestion"
+  );
 }
 
 // --- 2. Dana's "second lighter round" merges instead of dropping ------------

@@ -12,7 +12,7 @@ enum AIWorkoutGenerationError: LocalizedError {
         case .invalidPrompt:
             return "Write a little more detail so the AI has something useful to build from."
         case .invalidBackendURL:
-            return "The AI backend URL is invalid. Update it in Settings before generating a workout."
+            return "Lokt’s AI service is unavailable right now. Check your connection and try again."
         case .invalidResponse:
             return "The backend responded, but the routine format was not usable."
         case .emptyRoutine:
@@ -24,80 +24,24 @@ enum AIWorkoutGenerationError: LocalizedError {
 }
 
 enum AIBackendConfiguration {
-    static let userDefaultsKey = "aiBackendBaseURL"
     static let defaultBaseURLString = "https://lokt-production.up.railway.app"
-    private static let fallbackLocalBaseURLStrings = [
-        "http://127.0.0.1:8788",
-        "http://127.0.0.1:8787",
-        "http://localhost:8788",
-        "http://localhost:8787"
-    ]
-
-    static var currentBaseURLString: String {
-        let storedValue = UserDefaults.standard.string(forKey: userDefaultsKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let storedValue, !storedValue.isEmpty {
-            return storedValue
-        }
-
-        return defaultBaseURLString
-    }
-
-    static var currentBaseURL: URL? {
-        URL(string: currentBaseURLString)
-    }
-
-    static var candidateBaseURLs: [URL] {
-        let configured = currentBaseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
-        let shouldTryLocalFallbacks = configured.isEmpty || isLocalTestingURLString(configured)
-        // The production default is always tried after whatever is configured,
-        // so a stale saved URL (e.g. an old local IP from dev testing) can
-        // never permanently strand the app once it ships.
-        let candidates = [configured, defaultBaseURLString] + (shouldTryLocalFallbacks ? fallbackLocalBaseURLStrings : [])
-
-        var seen = Set<String>()
-
-        return candidates.compactMap { candidate in
-            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty,
-                  let url = URL(string: trimmed) else { return nil }
-
-            let key = url.absoluteString.lowercased()
-            guard seen.insert(key).inserted else { return nil }
-            return url
-        }
-    }
-
-    static var localTestingHint: String {
-        "For local simulator testing, make sure the backend is running on 127.0.0.1:8788 or 127.0.0.1:8787."
-    }
+    static let productionBaseURL = URL(string: defaultBaseURLString)!
+    /// TestFlight always talks to the shipped Railway backend. The app never
+    /// accepts a user-provided server address.
+    static let connectionHelp = "Check your internet connection and try again."
 
     /// Header carrying the shared app token on every backend call.
     static let appTokenHeaderField = "x-app-token"
 
     /// The shared app token from the gitignored `AIBackendSecrets.swift`
     /// (copy `AIBackendSecrets.swift.example` to create it). Nil or blank
-    /// means no header is sent — matching a token-less local backend.
+    /// means no header is sent.
     static var appToken: String? {
         guard let token = AIBackendSecrets.appToken?.trimmingCharacters(in: .whitespacesAndNewlines),
               !token.isEmpty else { return nil }
         return token
     }
 
-    static func persistWorkingBaseURL(_ url: URL) {
-        UserDefaults.standard.set(url.absoluteString, forKey: userDefaultsKey)
-    }
-
-    static func isLocalTestingURL(_ url: URL) -> Bool {
-        guard let host = url.host(percentEncoded: false)?.lowercased() else { return false }
-        return host == "127.0.0.1" || host == "localhost"
-    }
-
-    private static func isLocalTestingURLString(_ value: String) -> Bool {
-        guard let url = URL(string: value) else { return false }
-        return isLocalTestingURL(url)
-    }
 }
 
 struct AIBackendRequestResult {
@@ -113,63 +57,23 @@ func sendAIBackendRequest(
     contentType: String = "application/json",
     body: Data? = nil
 ) async throws -> AIBackendRequestResult {
-    let baseURLs = AIBackendConfiguration.candidateBaseURLs
-    guard !baseURLs.isEmpty else {
-        throw URLError(.badURL)
+    let baseURL = AIBackendConfiguration.productionBaseURL
+    let endpoint = baseURL.appending(path: path)
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = method
+    request.timeoutInterval = timeout
+
+    if !contentType.isEmpty {
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
     }
 
-    var lastError: Error = URLError(.cannotFindHost)
-
-    for baseURL in baseURLs {
-        let endpoint = baseURL.appending(path: path)
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = method
-        request.timeoutInterval = timeout
-
-        if !contentType.isEmpty {
-            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
-        }
-
-        if let appToken = AIBackendConfiguration.appToken {
-            request.setValue(appToken, forHTTPHeaderField: AIBackendConfiguration.appTokenHeaderField)
-        }
-
-        request.httpBody = body
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            AIBackendConfiguration.persistWorkingBaseURL(baseURL)
-            return AIBackendRequestResult(data: data, response: response, baseURL: baseURL)
-        } catch {
-            lastError = error
-
-            if AIBackendConfiguration.isLocalTestingURL(baseURL),
-               isRetryableAIBackendConnectionError(error) {
-                continue
-            }
-
-            throw error
-        }
+    if let appToken = AIBackendConfiguration.appToken {
+        request.setValue(appToken, forHTTPHeaderField: AIBackendConfiguration.appTokenHeaderField)
     }
 
-    throw lastError
-}
-
-func isRetryableAIBackendConnectionError(_ error: Error) -> Bool {
-    guard let urlError = error as? URLError else { return false }
-
-    switch urlError.code {
-    case .timedOut,
-         .cannotFindHost,
-         .cannotConnectToHost,
-         .dnsLookupFailed,
-         .networkConnectionLost,
-         .notConnectedToInternet,
-         .resourceUnavailable:
-        return true
-    default:
-        return false
-    }
+    request.httpBody = body
+    let (data, response) = try await URLSession.shared.data(for: request)
+    return AIBackendRequestResult(data: data, response: response, baseURL: baseURL)
 }
 
 struct AIWorkoutGeneratorClient {
@@ -242,10 +146,6 @@ struct AIWorkoutGeneratorClient {
         path: String,
         body: T
     ) async throws -> AIWorkoutGeneratorResponseEnvelope {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw AIWorkoutGenerationError.invalidBackendURL
-        }
-
         let (data, response): (Data, URLResponse)
 
         do {
@@ -257,7 +157,7 @@ struct AIWorkoutGeneratorClient {
             (data, response) = (result.data, result.response)
         } catch {
             throw AIWorkoutGenerationError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 
@@ -286,10 +186,6 @@ struct AIWorkoutGeneratorClient {
         path: String,
         body: T
     ) async throws -> AIWorkoutRevisionResponseEnvelope {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw AIWorkoutGenerationError.invalidBackendURL
-        }
-
         let (data, response): (Data, URLResponse)
 
         do {
@@ -301,7 +197,7 @@ struct AIWorkoutGeneratorClient {
             (data, response) = (result.data, result.response)
         } catch {
             throw AIWorkoutGenerationError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 
@@ -398,10 +294,6 @@ struct AIWorkoutGeneratorClient {
 /// `/api/ai/workout-generator/explain` endpoint.
 struct AIRoutineExplainService {
     func plainExplanation(for draft: AIGeneratedRoutineDraft) async throws -> String {
-        guard !AIBackendConfiguration.candidateBaseURLs.isEmpty else {
-            throw AIWorkoutGenerationError.invalidBackendURL
-        }
-
         let payload = AIRoutineExplainRequest(
             routine: AIRoutineExplainRoutinePayload(
                 title: draft.title,
@@ -414,7 +306,8 @@ struct AIRoutineExplainService {
                         reasoning: $0.reasoning
                     )
                 }
-            )
+            ),
+            preferences: AIUserPreferencesPayload(preferences: AIUserPreferencesStore.load())
         )
 
         let (data, response): (Data, URLResponse)
@@ -428,7 +321,7 @@ struct AIRoutineExplainService {
             (data, response) = (result.data, result.response)
         } catch {
             throw AIWorkoutGenerationError.requestFailed(
-                "I could not reach the AI backend. Make sure your server is running and the backend URL in Settings is correct. \(AIBackendConfiguration.localTestingHint)"
+                "I could not reach Lokt’s AI service. \(AIBackendConfiguration.connectionHelp)"
             )
         }
 
@@ -462,6 +355,7 @@ struct AIRoutineExplainService {
 
 private struct AIRoutineExplainRequest: Codable {
     var routine: AIRoutineExplainRoutinePayload
+    var preferences: AIUserPreferencesPayload
 }
 
 private struct AIRoutineExplainRoutinePayload: Codable {
@@ -505,24 +399,10 @@ enum AIWorkoutRoutineSaver {
         )
     }
 
-    static func save(_ draft: AIGeneratedRoutineDraft) {
+    @MainActor
+    static func save(_ draft: AIGeneratedRoutineDraft, to store: WorkoutStore) {
         guard let routine = makeRoutine(from: draft) else { return }
-
-        var routines = loadRoutines()
-        routines.append(routine)
-
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
-        }
-    }
-
-    private static func loadRoutines() -> [Routine] {
-        guard let data = UserDefaults.standard.data(forKey: "routines"),
-              let decoded = try? JSONDecoder().decode([Routine].self, from: data) else {
-            return []
-        }
-
-        return decoded
+        store.addRoutine(routine)
     }
 }
 
