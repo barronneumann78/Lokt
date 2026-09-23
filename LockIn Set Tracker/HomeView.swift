@@ -1,14 +1,13 @@
 import SwiftUI
 
 // Overview only: greeting, this week's numbers, a recent-activity glance, and
-// the dive into full Analytics. Creating workouts lives on the Workout tab;
-// the pinned START pill hands the up-next routine to that tab's start path
-// (`CoachRouter.requestWorkoutStart`) so the logger, the in-progress slot and
-// the replace-in-progress prompt all stay in one place.
+// the dive into full Analytics. Starting and creating workouts live on the
+// Workout tab — Home names the up-next routine in its subtitle but carries no
+// start control (owner feedback on build 3: starting an exercise from Home
+// felt wrong). No gradient pill on this screen.
 struct HomeView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
-    @EnvironmentObject private var coachRouter: CoachRouter
     @State private var navigateToSettings = false
     @State private var navigateToAnalytics = false
     @State private var navigateToExerciseLibrary = false
@@ -45,9 +44,6 @@ struct HomeView: View {
                     .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 16)
-                }
-                .safeAreaInset(edge: .bottom) {
-                    startPill
                 }
             }
             .navigationBarHidden(true)
@@ -330,8 +326,7 @@ struct HomeView: View {
     }
 
     // MARK: - Empty state
-    // The pinned START pill below is the one call to action, so the card
-    // itself carries no button (one gradient pill per screen).
+    // No call to action here: creating a routine lives on the Workout tab.
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -346,37 +341,6 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppTheme.cardPadding)
         .glassCard()
-    }
-
-    // MARK: - Pinned start pill — THE primary action of the screen
-
-    private var startPill: some View {
-        Button {
-            startNext()
-        } label: {
-            Text(startTitle)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .padding(.horizontal, 24)
-        }
-        .buttonStyle(PrimaryButtonStyle())
-        .padding(.horizontal, AppTheme.screenPadding)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
-        .background(AppTheme.backgroundTop)
-    }
-
-    private var startTitle: String {
-        guard let next = nextRoutine else { return "CREATE A ROUTINE" }
-        return "START \(next.name.uppercased())"
-    }
-
-    private func startNext() {
-        guard let next = nextRoutine else {
-            coachRouter.selectedTab = .workout
-            return
-        }
-        coachRouter.requestWorkoutStart(routineID: next.id)
     }
 
     private var hairline: some View {

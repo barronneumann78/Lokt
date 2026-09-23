@@ -214,8 +214,8 @@ enum HomeInsights {
         return lastDone
     }
 
-    /// The routine the START pill offers.
-    /// - No routines → nil (the pill reads CREATE A ROUTINE).
+    /// The routine Home's "Up next" subtitle names.
+    /// - No routines → nil (the subtitle falls back to the date).
     /// - One routine → that one, done or not.
     /// - The most recently done routine sits in a group with other members →
     ///   the least-recently-done OTHER member of that group (never-done first,

@@ -133,15 +133,18 @@ Home's week volume and the Analytics headline strip only.
 Phase 2 (done, Home): `HomeView` is hero card (week volume + "+8% vs last"
 chip + Mon–Sun strip, today's bar = `primaryGradient` under `.barGlow()`, the
 one small-mark glow token) → SESSIONS·7D / PRs·30D / STREAK row → RECENT with
-a "View Analytics ›" text link → pinned `START <UP NEXT>` pill (the screen's
-only gradient pill; "CREATE A ROUTINE" with no routines). All math is
+a "View Analytics ›" text link. Home has NO gradient pill: the pinned
+`START <UP NEXT>` pill from `fa5664f` was removed on owner feedback (build 3
+— starting a workout from Home felt wrong); the header's "Up next: X"
+subtitle keeps the information without a control. All math is
 `HomeInsights` (Foundation-only, logic-checked in
 `harness/logic-checks/home-week-strip`): Monday-first weeks, completed-only
 tonnage via `AnalyticsMath`, PRs via the Analytics day-scorecard rule, and
 "up next" = least-recently-done sibling in the just-done routine's group,
-else least-recently-done overall. The pill never pushes the logger: it calls
-`CoachRouter.requestWorkoutStart(routineID:)` and `WorkoutTabView` consumes
-the request through its own `requestStartWorkout` guard (replace-in-progress
+else least-recently-done overall. The start plumbing stays in place unused:
+`CoachRouter.requestWorkoutStart(routineID:)` (`WorkoutStartRequest`) is the
+tab-reset-safe way to start a routine from another tab, and `WorkoutTabView`
+consumes it through its own `requestStartWorkout` guard (replace-in-progress
 prompt included) — the Workout tab stays the sole owner of the logger.
 Phase 3 (done, Logger, commit `5a5eef2`): recording header (red dot under
 `.recordingGlow()`, REST accent chip), 20pt exercise name + TARGET chip,

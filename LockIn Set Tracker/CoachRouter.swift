@@ -139,7 +139,10 @@ final class CoachRouter: ObservableObject {
         selectedTab = .coach
     }
 
-    /// Home's START pill: hand `routineID` to the Workout tab's start path.
+    /// Hand `routineID` to the Workout tab's start path from anywhere outside
+    /// that tab. Nothing calls this today (Home's START pill was removed on
+    /// owner feedback); it stays as the tab-reset-safe way to start a routine
+    /// from another tab.
     func requestWorkoutStart(routineID: UUID) {
         pendingWorkoutStart = WorkoutStartRequest(routineID: routineID)
         selectedTab = .workout

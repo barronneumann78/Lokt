@@ -692,9 +692,9 @@ struct WorkoutTabView: View {
         navigateToLogger = true
     }
 
-    /// Home's START pill lands here (`CoachRouter.requestWorkoutStart`), so
-    /// the routine goes through the SAME guard as the card's Start Workout
-    /// button — replace-in-progress prompt included. Deferred one runloop so
+    /// A `CoachRouter.requestWorkoutStart` request from another tab lands
+    /// here, so the routine goes through the SAME guard as the card's Start
+    /// Workout button — replace-in-progress prompt included. Deferred one runloop so
     /// the NavigationLink activation never races the tab switch (or the
     /// stale-tab rebuild) that brought us here. A routine deleted meanwhile
     /// simply lands the user on the Workout tab.
