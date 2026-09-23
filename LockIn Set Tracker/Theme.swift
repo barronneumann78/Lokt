@@ -136,6 +136,14 @@ enum AppTheme {
              radius: 6, y: 2)
     }
 
+    /// Soft halo around the logger's red recording dot (phase 3): `danger` at
+    /// ~55% alpha, tight radius, no offset — a glow, not a drop shadow.
+    static let recordingGlow = Glow(color: danger.opacity(0.55), radius: 4, y: 0)
+
+    /// Fill of the logger's ACTIVE set row: the accent at 7% over the row
+    /// surface, paired with an accent hairline. State encoding, not chrome.
+    static var activeRowTint: Color { activeScheme.color.opacity(0.07) }
+
     /// 1px inner top highlight on cards (Whoop-style depth) — sits inside the
     /// `cardBorder` hairline and fades out down the sides.
     static let cardHighlight = Color.white.opacity(0.04)
@@ -317,6 +325,14 @@ struct BarGlowModifier: ViewModifier {
     }
 }
 
+/// Halo around the logger's recording dot — see `AppTheme.recordingGlow`.
+struct RecordingGlowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        let glow = AppTheme.recordingGlow
+        return content.shadow(color: glow.color, radius: glow.radius, x: 0, y: glow.y)
+    }
+}
+
 /// Faint radial accent glow behind a hero number. Drawn as a circle 1.4× the
 /// number's width, squashed to an ellipse so it hugs the figure instead of
 /// bleeding into the label above and the caption below. Ends at 0-alpha accent
@@ -380,6 +396,11 @@ extension View {
     /// week strip's "today" bar on Home. Views never call `.shadow(` themselves.
     func barGlow() -> some View {
         modifier(BarGlowModifier())
+    }
+
+    /// Halo around the logger's red recording dot (`AppTheme.recordingGlow`).
+    func recordingGlow() -> some View {
+        modifier(RecordingGlowModifier())
     }
 
     func trackerTextEditorStyle() -> some View {
@@ -476,6 +497,27 @@ struct SecondaryButtonStyle: ButtonStyle {
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
+/// Full-width ghost pill: no fill, hairline capsule, secondary label — the
+/// quiet companion beneath a screen's one gradient pill (the logger's Wrap Up).
+struct GhostButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.textSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(AppTheme.mutedFill.opacity(configuration.isPressed ? 1 : 0))
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.99 : 1)
             .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }

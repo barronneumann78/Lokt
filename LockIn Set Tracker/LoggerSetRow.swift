@@ -28,7 +28,7 @@ enum LoggerSetMath {
         return Double(cleaned)
     }
 
-    /// Completed-volume readout for the VOL chip ("—" until a set is checked).
+    /// Completed-volume readout ("—" until a set is checked).
     static func volumeText(sets: [WorkoutSet]?, setCount: Int) -> String {
         let volume = resize(sets: sets, to: setCount).reduce(0.0) { total, set in
             guard set.isCompleted,
@@ -43,15 +43,33 @@ enum LoggerSetMath {
     }
 }
 
+/// Column geometry shared by the set table's header row and every set row, so
+/// the SET · PREV · LBS · REPS · check labels sit exactly over their cells.
+enum LoggerSetColumns {
+    static let spacing: CGFloat = 8
+    static let rowHorizontalPadding: CGFloat = 10
+    static let setNumberWidth: CGFloat = 24
+    static let previousWidth: CGFloat = 58
+    static let checkWidth: CGFloat = 36
+    static let fieldHeight: CGFloat = 34
+}
+
 /// One set row of the logger grid, isolated so a keystroke or focus change
 /// re-renders THIS row only: its inputs are the row's own `WorkoutSet` value,
 /// its focus coordinate, and minimal context — and `==` compares exactly
 /// those, so sibling rows (and cards) skip their bodies entirely.
+///
+/// Five columns on an elevated row surface: set number · PREV (last session's
+/// same set, tappable to copy it) · LBS · REPS · completion check. The active
+/// set — the first incomplete one — is tinted with the accent; sets after it
+/// wait at reduced opacity.
 struct LoggerSetRow: View, Equatable {
     let exercise: String
     let setIndex: Int
     let set: WorkoutSet
     let isActive: Bool
+    /// True for sets after the active one in this exercise (rendered dimmed).
+    let isPending: Bool
     let previous: WorkoutSet?
     let focus: LoggerFieldKind?
     /// True on the last reps cell of the workout — its Next reads Done.
@@ -69,6 +87,7 @@ struct LoggerSetRow: View, Equatable {
         lhs.setIndex == rhs.setIndex &&
         lhs.set == rhs.set &&
         lhs.isActive == rhs.isActive &&
+        lhs.isPending == rhs.isPending &&
         lhs.previous == rhs.previous &&
         lhs.focus == rhs.focus &&
         lhs.isFinalField == rhs.isFinalField
@@ -77,54 +96,70 @@ struct LoggerSetRow: View, Equatable {
     private var isDone: Bool { self.set.isCompleted }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Text("\(setIndex + 1)")
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(isActive ? AppTheme.backgroundTop : AppTheme.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(isActive ? AppTheme.primary : AppTheme.surfaceElevated)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .frame(width: 30, alignment: .leading)
+        HStack(spacing: LoggerSetColumns.spacing) {
+            Text("\(setIndex + 1)")
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(isActive ? AppTheme.primary : AppTheme.textSecondary)
+                .frame(width: LoggerSetColumns.setNumberWidth, alignment: .leading)
 
-                numericCell(
-                    text: set.weight,
-                    kind: .weight,
-                    keyboard: .decimalPad,
-                    primaryActionTitle: "Next",
-                    onTextChange: onWeightChange
-                )
+            previousCell
+                .frame(width: LoggerSetColumns.previousWidth, alignment: .leading)
 
-                numericCell(
-                    text: set.reps,
-                    kind: .reps,
-                    keyboard: .numberPad,
-                    primaryActionTitle: isFinalField ? "Done" : "Next",
-                    onTextChange: onRepsChange
-                )
+            numericCell(
+                text: set.weight,
+                kind: .weight,
+                keyboard: .decimalPad,
+                primaryActionTitle: "Next",
+                onTextChange: onWeightChange
+            )
 
-                checkButton
-                    .frame(width: 44)
-            }
+            numericCell(
+                text: set.reps,
+                kind: .reps,
+                keyboard: .numberPad,
+                primaryActionTitle: isFinalField ? "Done" : "Next",
+                onTextChange: onRepsChange
+            )
 
-            if let previous, !isDone {
-                Button {
-                    onUseLast()
-                } label: {
-                    Text("Use last · \(previous.weight) × \(previous.reps)")
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 42)
-            }
+            checkButton
+                .frame(width: LoggerSetColumns.checkWidth)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, isActive ? 8 : 0)
-        .background(isActive ? AppTheme.surfaceElevated : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, LoggerSetColumns.rowHorizontalPadding)
+        .padding(.vertical, 6)
+        .background(isActive ? AppTheme.activeRowTint : AppTheme.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                .stroke(isActive ? AppTheme.primary : AppTheme.cardBorder, lineWidth: 1)
+        }
+        .opacity(isPending ? 0.55 : 1)
+    }
+
+    /// PREV: the same set index from the last session, "—" when there is
+    /// none. Tapping copies its numbers into this set (the old "Use last"
+    /// line) — the keyboard toolbar's Use Last stays as the other route.
+    private var previousCell: some View {
+        Button {
+            onUseLast()
+        } label: {
+            Text(previousText)
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(previous == nil ? AppTheme.textTertiary : AppTheme.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: LoggerSetColumns.fieldHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(previous == nil || isDone)
+    }
+
+    private var previousText: String {
+        guard let previous else { return "—" }
+        return "\(previous.weight)×\(previous.reps)"
     }
 
     /// Whole-cell numeric field: the padded, filled cell is one native tap
@@ -150,20 +185,26 @@ struct LoggerSetRow: View, Equatable {
             onAdvance: { onAdvance(kind) }
         )
         .frame(maxWidth: .infinity)
-        .background(isActive ? AppTheme.backgroundTop.opacity(0.45) : AppTheme.mutedFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .frame(height: LoggerSetColumns.fieldHeight)
+        .background(AppTheme.fieldBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(focus == kind ? AppTheme.primary : AppTheme.cardBorder, lineWidth: 1)
+        }
     }
 
     /// The checkmark is the single source of truth for set completion.
-    /// Completed = volt check, incomplete = hollow circle (volt on the active row).
+    /// Completed = filled success circle with a check; incomplete = hairline
+    /// circle (accent on the active row).
     private var checkButton: some View {
         Button {
             onToggleCompletion()
         } label: {
             ZStack {
                 if isDone {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AppTheme.primary)
+                    Circle()
+                        .fill(AppTheme.success)
                         .frame(width: 26, height: 26)
 
                     Image(systemName: "checkmark")
@@ -171,11 +212,11 @@ struct LoggerSetRow: View, Equatable {
                         .foregroundStyle(AppTheme.backgroundTop)
                 } else {
                     Circle()
-                        .stroke(isActive ? AppTheme.primary : AppTheme.textTertiary, lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
+                        .stroke(isActive ? AppTheme.primary : AppTheme.cardBorder, lineWidth: 1)
+                        .frame(width: 26, height: 26)
                 }
             }
-            .frame(width: 44, height: 44)
+            .frame(width: LoggerSetColumns.checkWidth, height: LoggerSetColumns.fieldHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

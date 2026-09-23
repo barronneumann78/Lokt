@@ -43,7 +43,12 @@ struct LoggerNumericField: UIViewRepresentable {
         field.backgroundColor = .clear
         field.autocorrectionType = .no
         field.spellCheckingType = .no
-        field.font = UIFont.monospacedDigitSystemFont(ofSize: 20, weight: .semibold)
+        // Compact table cell (phase 3): 17pt tabular digits, centered, in a
+        // ~34pt-tall field. Long entries shrink rather than clip.
+        field.font = UIFont.monospacedDigitSystemFont(ofSize: 17, weight: .semibold)
+        field.textAlignment = .center
+        field.adjustsFontSizeToFitWidth = true
+        field.minimumFontSize = 12
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.inputAccessoryView = context.coordinator.makeToolbar()
@@ -195,7 +200,7 @@ struct LoggerNumericField: UIViewRepresentable {
 /// and whose colors survive the UIAppearance text-input proxies re-applying
 /// at window attach.
 final class LoggerInsetTextField: UITextField {
-    var textInsets = UIEdgeInsets(top: 9, left: 10, bottom: 9, right: 10)
+    var textInsets = UIEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
 
     var desiredTextColor: UIColor? {
         didSet { textColor = desiredTextColor }

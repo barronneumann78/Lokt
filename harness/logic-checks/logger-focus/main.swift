@@ -5,6 +5,10 @@
 //   (where the keyboard's Next reads Done) — isFinalField agrees.
 // - Unknown exercises (defensive edge) advance nowhere.
 // - LoggerField coordinates round-trip (exercise / setIndex / kind).
+// - COMPLETE SET (phase 3 pinned pill): completionTarget picks the first
+//   incomplete set in exercise order (nil once all are checked) and
+//   fieldAfterCompleting walks focus on exactly as Next would from that
+//   set's reps cell — completing repeatedly visits every set once.
 // Compiles against the REAL LoggerFocusModel.swift.
 import Foundation
 
@@ -93,7 +97,70 @@ check("LoggerField exposes its set index", sample.setIndex == 1)
 check("LoggerField exposes its cell kind", sample.kind == .reps &&
       LoggerField.weight("Bench Press", 1).kind == .weight)
 
+// MARK: - 5. COMPLETE SET — completionTarget + fieldAfterCompleting
+
+// Completion state keyed by (exercise, set); unpadded sets are incomplete.
+var done: Set<String> = []
+func key(_ exercise: String, _ index: Int) -> String { "\(exercise)#\(index)" }
+func isDone(_ exercise: String, _ index: Int) -> Bool { done.contains(key(exercise, index)) }
+func target() -> (exercise: String, setIndex: Int)? {
+    LoggerFocusModel.completionTarget(exercises: exercises, setCount: setCount, isCompleted: isDone)
+}
+func after(_ exercise: String, _ index: Int) -> LoggerField? {
+    LoggerFocusModel.fieldAfterCompleting(exercise: exercise, setIndex: index, exercises: exercises, setCount: setCount)
+}
+
+check("COMPLETE SET target: nothing checked → first set of the first exercise",
+      target()?.exercise == "Bench Press" && target()?.setIndex == 0)
+
+done = [key("Bench Press", 0)]
+check("COMPLETE SET target: first set checked → second set of the same exercise",
+      target()?.exercise == "Bench Press" && target()?.setIndex == 1)
+
+done = [key("Bench Press", 0), key("Bench Press", 1)]
+check("COMPLETE SET target: exercise fully checked → next exercise's first set",
+      target()?.exercise == "Incline Dumbbell Press" && target()?.setIndex == 0)
+
+done = [key("Bench Press", 1), key("Incline Dumbbell Press", 0)]
+check("COMPLETE SET target: an unchecked EARLIER set wins over later checked ones (never skips)",
+      target()?.exercise == "Bench Press" && target()?.setIndex == 0)
+
+check("COMPLETE SET advance: mid-exercise → the next set's weight cell",
+      after("Bench Press", 0) == .weight("Bench Press", 1))
+check("COMPLETE SET advance: last set of an exercise → next exercise's first weight cell",
+      after("Bench Press", 1) == .weight("Incline Dumbbell Press", 0))
+check("COMPLETE SET advance: last set of the last exercise → nil (focus stays, Done dismisses)",
+      after("Face Pull", 0) == nil)
+
+// Thumb the pill from a blank workout until it turns into WRAP UP: every
+// set gets checked exactly once, in table order, and the focus handed on
+// after each completion is the very cell the next completion targets.
+done = []
+var completed: [String] = []
+var handoffsAgree = true
+var guardCount = 0
+while let t = target(), guardCount < 64 {
+    guardCount += 1
+    done.insert(key(t.exercise, t.setIndex))
+    completed.append(key(t.exercise, t.setIndex))
+    let handoff = after(t.exercise, t.setIndex)
+    if let next = target() {
+        handoffsAgree = handoffsAgree && handoff == .weight(next.exercise, next.setIndex)
+    } else {
+        handoffsAgree = handoffsAgree && handoff == nil
+    }
+}
+
+check("COMPLETE SET walk: checks every set exactly once, in order (6 sets)",
+      completed == ["Bench Press#0", "Bench Press#1",
+                    "Incline Dumbbell Press#0", "Incline Dumbbell Press#1", "Incline Dumbbell Press#2",
+                    "Face Pull#0"])
+check("COMPLETE SET walk: ends nil once everything is checked (pill → WRAP UP)",
+      target() == nil && guardCount == 6)
+check("COMPLETE SET walk: each focus handoff lands on the next target's weight cell",
+      handoffsAgree)
+
 // MARK: - Verdict
 
-print(failures == 0 ? "ALL \(14) CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
+print(failures == 0 ? "ALL \(24) CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
 exit(failures == 0 ? 0 : 1)

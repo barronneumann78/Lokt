@@ -61,11 +61,11 @@ struct WorkoutLoggerView: View {
 
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 16) {
                         headerSection
 
-                        if isRestTimerActive {
-                            restCard
+                        if completed {
+                            savedCard
                         }
 
                         ForEach(activeRoutine.exercises, id: \.self) { exercise in
@@ -79,16 +79,19 @@ struct WorkoutLoggerView: View {
                                         didReorder: saveActiveRoutine
                                     )
                                 )
+
+                            // Under the active card: what comes next. Under
+                            // the last card: the mid-workout add.
+                            if !completed, isPrimaryExercise(exercise) || activeRoutine.exercises.last == exercise {
+                                underCardRow(for: exercise)
+                            }
                         }
-
-                        addExerciseRow
-
-                        finishSection
-                        .padding(20)
-                        .glassCard()
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.vertical, 20)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    pinnedActions
                 }
                 .onChange(of: focusedField) {
                     scrollToFocusedRow(proxy)
@@ -97,6 +100,11 @@ struct WorkoutLoggerView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                coachMenu
+            }
+        }
         .onAppear {
             configureInitialSetCounts()
             restoreActiveWorkoutIfAvailable()
@@ -149,127 +157,104 @@ struct WorkoutLoggerView: View {
         }
     }
 
+    // MARK: - Header (recording row · routine name · coach cue)
+
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(AppTheme.primary)
-                        .frame(width: 7, height: 7)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 7) {
+                Circle()
+                    .fill(AppTheme.danger)
+                    .frame(width: 7, height: 7)
+                    .recordingGlow()
 
-                    Text("RECORDING")
-                        .microLabel(AppTheme.primary)
+                Text("RECORDING")
+                    .microLabel(AppTheme.textSecondary)
 
-                    Text("· \(workoutDurationText)")
-                        .font(.caption.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.primary)
-                }
-
-                Text(activeRoutine.name)
-                    .font(.system(size: 30, weight: .bold))
-                    .tracking(-0.5)
+                Text("· \(workoutDurationText)")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
                     .foregroundStyle(AppTheme.textPrimary)
+
+                Spacer(minLength: 8)
+
+                if isRestTimerActive {
+                    restChip
+                }
             }
 
-            if let nextTarget = nextLoggingTarget {
-                Text("NEXT · \(nextTarget.exercise.uppercased()) · SET \(nextTarget.setIndex + 1)")
-                    .microLabel(AppTheme.textSecondary)
-                    .monospacedDigit()
+            Text(activeRoutine.name)
+                .font(.system(size: 24, weight: .bold))
+                .tracking(-0.4)
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
+
+            if let workoutBuilderFeedbackMessage {
+                Text(workoutBuilderFeedbackMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.success)
                     .lineLimit(1)
             }
 
-            HStack(spacing: 10) {
-                Button(isCoachModeEnabled ? "Coach On" : "Coach Off") {
-                    isCoachModeEnabled.toggle()
-                }
-                .buttonStyle(SecondaryButtonStyle())
+            // One coach line for the active exercise — off via Cues Off.
+            if isCoachModeEnabled, let cue = currentCoachCue {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("COACH")
+                        .microLabel()
 
-                Button("Ask Coach") {
-                    coachRouter.openActiveWorkout(routine: activeRoutine, nextExercise: nextLoggingTarget?.exercise)
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                Button("Add Block") {
-                    showSupplementaryBlockGenerator = true
-                }
-                .buttonStyle(SecondaryButtonStyle())
-
-                if let workoutBuilderFeedbackMessage {
-                    Text(workoutBuilderFeedbackMessage)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.success)
+                    Text(cue)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(2)
                 }
             }
-            .padding(.top, 2)
-
-            if isCoachModeEnabled, let coachContext = currentCoachContext {
-                coachModeCard(for: coachContext)
-            }
         }
     }
 
-    private var restCard: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("REST")
-                    .microLabel()
-
-                Text(restCountdownText)
-                    .font(.system(size: 44, weight: .bold))
-                    .monospacedDigit()
-                    .tracking(-1)
-                    .foregroundStyle(AppTheme.primary)
-
-                if let activeRestExercise {
-                    Text("after \(activeRestExercise)")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textTertiary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 8) {
-                HStack(spacing: 8) {
-                    restAdjustChip("−15") { adjustRestTimer(by: -15) }
-                    restAdjustChip("+15") { adjustRestTimer(by: 15) }
-                }
-
-                HStack(spacing: 8) {
-                    Button("Reset") {
-                        resetRestTimer()
-                    }
-                    .buttonStyle(TertiaryButtonStyle())
-
-                    Button("Skip") {
-                        skipRestTimer()
-                    }
-                    .buttonStyle(TertiaryButtonStyle())
-                }
-            }
-        }
-        .padding(AppTheme.cardPadding)
-        .glassCard()
-    }
-
-    private func restAdjustChip(_ label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.subheadline.weight(.semibold))
+    /// The rest timer as an accent chip — shown only while a rest runs.
+    /// Tapping it opens the timer controls (+15 / −15 / Reset / Skip), the
+    /// same adjustments the old rest card carried.
+    private var restChip: some View {
+        Menu {
+            Button("+15 s") { adjustRestTimer(by: 15) }
+            Button("−15 s") { adjustRestTimer(by: -15) }
+            Button("Reset") { resetRestTimer() }
+            Button("Skip") { skipRestTimer() }
+        } label: {
+            Text("REST \(restCountdownText)")
+                .font(.caption.weight(.bold))
                 .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-                .frame(width: 52, height: 40)
-                .background(AppTheme.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(AppTheme.cardBorder, lineWidth: 1)
-                }
+                .tracking(0.6)
+                .foregroundStyle(AppTheme.backgroundTop)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(AppTheme.primary)
+                .clipShape(Capsule())
+                .contentShape(Capsule())
         }
+        .menuIndicator(.hidden)
         .buttonStyle(.plain)
+    }
+
+    /// Coach entry points, out of the header and into the nav bar: Ask
+    /// Coach, Add Block, and the cue line's on/off.
+    private var coachMenu: some View {
+        Menu {
+            Button("Ask Coach") {
+                coachRouter.openActiveWorkout(routine: activeRoutine, nextExercise: nextLoggingTarget?.exercise)
+            }
+
+            Button("Add Block") {
+                showSupplementaryBlockGenerator = true
+            }
+
+            Button(isCoachModeEnabled ? "Cues Off" : "Cues On") {
+                isCoachModeEnabled.toggle()
+            }
+        } label: {
+            Text("Coach")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+        }
     }
 
     private func adjustRestTimer(by seconds: TimeInterval) {
@@ -288,13 +273,11 @@ struct WorkoutLoggerView: View {
             exercise: exercise,
             sets: logs[exercise] ?? [],
             setCount: setCount(for: exercise),
-            isActiveExercise: isPrimaryExercise(exercise),
             activeSetIndex: activeSetIndex(for: exercise),
             focus: cardFocus(for: exercise),
             lastSessionSets: routineSessions.last?.logs[exercise],
-            lastSummary: lastSessionSummary(for: exercise),
             targetChip: targetChipText(for: exercise),
-            oneRM: estimatedOneRM(for: exercise),
+            recommendedSets: recommendedSets(for: exercise),
             nudgeNote: appliedNudgeState(for: exercise)?.nudgeNote,
             isHistoryExpanded: expandedExercises.contains(exercise),
             history: historyEntries(for: exercise),
@@ -312,6 +295,7 @@ struct WorkoutLoggerView: View {
             onToggleHistory: { toggleHistory(exercise) },
             onAddSet: { addSet(to: exercise) },
             onRemoveSet: { removeSet(from: exercise) },
+            onSetCountChange: { applyPreferredSetCount(max(1, $0), for: exercise) },
             onWeightChange: { set, newValue in
                 logs[exercise, default: []] = update(
                     logs[exercise],
@@ -360,6 +344,21 @@ struct WorkoutLoggerView: View {
             return "\(formatWeight(suggestion.suggestedWeight)) lb"
         }
         return nil
+    }
+
+    /// The plan's set count for the "Recommended sets: N" chip — only while
+    /// it differs from what's on screen (the chip restores it in one tap).
+    private func recommendedSets(for exercise: String) -> Int? {
+        guard let planned = importedPlan(for: exercise)?.targetSets, planned >= 1,
+              planned != setCount(for: exercise) else {
+            return nil
+        }
+        return planned
+    }
+
+    private func importedPlan(for exercise: String) -> RoutineImportedExercisePlan? {
+        activeRoutine.importContext?.exercisePlans
+            .first(where: { $0.exerciseName.caseInsensitiveCompare(exercise) == .orderedSame })
     }
 
     /// Recent completed set-lists, newest first — only computed while the
@@ -470,147 +469,199 @@ struct WorkoutLoggerView: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func lastSessionSummary(for exercise: String) -> String? {
-        guard let sets = routineSessions.last?.logs[exercise],
-              let best = sets.first(where: { $0.isCompleted && isLoggedSet($0) }) else {
-            return nil
-        }
-        return "\(best.weight) × \(best.reps)"
-    }
+    // MARK: - Under the card
 
-    private func estimatedOneRM(for exercise: String) -> Int? {
-        guard let sets = routineSessions.last?.logs[exercise] else { return nil }
-
-        let estimates: [Double] = sets.compactMap { set in
-            guard set.isCompleted,
-                  let weight = parseWeight(set.weight),
-                  let reps = Double(set.reps.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  weight > 0, reps > 0, reps < 15 else {
-                return nil
+    /// Beneath the active card: a quiet "Then <next> · sets × reps" line.
+    /// Beneath the last card: the mid-workout Add Exercise pill (session-
+    /// scoped — the finish wrap-up asks once whether to keep additions).
+    private func underCardRow(for exercise: String) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            if isPrimaryExercise(exercise), let thenLine = thenLine(after: exercise) {
+                Text(thenLine)
+                    .font(.footnote.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .lineLimit(1)
             }
-            return weight * (1 + reps / 30)
-        }
 
-        guard let best = estimates.max() else { return nil }
-        return Int(best.rounded())
-    }
+            Spacer(minLength: 0)
 
-    /// The direct mid-workout add: one obvious row at the bottom of the
-    /// exercise list, right where the user is when they want one more.
-    /// Neutral chrome — the finish button keeps this screen's accent.
-    private var addExerciseRow: some View {
-        Button {
-            showAddExercisePicker = true
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-
-                Text("Add Exercise")
-                    .font(.body.weight(.semibold))
-
-                Spacer()
+            if activeRoutine.exercises.last == exercise {
+                Button {
+                    showAddExercisePicker = true
+                } label: {
+                    Label("Add Exercise", systemImage: "plus")
+                }
+                .buttonStyle(TertiaryButtonStyle())
             }
-            .foregroundStyle(AppTheme.textPrimary)
-            .padding(20)
-            .glassCard()
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
     }
 
-    @ViewBuilder
-    private var finishSection: some View {
-        if completed {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(AppTheme.success)
+    private func thenLine(after exercise: String) -> String? {
+        guard let next = nextExercise(after: exercise) else { return nil }
+        let sets = setCount(for: next)
+        if let reps = plannedRepsText(for: next) {
+            return "Then \(next) · \(sets) × \(reps)"
+        }
+        return "Then \(next) · \(sets) sets"
+    }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Workout Saved")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(AppTheme.textPrimary)
+    /// Rep target for an exercise: an applied nudge's rep text, else the
+    /// imported plan's target reps.
+    private func plannedRepsText(for exercise: String) -> String? {
+        nonEmptyTrimmed(appliedNudgeState(for: exercise)?.suggestedRepText)
+            ?? nonEmptyTrimmed(importedPlan(for: exercise)?.targetReps)
+    }
 
-                        Text("Nice work. This session is now in your history.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
+    // MARK: - Saved state
+
+    /// "Workout Saved" — under the header once the session is in history;
+    /// the pinned Done dismisses.
+    private var savedCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(AppTheme.success)
+
+                Text("Workout Saved")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+
+            HStack(spacing: 12) {
+                completionStat(
+                    title: "Duration",
+                    value: savedDurationSeconds.map { formatDuration(TimeInterval($0)) } ?? workoutDurationText
+                )
+                completionStat(title: "Sets", value: "\(loggedSetCount)")
+                completionStat(title: "Exercises", value: "\(completedExerciseCount)")
+            }
+
+            // The one keep-in-routine question — asked here in the wrap-up,
+            // never mid-workout. Keep = explicit tap, so review-before-save
+            // holds for session-added exercises too.
+            if !sessionAddedExercises.isEmpty && !keepAddedPromptResolved {
+                HStack(spacing: 10) {
+                    Text(keepAddedPromptText)
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textPrimary)
+
+                    Spacer()
+
+                    Button("Keep") {
+                        resolveKeepAddedPrompt(keep: true)
                     }
-                }
+                    .buttonStyle(SecondaryButtonStyle())
 
-                HStack(spacing: 12) {
-                    completionStat(
-                        title: "Duration",
-                        value: savedDurationSeconds.map { formatDuration(TimeInterval($0)) } ?? workoutDurationText
-                    )
-                    completionStat(title: "Sets", value: "\(loggedSetCount)")
-                    completionStat(title: "Exercises", value: "\(completedExerciseCount)")
-                }
-
-                // The one keep-in-routine question — asked here in the wrap-up,
-                // never mid-workout. Keep = explicit tap, so review-before-save
-                // holds for session-added exercises too.
-                if !sessionAddedExercises.isEmpty && !keepAddedPromptResolved {
-                    HStack(spacing: 10) {
-                        Text(keepAddedPromptText)
-                            .font(.subheadline.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Spacer()
-
-                        Button("Keep") {
-                            resolveKeepAddedPrompt(keep: true)
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-
-                        Button("No") {
-                            resolveKeepAddedPrompt(keep: false)
-                        }
-                        .buttonStyle(TertiaryButtonStyle())
+                    Button("No") {
+                        resolveKeepAddedPrompt(keep: false)
                     }
+                    .buttonStyle(TertiaryButtonStyle())
                 }
+            }
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
 
+    // MARK: - Pinned actions — THE gradient pill of the screen
+
+    /// COMPLETE SET checks the active set through the row checkmark's own
+    /// path (numbers required, rest timer starts) and, with the keyboard up,
+    /// walks focus on exactly as Next would. Once every set is checked the
+    /// pill reads WRAP UP. Beneath it, Wrap Up as a ghost pill — hidden while
+    /// typing so the stack above the keyboard stays short. After the save,
+    /// the slot holds Done.
+    private var pinnedActions: some View {
+        VStack(spacing: 8) {
+            if completed {
                 Button("Done") {
                     dismiss()
                 }
                 .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Wrap Up")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                HStack(spacing: 12) {
-                    completionStat(title: "Logged Sets", value: "\(loggedSetCount)")
-                    completionStat(title: "Exercises", value: "\(completedExerciseCount)/\(activeRoutine.exercises.count)")
-                }
-
-                Button("Finish Workout") {
-                    if uncheckedFilledSetCount > 0 {
-                        showUncheckedFinishDialog = true
+            } else {
+                Button(completionTarget == nil ? "WRAP UP" : "COMPLETE SET") {
+                    if completionTarget == nil {
+                        requestFinish()
                     } else {
-                        finishWorkout(checkingAllFilledSets: false)
+                        completeActiveSet()
                     }
                 }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.success))
-                .confirmationDialog(
-                    uncheckedFinishTitle,
-                    isPresented: $showUncheckedFinishDialog,
-                    titleVisibility: .visible
-                ) {
-                    Button("Check All & Finish") {
-                        finishWorkout(checkingAllFilledSets: true)
-                    }
+                .buttonStyle(PrimaryButtonStyle())
 
-                    Button("Finish Without Them") {
-                        finishWorkout(checkingAllFilledSets: false)
+                if completionTarget != nil && focusedField == nil {
+                    Button("Wrap Up") {
+                        requestFinish()
                     }
-
-                    Button("Cancel", role: .cancel) { }
+                    .buttonStyle(GhostButtonStyle())
                 }
             }
+        }
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(AppTheme.backgroundTop)
+        .confirmationDialog(
+            uncheckedFinishTitle,
+            isPresented: $showUncheckedFinishDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Check All & Finish") {
+                finishWorkout(checkingAllFilledSets: true)
+            }
+
+            Button("Finish Without Them") {
+                finishWorkout(checkingAllFilledSets: false)
+            }
+
+            Button("Cancel", role: .cancel) { }
+        }
+    }
+
+    /// The finish flow, unchanged: unchecked-but-filled sets get the one
+    /// dialog first; otherwise the save proceeds (duration fix included).
+    private func requestFinish() {
+        if uncheckedFilledSetCount > 0 {
+            showUncheckedFinishDialog = true
+        } else {
+            finishWorkout(checkingAllFilledSets: false)
+        }
+    }
+
+    /// The set COMPLETE SET acts on — the first incomplete set in order. A
+    /// set the logs haven't padded yet is incomplete; entries past the set
+    /// count are ignored, matching `resize`.
+    private var completionTarget: (exercise: String, setIndex: Int)? {
+        LoggerFocusModel.completionTarget(
+            exercises: activeRoutine.exercises,
+            setCount: setCount(for:),
+            isCompleted: { exercise, index in logs[exercise]?[safe: index]?.isCompleted ?? false }
+        )
+    }
+
+    private func completeActiveSet() {
+        guard let target = completionTarget else { return }
+        let keyboardWasUp = focusedField != nil
+
+        // Same path as the row's checkmark: numbers required (an empty set
+        // focuses its weight cell instead), rest timer starts on success.
+        toggleSetCompletion(for: target.exercise, at: target.setIndex)
+        guard logs[target.exercise]?[safe: target.setIndex]?.isCompleted == true else { return }
+
+        // Keyboard up: walk on as Next would; past the last set focus stays
+        // put (Done dismisses). Keyboard down stays down — the active row
+        // moves on its own.
+        if keyboardWasUp,
+           let next = LoggerFocusModel.fieldAfterCompleting(
+               exercise: target.exercise,
+               setIndex: target.setIndex,
+               exercises: activeRoutine.exercises,
+               setCount: setCount(for:)
+           ) {
+            focusedField = next
         }
     }
 
@@ -747,20 +798,16 @@ struct WorkoutLoggerView: View {
         }
     }
 
+    /// The table's highlighted set: the first incomplete one (the same target
+    /// the COMPLETE SET pill acts on); once everything is checked, the first
+    /// exercise's last set keeps the coach cue pointing somewhere.
     private var nextLoggingTarget: (exercise: String, setIndex: Int)? {
-        for exercise in activeRoutine.exercises {
-            if let setIndex = firstIncompleteSetIndex(for: exercise) {
-                return (exercise, setIndex)
-            }
+        if let target = completionTarget {
+            return target
         }
 
         guard let firstExercise = activeRoutine.exercises.first else { return nil }
         return (firstExercise, max(setCount(for: firstExercise) - 1, 0))
-    }
-
-    private func firstIncompleteSetIndex(for exercise: String) -> Int? {
-        let sets = resize(sets: logs[exercise], to: setCount(for: exercise))
-        return sets.firstIndex(where: { !$0.isCompleted })
     }
 
     private func isPrimaryExercise(_ exercise: String) -> Bool {
@@ -926,65 +973,6 @@ struct WorkoutLoggerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func coachModeCard(for context: WorkoutCoachContext) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("COACH")
-                        .microLabel()
-
-                    Text(context.title)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                }
-
-                Spacer()
-
-                if let afterExercise = context.afterExercise {
-                    Text("Then \(afterExercise)")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(AppTheme.textTertiary)
-                        .lineLimit(1)
-                }
-            }
-
-            HStack(spacing: 10) {
-                coachPill(title: "NEXT", value: context.nextLabel)
-                coachPill(title: "REST", value: context.restLabel)
-
-                if let suggestedWeight = context.suggestedWeight {
-                    coachPill(title: "WEIGHT", value: suggestedWeight)
-                }
-            }
-
-            if let cue = context.cue {
-                Text(cue)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(16)
-        .surfaceCard(cornerRadius: AppTheme.rowCornerRadius)
-    }
-
-    private func coachPill(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .microLabel()
-
-            Text(value)
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(AppTheme.mutedFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
     private var loggedSetCount: Int {
         activeRoutine.exercises.reduce(into: 0) { total, exercise in
             total += resize(sets: logs[exercise], to: setCount(for: exercise)).filter(\.isCompleted).count
@@ -1000,26 +988,12 @@ struct WorkoutLoggerView: View {
         }
     }
 
-    private var currentCoachContext: WorkoutCoachContext? {
+    /// The library's first cue for the active exercise — the coach line.
+    /// (Its NEXT / REST / WEIGHT pills are now the table's active row, the
+    /// REST chip and the TARGET chip.)
+    private var currentCoachCue: String? {
         guard let nextTarget = nextLoggingTarget else { return nil }
-
-        let currentExercise = nextTarget.exercise
-        let exerciseDetail = exerciseStore.exercises.exercise(named: currentExercise)
-        let suggestedWeightText = nudgeTargetText(for: currentExercise)
-            ?? fatigueAdjustedSuggestedWeight(for: currentExercise).map {
-                formatWeight($0.suggestedWeight)
-            }
-        let recommendedRest = restDuration(for: currentExercise)
-        let afterExercise = nextExercise(after: currentExercise)
-
-        return WorkoutCoachContext(
-            title: currentExercise,
-            nextLabel: "Set \(nextTarget.setIndex + 1)",
-            restLabel: formatDuration(TimeInterval(recommendedRest)),
-            suggestedWeight: suggestedWeightText,
-            cue: exerciseDetail?.cues.first,
-            afterExercise: afterExercise
-        )
+        return exerciseStore.exercises.exercise(named: nextTarget.exercise)?.cues.first
     }
 
     private var completedExerciseCount: Int {
@@ -1132,11 +1106,6 @@ struct WorkoutLoggerView: View {
             }
         }
         return updatedSets
-    }
-
-    private func isLoggedSet(_ set: WorkoutSet) -> Bool {
-        !set.weight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !set.reps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func formatDuration(_ timeInterval: TimeInterval) -> String {
@@ -1282,15 +1251,6 @@ struct WorkoutLoggerView: View {
 
         saveActiveRoutine()
     }
-}
-
-private struct WorkoutCoachContext {
-    var title: String
-    var nextLabel: String
-    var restLabel: String
-    var suggestedWeight: String?
-    var cue: String?
-    var afterExercise: String?
 }
 
 /// Finish paused on an implausible clock — carries the smart default the
