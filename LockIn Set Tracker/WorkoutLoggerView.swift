@@ -678,7 +678,10 @@ struct WorkoutLoggerView: View {
             routineID: activeRoutine.id,
             routineName: activeRoutine.name,
             logs: logs,
-            durationSeconds: durationSeconds
+            durationSeconds: durationSeconds,
+            // The on-screen order at finish — the only record of where each
+            // exercise sat (logs is a dictionary). Feeds the Advanced analytics.
+            exerciseOrder: activeRoutine.exercises
         )
         saveWorkoutSession(session)
         savedDurationSeconds = durationSeconds

@@ -25,12 +25,17 @@ struct AnalyticsView: View {
                             headlineStrip(headline)
                         }
                         ProgressionCard(snapshot: snapshot)
-                        CalendarCard(snapshot: snapshot, exercises: exerciseStore.exercises)
+                        CalendarCard(
+                            snapshot: snapshot,
+                            exercises: exerciseStore.exercises,
+                            routineOrders: routineOrders
+                        )
                         MuscleDistributionCard(sessions: store.sessions, exercises: exerciseStore.exercises)
                         MuscleDonutCard(donut: snapshot.donut, insight: snapshot.donutInsight)
                         if !snapshot.repBins.isEmpty {
                             repRangeCard
                         }
+                        ExerciseOrderCard(profiles: snapshot.exerciseOrderProfiles)
                     }
                 }
                 .padding(.horizontal, AppTheme.screenPadding)
@@ -44,6 +49,10 @@ struct AnalyticsView: View {
         }
         .onReceive(store.$sessions) { sessions in
             rebuild(with: sessions)
+        }
+        .onReceive(store.$routines) { _ in
+            // Routine order is the position fallback for legacy sessions.
+            rebuild(with: store.sessions)
         }
     }
 
@@ -64,11 +73,16 @@ struct AnalyticsView: View {
         .padding(.bottom, 4)
     }
 
+    private var routineOrders: [UUID: [String]] {
+        ExercisePositionLogic.routineOrders(from: store.routines)
+    }
+
     private func rebuild(with sessions: [WorkoutSession]) {
         let exercises = exerciseStore.exercises
         snapshot = AnalyticsSnapshot.build(
             sessions: sessions,
-            resolve: { exercises.resolvedExercise(named: $0) }
+            resolve: { exercises.resolvedExercise(named: $0) },
+            routineOrders: routineOrders
         )
     }
 
@@ -779,6 +793,7 @@ private struct ProgressionCard: View {
 private struct CalendarCard: View {
     let snapshot: AnalyticsSnapshot
     let exercises: [Exercise]
+    var routineOrders: [UUID: [String]] = [:]
 
     private struct DaySelection: Identifiable {
         var id: Date { date }
@@ -830,7 +845,8 @@ private struct CalendarCard: View {
                 scorecard: AnalyticsSnapshot.dayScorecard(
                     day: selection.date,
                     sessionsByDay: snapshot.sessionsByDay,
-                    resolve: { exercises.resolvedExercise(named: $0) }
+                    resolve: { exercises.resolvedExercise(named: $0) },
+                    routineOrders: routineOrders
                 )
             )
         }
@@ -948,6 +964,8 @@ private struct DaySummarySheet: View {
     let scorecard: AnalyticsSnapshot.DayScorecard
 
     @Environment(\.dismiss) private var dismiss
+    /// Advanced analytics on → PR rows carry their position in the session.
+    @AppStorage(AnalyticsAdvanced.storageKey) private var showPositions = false
 
     var body: some View {
         NavigationStack {
@@ -1072,6 +1090,14 @@ private struct DaySummarySheet: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+
+                if showPositions, let position = pr.position {
+                    Text("\(ExercisePositionLogic.ordinal(position)) in session")
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .fixedSize()
+                }
 
                 Spacer(minLength: 8)
 
@@ -1616,6 +1642,136 @@ private struct MuscleDonutCard: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .frame(width: 40, alignment: .trailing)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Advanced · Exercise order
+
+/// The one switch for the advanced layer. Off by default — exercise-order
+/// analytics are for people who want them. The same flag shows the position
+/// tag on PR rows in the day sheet.
+private enum AnalyticsAdvanced {
+    static let storageKey = "analyticsAdvancedV1"
+}
+
+/// Position-in-session analytics: where each exercise usually sits and how
+/// its best e1RM splits between early (1–2) and late (3+) slots — the fatigue
+/// effect as numbers. A collapsed disclosure at the bottom of Analytics.
+private struct ExerciseOrderCard: View {
+    let profiles: [ExercisePositionLogic.ExerciseProfile]
+
+    @AppStorage(AnalyticsAdvanced.storageKey) private var isOn = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    isOn.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("ADVANCED")
+                        .microLabel()
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .rotationEffect(.degrees(isOn ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isOn {
+                Text("EXERCISE ORDER · BEST E1RM")
+                    .microLabel()
+
+                if profiles.isEmpty {
+                    Text("Needs \(ExercisePositionLogic.minimumSessions)+ sessions of an exercise.")
+                        .font(.footnote)
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                            row(profile)
+                            if index < profiles.count - 1 {
+                                Divider().overlay(AppTheme.cardBorder)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private func row(_ profile: ExercisePositionLogic.ExerciseProfile) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(profile.exercise)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 8)
+
+                Text("usually \(ExercisePositionLogic.ordinal(profile.typicalPosition))")
+                    .font(.footnote.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize()
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                bucket(label: "1–2", best: profile.earlyBest, count: profile.earlyCount)
+                bucket(label: "3+", best: profile.lateBest, count: profile.lateCount)
+
+                if let delta = profile.lateVsEarlyPercent {
+                    Text(AnalyticsFormat.signedPercent(delta))
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+
+                Spacer(minLength: 8)
+
+                if let pr = profile.prPosition {
+                    Text("PR \(ExercisePositionLogic.ordinal(pr))")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .fixedSize()
+                }
+            }
+        }
+        .padding(.vertical, 10)
+    }
+
+    /// "1–2  245 lb (4)" — the bucket's best e1RM and how many sessions fed it.
+    private func bucket(label: String, best: Double?, count: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .tracking(0.5)
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textTertiary)
+
+            Text(best.map { "\(AnalyticsMath.formattedWeight($0)) lb" } ?? "—")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textSecondary)
+
+            if count > 0 {
+                Text("(\(count))")
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
     }

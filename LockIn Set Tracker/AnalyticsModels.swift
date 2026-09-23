@@ -379,6 +379,9 @@ struct AnalyticsSnapshot {
     var repZoneShares: [RepZone: Double]
     var repWindowIsRecent: Bool
     var repInsight: String?
+    /// Advanced: per-exercise position-in-session profiles, most-trained
+    /// first. Empty until an exercise has enough positioned history.
+    var exerciseOrderProfiles: [ExercisePositionLogic.ExerciseProfile]
 
     static let empty = AnalyticsSnapshot(
         totalSessions: 0,
@@ -392,7 +395,8 @@ struct AnalyticsSnapshot {
         repBins: [],
         repZoneShares: [:],
         repWindowIsRecent: false,
-        repInsight: nil
+        repInsight: nil,
+        exerciseOrderProfiles: []
     )
 
     // MARK: - Build
@@ -413,9 +417,12 @@ struct AnalyticsSnapshot {
 
     /// Pure builder — inject the exercise resolver so the math stays testable.
     /// `resolve` maps a logged (possibly abbreviated) name to a library exercise.
+    /// `routineOrders` (routine id → current exercise order) is the position
+    /// fallback for sessions saved before `WorkoutSession.exerciseOrder`.
     static func build(
         sessions: [WorkoutSession],
         resolve: (String) -> Exercise?,
+        routineOrders: [UUID: [String]] = [:],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> AnalyticsSnapshot {
@@ -438,6 +445,11 @@ struct AnalyticsSnapshot {
         let (options, progression) = buildProgression(sorted: sorted, resolved: resolved)
         let (donut, donutInsight) = buildDonut(sorted: sorted, resolved: resolved, now: now)
         let (repBins, zoneShares, repRecent, repInsight) = buildRepDistribution(sorted: sorted, now: now)
+        let orderProfiles = ExercisePositionLogic.profiles(
+            sessions: sorted,
+            routineOrders: routineOrders,
+            canonical: { resolved($0)?.name ?? $0 }
+        )
 
         var sessionsByDay: [Date: [WorkoutSession]] = [:]
         for session in sorted {
@@ -456,7 +468,8 @@ struct AnalyticsSnapshot {
             repBins: repBins,
             repZoneShares: zoneShares,
             repWindowIsRecent: repRecent,
-            repInsight: repInsight
+            repInsight: repInsight,
+            exerciseOrderProfiles: orderProfiles
         )
     }
 
@@ -793,6 +806,9 @@ struct AnalyticsSnapshot {
             var exercise: String
             /// The new all-time best Epley e1RM set that day.
             var e1RM: Double
+            /// Where in its session the PR was lifted (1-based); nil when the
+            /// session's order is unknown. Advanced-only surface.
+            var position: Int? = nil
         }
 
         /// Total tonnage across the day's completed sets, all sessions.
@@ -836,7 +852,8 @@ struct AnalyticsSnapshot {
     static func dayScorecard(
         day: Date,
         sessionsByDay: [Date: [WorkoutSession]],
-        resolve: (String) -> Exercise?
+        resolve: (String) -> Exercise?,
+        routineOrders: [UUID: [String]] = [:]
     ) -> DayScorecard {
         var resolutionCache: [String: String] = [:]
         func canonical(_ name: String) -> String {
@@ -892,14 +909,33 @@ struct AnalyticsSnapshot {
             ? median(of: priorVolumes)
             : nil
 
-        let dayBest = bestByExercise(todays)
+        // The day's best per exercise, remembering where in its session it
+        // was lifted (ties keep the earliest known slot).
+        var dayBest: [String: (value: Double, position: Int?)] = [:]
+        for session in todays {
+            let slots = ExercisePositionLogic.positions(in: session, routineOrders: routineOrders)
+            for (name, sets) in session.logs {
+                guard let e1RM = AnalyticsMath.bestE1RM(in: sets) else { continue }
+                let exercise = canonical(name)
+                let slot = slots[name]
+                if let existing = dayBest[exercise] {
+                    if e1RM > existing.value {
+                        dayBest[exercise] = (e1RM, slot)
+                    } else if e1RM == existing.value {
+                        dayBest[exercise] = (e1RM, [existing.position, slot].compactMap { $0 }.min())
+                    }
+                } else {
+                    dayBest[exercise] = (e1RM, slot)
+                }
+            }
+        }
         let priorBest = bestByExercise(
             sessionsByDay.filter { $0.key < day }.values.flatMap { $0 }
         )
         let prs = dayBest
-            .compactMap { exercise, value -> DayScorecard.PR? in
-                guard let previous = priorBest[exercise], value > previous else { return nil }
-                return DayScorecard.PR(exercise: exercise, e1RM: value)
+            .compactMap { exercise, entry -> DayScorecard.PR? in
+                guard let previous = priorBest[exercise], entry.value > previous else { return nil }
+                return DayScorecard.PR(exercise: exercise, e1RM: entry.value, position: entry.position)
             }
             .sorted { lhs, rhs in
                 if lhs.e1RM != rhs.e1RM { return lhs.e1RM > rhs.e1RM }

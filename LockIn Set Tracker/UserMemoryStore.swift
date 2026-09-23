@@ -78,7 +78,8 @@ struct LifetimeMemory: Codable {
     var totalVolume: Int? = nil
     var sessionsPerWeek: Double? = nil
     var longestStreakWeeks: Int? = nil
-    /// "Bench Press e1RM 171 (2026-07-12)", strongest first.
+    /// "Bench Press e1RM 171 (2026-07-12)", strongest first. Lifts with
+    /// enough positioned history carry " · usually 3rd, PR came 1st".
     var allTimePRs: [String]? = nil
     /// Dated pain reports from post-session check-ins, newest first.
     var painHistory: [String]? = nil
@@ -110,6 +111,7 @@ enum UserMemoryBuilder {
         sessions: [WorkoutSession],
         preferences: AIUserPreferences,
         resolve: (String) -> Exercise?,
+        routineOrders: [UUID: [String]] = [:],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> UserMemory {
@@ -201,10 +203,19 @@ enum UserMemoryBuilder {
             recentCutoff: recentCutoff,
             calendar: calendar
         )
+        // Position-in-session context for the top lifts ("usually 3rd, PR
+        // came 1st") rides on the all-time PR lines — same digest shape, so
+        // the backend's field whitelist passes it through untouched.
+        let orderProfiles = Dictionary(
+            ExercisePositionLogic.profiles(sessions: sorted, routineOrders: routineOrders, canonical: canonical)
+                .map { ($0.exercise, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         memory.lifetime = lifetimeMemory(
             allStats: stats,
             oldStats: old,
             allTimeBest: allTimeBest,
+            orderProfiles: orderProfiles,
             preferences: preferences,
             now: now,
             calendar: calendar
@@ -338,6 +349,7 @@ enum UserMemoryBuilder {
         allStats: [SessionStats],
         oldStats: [SessionStats],
         allTimeBest: [String: (value: Double, date: Date)],
+        orderProfiles: [String: ExercisePositionLogic.ExerciseProfile] = [:],
         preferences: AIUserPreferences,
         now: Date,
         calendar: Calendar
@@ -365,7 +377,10 @@ enum UserMemoryBuilder {
                     : lhs.key < rhs.key
             }
             .prefix(maxAllTimePRs)
-            .map { "\($0.key) e1RM \(AnalyticsMath.formattedWeight($0.value.value)) (\(dayString($0.value.date, calendar: calendar)))" }
+            .map {
+                "\($0.key) e1RM \(AnalyticsMath.formattedWeight($0.value.value)) (\(dayString($0.value.date, calendar: calendar)))"
+                    + ExercisePositionLogic.digestSuffix(for: orderProfiles[$0.key])
+            }
         lifetime.allTimePRs = prs.isEmpty ? nil : Array(prs)
 
         let pains = allStats
@@ -646,6 +661,7 @@ enum UserMemoryStore {
             sessions: rawSessions(defaults: defaults),
             preferences: AIUserPreferencesStore.load(),
             resolve: exerciseResolver,
+            routineOrders: rawRoutineOrders(defaults: defaults),
             now: now
         )
         save(memory, defaults: defaults)
@@ -670,9 +686,11 @@ enum UserMemoryStore {
         return rebuilt.isEmpty ? nil : rebuilt
     }
 
-    // Same legacy key `WorkoutStore` reads/writes; a literal here keeps this
+    // Same legacy keys `WorkoutStore` reads/writes; literals here keep this
     // callable off the main actor without touching the @MainActor store type.
+    // Strictly read-only — the digest derives from raw data, never owns it.
     private static let rawSessionsKey = "workoutSessions"
+    private static let rawRoutinesKey = "routines"
 
     private static func rawSessions(defaults: UserDefaults) -> [WorkoutSession] {
         guard let data = defaults.data(forKey: rawSessionsKey),
@@ -680,5 +698,15 @@ enum UserMemoryStore {
             return []
         }
         return decoded
+    }
+
+    /// Routine id → current exercise order: the position fallback for
+    /// sessions saved before `WorkoutSession.exerciseOrder` existed.
+    private static func rawRoutineOrders(defaults: UserDefaults) -> [UUID: [String]] {
+        guard let data = defaults.data(forKey: rawRoutinesKey),
+              let decoded = try? JSONDecoder().decode([Routine].self, from: data) else {
+            return [:]
+        }
+        return ExercisePositionLogic.routineOrders(from: decoded)
     }
 }

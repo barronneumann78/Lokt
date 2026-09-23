@@ -1,5 +1,5 @@
 LockIn Set Tracker/Models.swift
-LockIn Set Tracker/WorkoutStore.swift
 LockIn Set Tracker/AnalyticsModels.swift
-LockIn Set Tracker/SessionEditLogic.swift
 LockIn Set Tracker/ExercisePositionLogic.swift
+LockIn Set Tracker/AIUserPreferences.swift
+LockIn Set Tracker/UserMemoryStore.swift

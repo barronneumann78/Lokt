@@ -126,6 +126,12 @@ struct WorkoutSession: Codable, Identifiable {
     /// Elapsed workout time captured from the logger timer at finish.
     /// Optional so sessions saved before duration tracking still decode.
     var durationSeconds: Int? = nil
+    /// The order exercises were performed in — the logger's on-screen order
+    /// at finish (mid-workout reorders and session-added exercises included).
+    /// `logs` is a dictionary, so this is the only record of position.
+    /// Optional so sessions saved before it existed still decode; those fall
+    /// back to the routine's current order (`ExercisePositionLogic`).
+    var exerciseOrder: [String]? = nil
 
     init(
         id: UUID = UUID(),
@@ -133,7 +139,8 @@ struct WorkoutSession: Codable, Identifiable {
         routineID: UUID? = nil,
         routineName: String,
         logs: [String: [WorkoutSet]],
-        durationSeconds: Int? = nil
+        durationSeconds: Int? = nil,
+        exerciseOrder: [String]? = nil
     ) {
         self.id = id
         self.date = date
@@ -141,6 +148,7 @@ struct WorkoutSession: Codable, Identifiable {
         self.routineName = routineName
         self.logs = logs
         self.durationSeconds = durationSeconds
+        self.exerciseOrder = exerciseOrder
     }
 }
 

@@ -63,6 +63,13 @@ Always build with the real compiler after Swift changes; fix errors, don't guess
 - **Models**: `WorkoutSet.completed` is optional — `nil` means completed (legacy
   data). Only `isCompleted` sets count in every metric. ALL new persisted model
   fields must be optional/defaulted (old blobs must keep decoding).
+- **Exercise position**: `WorkoutSession.exerciseOrder` (optional) is the
+  logger's on-screen order at finish — `logs` is a dictionary, so it is the only
+  record of where an exercise sat. `ExercisePositionLogic` derives positions
+  (completed sets only; legacy sessions fall back to the routine's current
+  order), surfaced ONLY behind Analytics → ADVANCED (`analyticsAdvancedV1`)
+  and as a " · usually 3rd, PR came 1st" suffix on the digest's `allTimePRs`
+  lines (same digest shape — the backend whitelists fields).
 - **User memory** (`UserMemoryStore.swift`): tiered digest of the raw history
   (≤14d detailed / 15–90d weekly / lifetime monthly+facts, hard 6KB cap) sent
   with every coach/generator call. Pure function of raw data — never let it
