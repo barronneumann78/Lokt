@@ -34,6 +34,10 @@ struct Routine: Identifiable, Codable {
     /// Per-exercise adaptation state, keyed by exercise name.
     /// Optional so routines saved before the adaptation loop still decode. See M4.
     var progression: [String: ExerciseProgressionState]? = nil
+    /// Optional membership in a `RoutineGroup` (e.g. filing rotating-split
+    /// variants like "Chest A"/"Chest B" under one folder). Optional so
+    /// routines saved before grouping existed still decode; nil == ungrouped.
+    var groupID: UUID? = nil
 
     init(
         id: UUID = UUID(),
@@ -41,7 +45,8 @@ struct Routine: Identifiable, Codable {
         exercises: [String],
         preferredSetCounts: [String: Int] = [:],
         historyNames: [String]? = nil,
-        importContext: RoutineImportContext? = nil
+        importContext: RoutineImportContext? = nil,
+        groupID: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -49,6 +54,7 @@ struct Routine: Identifiable, Codable {
         self.preferredSetCounts = preferredSetCounts
         self.historyNames = Routine.normalizedNames(historyNames ?? [name])
         self.importContext = importContext
+        self.groupID = groupID
     }
 
     func preferredSetCount(for exercise: String) -> Int {
@@ -74,6 +80,24 @@ struct Routine: Identifiable, Codable {
         }
 
         return normalized
+    }
+}
+
+/// A lightweight, purely organizational folder for routines — e.g. filing a
+/// rotating split's day variants ("Chest A" / "Chest B") together. Deleting a
+/// group never deletes the routines inside it; they fall back to ungrouped
+/// (`Routine.groupID = nil`).
+struct RoutineGroup: Identifiable, Codable, Equatable, Hashable {
+    var id = UUID()
+    var name: String
+    /// Ascending sort order for rendering group sections; assigned at
+    /// creation from the current max, so it survives deletions untouched.
+    var order: Int
+
+    init(id: UUID = UUID(), name: String, order: Int = 0) {
+        self.id = id
+        self.name = name
+        self.order = order
     }
 }
 

@@ -7,6 +7,7 @@ struct WorkoutTabView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var routines: [Routine] = []
+    @State private var routineGroups: [RoutineGroup] = []
     @State private var selectedRoutine: Routine?
     @State private var routineToEdit: Routine?
     @State private var navigateToLogger = false
@@ -20,6 +21,14 @@ struct WorkoutTabView: View {
     /// Routine whose Start Workout tap awaits the replace-in-progress
     /// confirmation (another routine's workout holds the slot with content).
     @State private var routinePendingStart: Routine?
+    /// Group management state — a new group is created inline from a
+    /// routine's folder menu; rename/delete live on a group section's menu.
+    @State private var showNewGroupPrompt = false
+    @State private var newGroupText = ""
+    @State private var newGroupTargetRoutineID: UUID?
+    @State private var groupPendingRename: RoutineGroup?
+    @State private var renameGroupText = ""
+    @State private var groupPendingDelete: RoutineGroup?
 
     var body: some View {
         NavigationView {
@@ -96,7 +105,6 @@ struct WorkoutTabView: View {
             .navigationBarHidden(true)
             .onAppear {
                 loadRoutines()
-                store.reload()
                 refreshActiveWorkout()
             }
             .alert("Delete routine?", isPresented: deleteAlertBinding) {
@@ -112,6 +120,43 @@ struct WorkoutTabView: View {
                 }
             } message: {
                 Text("This removes the routine, but your saved workout history stays intact.")
+            }
+            .alert("New Group", isPresented: $showNewGroupPrompt) {
+                TextField("Group name", text: $newGroupText)
+
+                Button("Cancel", role: .cancel) {
+                    newGroupTargetRoutineID = nil
+                    newGroupText = ""
+                }
+
+                Button("Create") {
+                    createGroupAndAssignIfNeeded()
+                }
+            }
+            .alert("Rename Group", isPresented: renameGroupAlertBinding) {
+                TextField("Group name", text: $renameGroupText)
+
+                Button("Cancel", role: .cancel) {
+                    groupPendingRename = nil
+                }
+
+                Button("Save") {
+                    renameGroupIfNeeded()
+                }
+            }
+            .alert("Delete group?", isPresented: deleteGroupAlertBinding) {
+                Button("Cancel", role: .cancel) {
+                    groupPendingDelete = nil
+                }
+
+                Button("Delete", role: .destructive) {
+                    if let groupPendingDelete {
+                        deleteGroup(groupPendingDelete)
+                    }
+                    groupPendingDelete = nil
+                }
+            } message: {
+                Text("Routines inside stay — only the grouping is removed.")
             }
         }
         .tint(AppTheme.textPrimary)
@@ -240,14 +285,86 @@ struct WorkoutTabView: View {
     }
 
     // MARK: - Saved routines
-    // Every routine gets the identical card, in stored-array order. No sorting,
-    // no promotion — each workout sits in the same spot every visit.
+    // Grouped routines render first as minimal sections (label + hairline),
+    // ordered by group creation order; ungrouped routines follow in the same
+    // stored-array order as before. A user who never creates a group sees
+    // this exact same flat list — zero groups means zero sections.
+
+    private struct RoutineGroupSection: Identifiable {
+        let group: RoutineGroup
+        let routines: [Routine]
+        var id: UUID { group.id }
+    }
+
+    private var groupedSections: [RoutineGroupSection] {
+        routineGroups
+            .sorted { $0.order < $1.order }
+            .map { group in
+                RoutineGroupSection(group: group, routines: routines.filter { $0.groupID == group.id })
+            }
+    }
+
+    private var ungroupedRoutines: [Routine] {
+        let groupIDs = Set(routineGroups.map(\.id))
+        return routines.filter { routine in
+            guard let groupID = routine.groupID else { return true }
+            // A group that no longer exists (defensive) reads as ungrouped.
+            return !groupIDs.contains(groupID)
+        }
+    }
 
     private var routineSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ForEach(groupedSections) { section in
+                groupSection(section)
+            }
+
+            if !ungroupedRoutines.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(ungroupedRoutines) { routine in
+                        routineCard(routine)
+                    }
+                }
+            }
+        }
+    }
+
+    private func groupSection(_ section: RoutineGroupSection) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(routines) { routine in
+            groupHeader(section.group)
+
+            ForEach(section.routines) { routine in
                 routineCard(routine)
             }
+        }
+    }
+
+    private func groupHeader(_ group: RoutineGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(group.name.uppercased())
+                    .microLabel()
+
+                Spacer()
+
+                Menu {
+                    Button("Rename") {
+                        renameGroupText = group.name
+                        groupPendingRename = group
+                    }
+
+                    Button("Delete Group", role: .destructive) {
+                        groupPendingDelete = group
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .frame(width: 22, height: 22)
+                }
+            }
+
+            hairline
         }
     }
 
@@ -268,6 +385,8 @@ struct WorkoutTabView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
+                    groupMenu(for: routine)
+
                     Button {
                         routineToEdit = routine
                         navigateToEdit = true
@@ -316,6 +435,47 @@ struct WorkoutTabView: View {
         }
         .padding(AppTheme.rowPadding)
         .glassCard()
+    }
+
+    private func groupMenu(for routine: Routine) -> some View {
+        Menu {
+            if routine.groupID != nil {
+                Button("Remove from Group") {
+                    setRoutineGroup(nil, for: routine)
+                }
+
+                Divider()
+            }
+
+            ForEach(routineGroups.sorted(by: { $0.order < $1.order })) { group in
+                Button {
+                    setRoutineGroup(group.id, for: routine)
+                } label: {
+                    if routine.groupID == group.id {
+                        Label(group.name, systemImage: "checkmark")
+                    } else {
+                        Text(group.name)
+                    }
+                }
+            }
+
+            if !routineGroups.isEmpty {
+                Divider()
+            }
+
+            Button("New Group…") {
+                newGroupTargetRoutineID = routine.id
+                newGroupText = ""
+                showNewGroupPrompt = true
+            }
+        } label: {
+            Image(systemName: "folder")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: 34, height: 34)
+                .background(AppTheme.surfaceElevated)
+                .clipShape(Circle())
+        }
     }
 
     // MARK: - Create flows
@@ -409,23 +569,79 @@ struct WorkoutTabView: View {
         )
     }
 
+    private var renameGroupAlertBinding: Binding<Bool> {
+        Binding(
+            get: { groupPendingRename != nil },
+            set: { isPresented in
+                if !isPresented {
+                    groupPendingRename = nil
+                }
+            }
+        )
+    }
+
+    private var deleteGroupAlertBinding: Binding<Bool> {
+        Binding(
+            get: { groupPendingDelete != nil },
+            set: { isPresented in
+                if !isPresented {
+                    groupPendingDelete = nil
+                }
+            }
+        )
+    }
+
     func loadRoutines() {
-        if let data = UserDefaults.standard.data(forKey: "routines"),
-           let decoded = try? JSONDecoder().decode([Routine].self, from: data) {
-            routines = decoded
-        } else {
-            routines = []
-        }
+        routines = store.routines
+        routineGroups = store.routineGroups
     }
 
     func deleteRoutine(id: UUID) {
-        routines.removeAll { $0.id == id }
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: "routines")
-        }
+        store.deleteRoutine(id: id)
+        routines = store.routines
         // An active workout pointing at the deleted routine has nothing to
         // resume into — drop it gracefully.
         refreshActiveWorkout()
+    }
+
+    // MARK: - Routine groups
+
+    private func setRoutineGroup(_ groupID: UUID?, for routine: Routine) {
+        store.setRoutineGroup(groupID, forRoutineID: routine.id)
+        routines = store.routines
+    }
+
+    private func createGroupAndAssignIfNeeded() {
+        let trimmed = newGroupText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let targetID = newGroupTargetRoutineID
+        newGroupTargetRoutineID = nil
+        newGroupText = ""
+        guard !trimmed.isEmpty else { return }
+
+        let group = store.addRoutineGroup(name: trimmed)
+        routineGroups = store.routineGroups
+
+        if let targetID {
+            store.setRoutineGroup(group.id, forRoutineID: targetID)
+            routines = store.routines
+        }
+    }
+
+    private func renameGroupIfNeeded() {
+        guard let group = groupPendingRename else { return }
+        groupPendingRename = nil
+        let trimmed = renameGroupText.trimmingCharacters(in: .whitespacesAndNewlines)
+        renameGroupText = ""
+        guard !trimmed.isEmpty else { return }
+
+        store.renameRoutineGroup(id: group.id, name: trimmed)
+        routineGroups = store.routineGroups
+    }
+
+    private func deleteGroup(_ group: RoutineGroup) {
+        store.deleteRoutineGroup(id: group.id)
+        routineGroups = store.routineGroups
+        routines = store.routines
     }
 
     /// Load the persisted in-progress workout, discarding it gracefully when
