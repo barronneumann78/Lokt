@@ -53,3 +53,13 @@ add task-specific instructions; these apply always.
 - Commit hash.
 - Anything left undone or risky — stated explicitly, never implied complete.
 - A short hand-check list for the user (they verify in Xcode).
+
+## Probing a live backend (added 2026-09-23 after a real mistake)
+A probe against the DEPLOYED backend must be guaranteed to fail before the
+model call on BOTH the old and the new server: use the no-token request
+(401) or the too-short prompt (400 "at least 8 characters"). Never send a
+payload whose rejection depends on the new version being live — an
+oversized body sent to the old server (no size cap on that endpoint) was
+forwarded to OpenAI as a ~375k-token junk prompt and returned 200.
+To detect a new deploy, compare `git rev-parse origin/main` after the push,
+or watch Railway's deploy log line ("auth ON") — not behavior that costs money.
