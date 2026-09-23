@@ -6,6 +6,7 @@ import SwiftUI
 struct WorkoutTabView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @EnvironmentObject private var coachRouter: CoachRouter
     @State private var routines: [Routine] = []
     @State private var routineGroups: [RoutineGroup] = []
     @State private var selectedRoutine: Routine?
@@ -106,6 +107,9 @@ struct WorkoutTabView: View {
             .onAppear {
                 loadRoutines()
                 refreshActiveWorkout()
+            }
+            .onChange(of: coachRouter.pendingWorkoutStart, initial: true) { _, request in
+                consumePendingStart(request)
             }
             .alert("Delete routine?", isPresented: deleteAlertBinding) {
                 Button("Cancel", role: .cancel) {
@@ -686,6 +690,23 @@ struct WorkoutTabView: View {
         }
         selectedRoutine = routine
         navigateToLogger = true
+    }
+
+    /// Home's START pill lands here (`CoachRouter.requestWorkoutStart`), so
+    /// the routine goes through the SAME guard as the card's Start Workout
+    /// button — replace-in-progress prompt included. Deferred one runloop so
+    /// the NavigationLink activation never races the tab switch (or the
+    /// stale-tab rebuild) that brought us here. A routine deleted meanwhile
+    /// simply lands the user on the Workout tab.
+    private func consumePendingStart(_ request: WorkoutStartRequest?) {
+        guard request != nil else { return }
+        DispatchQueue.main.async {
+            guard let pending = coachRouter.pendingWorkoutStart else { return }
+            coachRouter.pendingWorkoutStart = nil
+            loadRoutines()
+            guard let routine = store.routine(withID: pending.routineID) else { return }
+            requestStartWorkout(routine)
+        }
     }
 
     private var replacePromptBinding: Binding<Bool> {

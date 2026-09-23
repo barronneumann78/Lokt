@@ -1,10 +1,13 @@
 import SwiftUI
 
 // Overview only: greeting, this week's numbers, a recent-activity glance, and
-// the dive into full Analytics. Creating and starting workouts lives on the
-// Workout tab.
+// the dive into full Analytics. Creating workouts lives on the Workout tab;
+// the pinned START pill hands the up-next routine to that tab's start path
+// (`CoachRouter.requestWorkoutStart`) so the logger, the in-progress slot and
+// the replace-in-progress prompt all stay in one place.
 struct HomeView: View {
     @EnvironmentObject private var store: WorkoutStore
+    @EnvironmentObject private var exerciseStore: ExerciseStore
     @EnvironmentObject private var coachRouter: CoachRouter
     @State private var navigateToSettings = false
     @State private var navigateToAnalytics = false
@@ -23,7 +26,7 @@ struct HomeView: View {
                             emptyState
                         } else {
                             weekSection
-                            analyticsButton
+                            statRow
                             recentSection
                         }
 
@@ -41,7 +44,10 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.top, 20)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 16)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    startPill
                 }
             }
             .navigationBarHidden(true)
@@ -54,14 +60,15 @@ struct HomeView: View {
     private var headerSection: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(dateLine)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(AppTheme.textSecondary)
-
                 Text("Ready to lift")
                     .font(.system(size: 34, weight: .bold))
                     .tracking(-0.5)
                     .foregroundStyle(AppTheme.textPrimary)
+
+                Text(contextLine)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -95,94 +102,182 @@ struct HomeView: View {
     // MARK: - This week hero
 
     private var weekSection: some View {
-        VStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("VOLUME THIS WEEK")
-                    .microLabel()
+        let volume = HomeInsights.volumeLabel(thisWeekVolume)
 
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(weekVolumeParts.value)
-                        .font(.system(size: 56, weight: .bold))
-                        .monospacedDigit()
-                        .tracking(-1.5)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .heroGlow()
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("VOLUME THIS WEEK")
+                .microLabel()
 
-                    Text(weekVolumeParts.unit)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(volume.value)
+                    .font(.system(size: 56, weight: .bold))
+                    .monospacedDigit()
+                    .tracking(-1.5)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .heroGlow()
+
+                Text(volume.unit)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
 
                 if let delta = weekVolumeDeltaPercent {
-                    Text("\(delta >= 0 ? "↑" : "↓") \(abs(Int(delta.rounded())))% vs last week")
-                        .font(.footnote.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(delta >= 0 ? AppTheme.success : AppTheme.textSecondary)
-                } else {
-                    Text("Across \(sessionsThisWeek) session\(sessionsThisWeek == 1 ? "" : "s")")
-                        .font(.footnote.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
+                    deltaChip(delta)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(AppTheme.cardPadding)
-            .glassCard()
 
-            HStack(spacing: 12) {
-                metricTile(label: "SESSIONS", value: "\(sessionsThisWeek)", unit: "this wk")
-                metricTile(label: "STREAK", value: streakWeeks == 0 ? "—" : "\(streakWeeks)", unit: streakWeeks == 0 ? "" : "wks")
+            weekStrip
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private func deltaChip(_ delta: Double) -> some View {
+        let rounded = Int(delta.rounded())
+        return Text("\(rounded >= 0 ? "+" : "−")\(abs(rounded))% vs last")
+            .font(.caption.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(rounded >= 0 ? AppTheme.success : AppTheme.textSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(AppTheme.mutedFill)
+            .clipShape(Capsule())
+    }
+
+    // MARK: Week strip — seven bars Mon–Sun, today lit
+
+    private let barMaxHeight: CGFloat = 48
+    private let barMinHeight: CGFloat = 4
+
+    private var weekStrip: some View {
+        let days = weekStripDays
+        let peak = days.map(\.volume).max() ?? 0
+
+        return HStack(alignment: .bottom, spacing: 8) {
+            ForEach(days) { day in
+                VStack(spacing: 8) {
+                    bar(for: day, peak: peak)
+
+                    Text(day.letter)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(day.isToday ? AppTheme.primary : AppTheme.textTertiary)
+                }
+                .frame(maxWidth: .infinity)
             }
         }
     }
 
-    private func metricTile(label: String, value: String, unit: String) -> some View {
+    private func bar(for day: HomeInsights.DayVolume, peak: Double) -> some View {
+        let height = peak > 0
+            ? max(barMinHeight, barMaxHeight * CGFloat(day.volume / peak))
+            : barMinHeight
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            let shape = RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(barStyle(for: day))
+                .frame(height: height)
+
+            if day.isToday {
+                shape.barGlow()
+            } else {
+                shape
+            }
+        }
+        .frame(height: barMaxHeight)
+    }
+
+    /// Today: the primary gradient. Other lifting days: the neutral series
+    /// color (data encoding, not chrome). Quiet days: the muted fill.
+    private func barStyle(for day: HomeInsights.DayVolume) -> AnyShapeStyle {
+        if day.isToday {
+            return AnyShapeStyle(AppTheme.primaryGradient)
+        }
+        if day.volume > 0 {
+            return AnyShapeStyle(AppTheme.chartNeutral)
+        }
+        return AnyShapeStyle(AppTheme.mutedFill)
+    }
+
+    // MARK: - Stat row
+
+    private var statRow: some View {
+        HStack(spacing: 0) {
+            statTile(label: "SESSIONS · 7D", value: "\(sessionsLast7Days)")
+
+            verticalHairline
+
+            statTile(label: "PRs · 30D", value: "\(prsLast30Days)", accent: true)
+
+            verticalHairline
+
+            statTile(
+                label: "STREAK",
+                value: streakWeeks == 0 ? "—" : "\(streakWeeks)",
+                unit: streakWeeks == 0 ? "" : "wk"
+            )
+        }
+        .padding(.vertical, AppTheme.rowPadding)
+        .glassCard()
+    }
+
+    private func statTile(label: String, value: String, unit: String = "", accent: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .microLabel()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
 
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
                     .monospacedDigit()
                     .tracking(-0.5)
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .foregroundStyle(accent ? AppTheme.primary : AppTheme.textPrimary)
 
                 if !unit.isEmpty {
                     Text(unit)
-                        .font(.footnote.weight(.medium))
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(AppTheme.textSecondary)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppTheme.rowPadding)
-        .glassCard()
+        .padding(.horizontal, AppTheme.rowPadding)
     }
 
-    // MARK: - Analytics dive
-
-    private var analyticsButton: some View {
-        Button {
-            navigateToAnalytics = true
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.headline.weight(.bold))
-
-                Text("View Analytics")
-            }
-        }
-        .buttonStyle(PrimaryButtonStyle())
+    private var verticalHairline: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(width: 1)
     }
 
     // MARK: - Recent activity
 
     private var recentSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("RECENT")
-                .microLabel()
-                .padding(.bottom, 4)
+            HStack(alignment: .firstTextBaseline) {
+                Text("RECENT")
+                    .microLabel()
+
+                Spacer()
+
+                Button {
+                    navigateToAnalytics = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("View Analytics")
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.primary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 4)
 
             ForEach(Array(recentSessions.enumerated()), id: \.element.id) { index, session in
                 VStack(spacing: 0) {
@@ -194,24 +289,29 @@ struct HomeView: View {
                     NavigationLink {
                         SessionEditView(session: session)
                     } label: {
-                        HStack(alignment: .firstTextBaseline) {
+                        HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(session.routineName)
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(AppTheme.textPrimary)
                                     .lineLimit(1)
+                                    .truncationMode(.tail)
 
-                                Text(session.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                                Text(recentSubtitle(for: session))
                                     .font(.caption)
+                                    .monospacedDigit()
                                     .foregroundStyle(AppTheme.textTertiary)
+                                    .lineLimit(1)
                             }
 
-                            Spacer()
+                            Spacer(minLength: 12)
 
-                            Text(volumeText(for: session))
-                                .font(.subheadline.weight(.semibold))
+                            Text(recentMetrics(for: session))
+                                .font(.footnote.weight(.semibold))
                                 .monospacedDigit()
                                 .foregroundStyle(AppTheme.textSecondary)
+                                .lineLimit(1)
+                                .layoutPriority(1)
 
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 9, weight: .bold))
@@ -230,9 +330,11 @@ struct HomeView: View {
     }
 
     // MARK: - Empty state
+    // The pinned START pill below is the one call to action, so the card
+    // itself carries no button (one gradient pill per screen).
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("No sessions yet")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -240,15 +342,41 @@ struct HomeView: View {
             Text("Your numbers land here after your first workout.")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
-
-            Button("Start Your First Workout") {
-                coachRouter.selectedTab = .workout
-            }
-            .buttonStyle(PrimaryButtonStyle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    // MARK: - Pinned start pill — THE primary action of the screen
+
+    private var startPill: some View {
+        Button {
+            startNext()
+        } label: {
+            Text(startTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, 24)
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(AppTheme.backgroundTop)
+    }
+
+    private var startTitle: String {
+        guard let next = nextRoutine else { return "CREATE A ROUTINE" }
+        return "START \(next.name.uppercased())"
+    }
+
+    private func startNext() {
+        guard let next = nextRoutine else {
+            coachRouter.selectedTab = .workout
+            return
+        }
+        coachRouter.requestWorkoutStart(routineID: next.id)
     }
 
     private var hairline: some View {
@@ -257,89 +385,82 @@ struct HomeView: View {
             .frame(height: 1)
     }
 
-    // MARK: - Derived data
+    // MARK: - Derived data (math lives in HomeInsights; this is wiring)
 
-    private var dateLine: String {
-        Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
+    private var now: Date { Date() }
+
+    /// Mon–Sun week in the user's own time zone and locale.
+    private var calendar: Calendar { HomeInsights.weekCalendar(.current) }
+
+    /// "Wednesday · Up next: Push Day" — "Up next" leads so a long routine
+    /// name truncating at the tail never takes the meaning with it. The full
+    /// date when nothing is queued.
+    private var contextLine: String {
+        guard let next = nextRoutine else {
+            return now.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        }
+        return "\(now.formatted(.dateTime.weekday(.wide))) · Up next: \(next.name)"
     }
 
-    private var calendar: Calendar { Calendar.current }
+    private var nextRoutine: Routine? {
+        HomeInsights.nextRoutine(routines: store.routines, groups: store.routineGroups, sessions: store.sessions)
+    }
 
     private var recentSessions: [WorkoutSession] {
         Array(store.sessions.sorted { $0.date > $1.date }.prefix(3))
     }
 
-    private var sessionsThisWeek: Int {
-        sessions(inWeekOffset: 0).count
+    private var weekStripDays: [HomeInsights.DayVolume] {
+        HomeInsights.weekStrip(sessions: store.sessions, now: now, calendar: calendar)
     }
 
-    private var weekVolumeParts: (value: String, unit: String) {
-        let volume = totalVolume(for: sessions(inWeekOffset: 0))
-        if volume >= 1000 {
-            return (String(format: "%.1f", volume / 1000), "k lb")
-        }
-        return ("\(Int(volume))", "lb")
+    private var thisWeekVolume: Double {
+        HomeInsights.totalVolume(HomeInsights.sessions(store.sessions, inWeekOffset: 0, now: now, calendar: calendar))
     }
 
     private var weekVolumeDeltaPercent: Double? {
-        let current = totalVolume(for: sessions(inWeekOffset: 0))
-        let previous = totalVolume(for: sessions(inWeekOffset: -1))
-        guard previous > 0, current > 0 else { return nil }
-        return (current - previous) / previous * 100
+        let previous = HomeInsights.totalVolume(
+            HomeInsights.sessions(store.sessions, inWeekOffset: -1, now: now, calendar: calendar)
+        )
+        return HomeInsights.volumeDeltaPercent(current: thisWeekVolume, previous: previous)
+    }
+
+    private var sessionsLast7Days: Int {
+        HomeInsights.sessions(store.sessions, inLastDays: 7, now: now, calendar: calendar).count
+    }
+
+    private var prsLast30Days: Int {
+        let exercises = exerciseStore.exercises
+        return HomeInsights.prCount(
+            sessions: store.sessions,
+            lastDays: 30,
+            now: now,
+            calendar: calendar,
+            resolve: { exercises.resolvedExercise(named: $0) }
+        )
     }
 
     private var streakWeeks: Int {
-        let weeks = Set(store.sessions.compactMap { session in
-            calendar.dateInterval(of: .weekOfYear, for: session.date)?.start
-        })
-        guard !weeks.isEmpty,
-              var cursor = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else {
-            return 0
-        }
-
-        // The streak may still be alive if this week has no session yet.
-        if !weeks.contains(cursor) {
-            guard let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: cursor) else { return 0 }
-            cursor = previous
-        }
-
-        var streak = 0
-        while weeks.contains(cursor) {
-            streak += 1
-            guard let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: cursor) else { break }
-            cursor = previous
-        }
-        return streak
+        HomeInsights.streakWeeks(sessions: store.sessions, now: now, calendar: calendar)
     }
 
-    private func sessions(inWeekOffset offset: Int) -> [WorkoutSession] {
-        guard let currentWeek = calendar.dateInterval(of: .weekOfYear, for: Date()),
-              let weekStart = calendar.date(byAdding: .weekOfYear, value: offset, to: currentWeek.start),
-              let week = calendar.dateInterval(of: .weekOfYear, for: weekStart) else {
-            return []
-        }
-        return store.sessions.filter { week.contains($0.date) }
+    /// "Wednesday · 52min" inside the last week, "Sep 3 · 52min" beyond it.
+    private func recentSubtitle(for session: WorkoutSession) -> String {
+        let isRecent = HomeInsights.sessions([session], inLastDays: 7, now: now, calendar: calendar).isEmpty == false
+        let when = isRecent
+            ? session.date.formatted(.dateTime.weekday(.wide))
+            : session.date.formatted(.dateTime.month(.abbreviated).day())
+        guard let seconds = session.durationSeconds, seconds > 0 else { return when }
+        return "\(when) · \(AnalyticsMath.durationText(seconds: seconds))"
     }
 
-    private func totalVolume(for sessions: [WorkoutSession]) -> Double {
-        sessions.reduce(0) { total, session in
-            total + session.logs.values.reduce(0) { exerciseTotal, sets in
-                exerciseTotal + sets.reduce(0) { setTotal, set in
-                    guard set.isCompleted,
-                          let weight = Double(set.weight.replacingOccurrences(of: ",", with: "")),
-                          let reps = Double(set.reps) else { return setTotal }
-                    return setTotal + weight * reps
-                }
-            }
-        }
-    }
-
-    private func volumeText(for session: WorkoutSession) -> String {
-        let volume = totalVolume(for: [session])
-        guard volume > 0 else { return "—" }
-        if volume >= 1000 {
-            return String(format: "%.1fk lb", volume / 1000)
-        }
-        return "\(Int(volume)) lb"
+    /// "24 sets · 12.4k lb"; the tonnage drops out when nothing parsed.
+    private func recentMetrics(for session: WorkoutSession) -> String {
+        let sets = HomeInsights.countedSets(session)
+        let setsText = "\(sets) set\(sets == 1 ? "" : "s")"
+        let volume = HomeInsights.sessionVolume(session)
+        guard volume > 0 else { return setsText }
+        let label = HomeInsights.volumeLabel(volume)
+        return "\(setsText) · \(label.value)\(label.unit == "lb" ? " lb" : label.unit)"
     }
 }

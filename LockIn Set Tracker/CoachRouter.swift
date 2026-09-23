@@ -81,11 +81,24 @@ struct CoachLaunchRequest: Identifiable {
     let context: CoachLaunchContext
 }
 
+/// A Home-initiated "start this routine" hand-off to the Workout tab. Home
+/// never pushes the logger itself: the Workout tab owns the in-progress
+/// slot, the resume card and the replace-in-progress prompt, and it is the
+/// one tab the stale-tab reset never tears down mid-workout. `id` makes every
+/// request distinct, so starting the same routine twice in a row still fires.
+struct WorkoutStartRequest: Equatable {
+    let id = UUID()
+    let routineID: UUID
+}
+
 final class CoachRouter: ObservableObject {
     @Published var selectedTab: AppRootTab = .home {
         didSet { tabSelectionDidChange(from: oldValue) }
     }
     @Published var launchRequest = CoachLaunchRequest(context: .planning)
+    /// Pending Home → Workout start; `WorkoutTabView` consumes it through its
+    /// own Start Workout guard and clears it.
+    @Published var pendingWorkoutStart: WorkoutStartRequest?
 
     /// Per-tab reset epochs. MainTabView applies each as its tab content's
     /// `.id`; bumping one rebuilds that tab from its root (navigation, scroll,
@@ -124,6 +137,12 @@ final class CoachRouter: ObservableObject {
     func openPlanning() {
         launchRequest = CoachLaunchRequest(context: .planning)
         selectedTab = .coach
+    }
+
+    /// Home's START pill: hand `routineID` to the Workout tab's start path.
+    func requestWorkoutStart(routineID: UUID) {
+        pendingWorkoutStart = WorkoutStartRequest(routineID: routineID)
+        selectedTab = .workout
     }
 
     func openActiveWorkout(routine: Routine, nextExercise: String?, checkInNote: String? = nil) {

@@ -128,6 +128,14 @@ enum AppTheme {
              radius: 14, y: 8)
     }
 
+    /// Glow under a small accent-filled data mark — Home's "today" bar in the
+    /// week strip (phase 2). Same dark-stop color as the pill glow, tighter
+    /// and fainter so a 30pt bar reads lit rather than smeared.
+    static var barGlow: Glow {
+        Glow(color: activeScheme.gradientStops.dark.opacity(activeScheme.glowOpacity * 0.7),
+             radius: 6, y: 2)
+    }
+
     /// 1px inner top highlight on cards (Whoop-style depth) — sits inside the
     /// `cardBorder` hairline and fades out down the sides.
     static let cardHighlight = Color.white.opacity(0.04)
@@ -301,6 +309,14 @@ struct PrimaryGlowModifier: ViewModifier {
     }
 }
 
+/// Glow under a small accent-filled data mark — see `AppTheme.barGlow`.
+struct BarGlowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        let glow = AppTheme.barGlow
+        return content.shadow(color: glow.color, radius: glow.radius, x: 0, y: glow.y)
+    }
+}
+
 /// Faint radial accent glow behind a hero number. Drawn as a circle 1.4× the
 /// number's width, squashed to an ellipse so it hugs the figure instead of
 /// bleeding into the label above and the caption below. Ends at 0-alpha accent
@@ -358,6 +374,12 @@ extension View {
     /// strip.
     func heroGlow() -> some View {
         modifier(HeroGlowModifier())
+    }
+
+    /// Glow under a small accent-filled data mark (`AppTheme.barGlow`) — the
+    /// week strip's "today" bar on Home. Views never call `.shadow(` themselves.
+    func barGlow() -> some View {
+        modifier(BarGlowModifier())
     }
 
     func trackerTextEditorStyle() -> some View {
