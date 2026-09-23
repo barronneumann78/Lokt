@@ -43,6 +43,17 @@ Supersedes WEEK_PLAN.md. Statuses are honest as of writing. Owner in [brackets].
       raw captures done, compositor unwritten — resume for Phase D, not
       needed for TestFlight
 
+## Look v2 rollout — whole app (Barron, 2026-09-23: "make the entire app look better, not just the few pages")
+Done: tokens+buttons (d1f1425), Home (fa5664f), Logger (5a5eef2), Coach (6aedcf1). Sequential agents, one commit each, then build 4:
+- [ ] A. Build-3 feedback: remove Home START pill; keyboard dismissal audit (number pads, composer, tap-outside)
+- [ ] B. Analytics: concept board (glowing headline tiles, progression line with accent fill, PR list, muscle-split donut) + per-chart controls (exercise picker, metric e1RM/top set/volume, window 7d/30d/90d/all) using the EXISTING charts
+- [ ] C. Workout tab: concept "Workouts — rotation groups" board (count header, group headers with "B is next" chip, exercise-preview line, chips, ghost START on cards / gradient START on the next one, GENERATE WORKOUT pill)
+- [ ] D. Exercise detail: muscle chips, BEST/E1RM/LAST tiles, numbered FORM CUES with accent circles, collapsible sections, ASK LOKT capsule
+- [ ] E. Session check-in sheet: handle, Easy/Right/Hard tiles, ANYTHING HURT tiles, NEXT SESSION card with glow, APPLY TO ROUTINE pill, Not now ghost
+- [ ] F. Onboarding: segmented progress bar, big option tiles with check, tap-to-advance
+- [ ] G. Consistency pass, no concept board: Settings, routine editor/CreateRoutineView, SessionEditView, Add Exercise picker/library, Generate Workout + photo/voice import — same vocabulary (glassCard, micro labels, chips, capsule fields, ghost pills, one gradient pill)
+- [ ] Build 4 → TestFlight; then Barron pushes (TRUST_PROXY=1 first) so Railway gets multi-draft + hardening
+
 ## Phase C+ — polish surfaced by the 2026-09-23 agent chain (Claude, small)
 - [ ] Home START pill truncates long AI routine names ("START 45-MINUTE DUMBBELL PUSH DAY (HIP-…") — clamp to a short name or fall back to "START NEXT WORKOUT"
 - [ ] Home hero card shows a tall empty gap when the week has no volume (chip hidden) — tighten spacing in the empty case
