@@ -54,7 +54,10 @@ struct AIWorkoutGeneratorView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .navigationTitle("Generate with AI")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $smartSwapIndex) { target in

@@ -47,7 +47,10 @@ struct VoiceWorkoutImportView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .navigationTitle("Import by Voice")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editorTarget) { target in
@@ -1056,7 +1059,10 @@ private struct VoiceExerciseEditorSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 20)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
+            .dismissKeyboardOnTap()
+            .keyboardDoneBar()
             .navigationTitle("Review Voice Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

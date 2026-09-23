@@ -226,6 +226,7 @@ struct CoachView: View {
                         .padding(.top, 10)
                         .padding(.bottom, 12)
                     }
+                    .scrollDismissesKeyboard(.interactively)
                     .onAppear {
                         proxy.scrollTo("chat-bottom", anchor: .bottom)
                     }
@@ -246,6 +247,10 @@ struct CoachView: View {
         .safeAreaInset(edge: .bottom) {
             composerBar
         }
+        // The composer is multi-line (Return = newline), so the keyboard needs
+        // explicit ways down: tap the conversation, drag it, or Done.
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .overlay {
             sendMorphLayer
         }
@@ -1031,6 +1036,10 @@ struct CoachView: View {
         // Capture the composer's live frame before clearing it — a multiline
         // draft shrinks the field the moment the text goes away.
         let fieldFrame = composerFieldFrame
+
+        // Sending ends the typing: drop the keyboard so the reply has the
+        // screen (the multi-line composer has no Return-to-dismiss).
+        composerFocused = false
 
         var instant = Transaction()
         instant.disablesAnimations = true

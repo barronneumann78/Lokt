@@ -47,7 +47,10 @@ struct WorkoutPhotoImportView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .navigationTitle("Import from Photo")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhotoItem) { _, item in
@@ -922,7 +925,10 @@ private struct ImportedExerciseEditorSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 20)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
+            .dismissKeyboardOnTap()
+            .keyboardDoneBar()
             .navigationTitle("Review Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

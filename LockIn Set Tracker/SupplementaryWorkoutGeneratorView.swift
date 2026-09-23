@@ -54,7 +54,10 @@ struct SupplementaryWorkoutGeneratorView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .navigationTitle("Add-On Block")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $smartSwapIndex) { target in

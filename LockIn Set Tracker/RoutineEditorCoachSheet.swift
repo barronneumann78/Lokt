@@ -37,6 +37,8 @@ struct RoutineEditorCoachSheet: View {
                 composer
             }
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(isSending)
@@ -132,6 +134,7 @@ struct RoutineEditorCoachSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 8)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onAppear {
                 proxy.scrollTo("routine-editor-chat-bottom", anchor: .bottom)
             }
@@ -237,6 +240,7 @@ struct RoutineEditorCoachSheet: View {
         errorMessage = nil
         isSending = true
         messages.append(userMessage)
+        KeyboardDismiss.dismiss()
 
         Task { @MainActor in
             do {

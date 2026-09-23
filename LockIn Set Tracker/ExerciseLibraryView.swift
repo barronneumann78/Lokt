@@ -68,7 +68,9 @@ struct ExerciseLibraryView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
         .navigationTitle("Exercise Library")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search Exercises")

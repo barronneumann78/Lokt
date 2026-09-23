@@ -46,6 +46,8 @@ struct SessionEditView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .navigationTitle(original.routineName)
         .navigationBarTitleDisplayMode(.inline)
     }

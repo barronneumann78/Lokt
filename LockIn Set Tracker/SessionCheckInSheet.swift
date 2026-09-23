@@ -70,7 +70,9 @@ struct SessionCheckInSheet: View {
                 }
                 .padding(20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .onAppear {

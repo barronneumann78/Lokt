@@ -240,7 +240,10 @@ private struct WorkoutPreferencesSettingsView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
         .navigationTitle("Workout Preferences")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

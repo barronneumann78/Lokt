@@ -90,6 +90,12 @@ struct WorkoutLoggerView: View {
                     .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.vertical, 20)
                 }
+                // Drag-to-dismiss beside the cells' own Done key (their UIKit
+                // accessory toolbar). No tap-to-dismiss on this screen: the
+                // pinned COMPLETE SET and the row buttons keep the keyboard up
+                // for the focus hand-off, and every cell is already a native
+                // whole-cell tap target.
+                .scrollDismissesKeyboard(.interactively)
                 .safeAreaInset(edge: .bottom) {
                     pinnedActions
                 }

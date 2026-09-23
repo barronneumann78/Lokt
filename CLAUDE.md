@@ -182,6 +182,14 @@ polish, not phases.
   the name-matching check proving new names don't steal existing fuzzy
   resolutions (append-only + the matcher's strict `>` keeps ties with the
   older entry; verify anyway).
+- **Keyboard dismissal** (`KeyboardDismiss.swift`, owner feedback build 3):
+  every screen with text inputs gets `.scrollDismissesKeyboard(.interactively)`
+  on its scroll view and `.dismissKeyboardOnTap()` at its root (UIKit tap
+  recognizer scoped to that screen; never swallows buttons or field taps);
+  screens with a number-pad or multi-line field add `.keyboardDoneBar()`
+  (one per screen — keyboard toolbar items merge up the hierarchy). The
+  logger is the exception: its UIKit cells carry their own accessory toolbar
+  and get drag-to-dismiss only, so COMPLETE SET keeps the focus hand-off.
 - Scoped commits only (never `git add -A`; leave `.DS_Store`/xcuserstate churn).
   End commit messages with the standard Claude Co-Authored-By trailer. No push
   unless the user asks — GitHub Pages serves this repo's root on push.

@@ -86,10 +86,12 @@ struct WorkoutAddExercisePicker: View {
                     }
                     .padding(.bottom, 20)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .padding(.horizontal, 20)
             .padding(.top, 24)
         }
+        .dismissKeyboardOnTap()
         // Cheap safety net: pick up custom exercises saved elsewhere.
         .onAppear(perform: exerciseStore.reloadCustomExercises)
     }

@@ -32,6 +32,8 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
+        .dismissKeyboardOnTap()
+        .keyboardDoneBar()
     }
 
     // MARK: - Top bar (back · progress · skip)
@@ -283,6 +285,7 @@ struct OnboardingView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 28)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var multilineLimitationsField: some View {

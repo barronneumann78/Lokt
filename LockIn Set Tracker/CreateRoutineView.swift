@@ -177,7 +177,9 @@ struct CreateRoutineView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
         .navigationTitle(screenTitle)
         .searchable(text: $searchText, prompt: "Search Exercises")
         .onAppear(perform: configureFormIfNeeded)
