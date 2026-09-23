@@ -40,6 +40,9 @@ REAL `backend/server.mjs` at run time (brace-matched, never copied) and runs
 plain PASS/FAIL assertions — zero OpenAI cost. It runs inside
 `harness/checks.sh` (sensor 3d). New backend logic checks follow that shape:
 one directory, one `check.mjs`, extract-don't-copy.
+`backend-coach-multi-draft/check.mjs` (sensor 3e) is the sibling for the
+Coach multi-draft path; its extractor also skips destructured signatures
+(`function f({ a, b })`), which the original brace matcher cannot.
 
 ## Rules
 

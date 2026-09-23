@@ -5,8 +5,41 @@ struct CoachView: View {
     let initialContext: CoachLaunchContext
 
     @State private var conversationMessages: [AIWorkoutConversationMessage]
-    @State private var currentDraft: AIGeneratedRoutineDraft?
+
+    /// Every draft the latest coach reply carried, in the coach's order. One
+    /// entry is the usual case; two to five when the user clearly asked for
+    /// more than one (the card pages between them). `currentDraft` is the
+    /// focused entry — the one the composer revises and the Rec chip edits.
+    @State private var drafts: [AIGeneratedRoutineDraft] = []
+    @State private var focusedDraftIndex = 0
+
+    /// Direction the pager last moved — picks the slide edge.
+    @State private var pagerMovesForward = true
+
+    /// Drafts the latest change summary describes: every draft of a multi
+    /// reply, or the one draft a revise replaced. Keeps a revise's summary
+    /// off the other pages.
+    @State private var changeSummaryDraftIDs: Set<UUID> = []
     @State private var latestChangeSummary: String?
+
+    /// The focused draft. Setting it replaces only that entry (a revise on
+    /// draft 2 never touches draft 1); nil clears the whole set.
+    private var currentDraft: AIGeneratedRoutineDraft? {
+        get { drafts[safe: focusedDraftIndex] }
+        nonmutating set {
+            guard let newValue else {
+                drafts = []
+                focusedDraftIndex = 0
+                return
+            }
+            if drafts.indices.contains(focusedDraftIndex) {
+                drafts[focusedDraftIndex] = newValue
+            } else {
+                drafts = [newValue]
+                focusedDraftIndex = 0
+            }
+        }
+    }
     @State private var messageText = ""
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -498,12 +531,29 @@ struct CoachView: View {
         .padding(.top, 2)
     }
 
+    /// A ZStack (not the chat VStack) hosts the page transition so the
+    /// outgoing page never keeps a layout slot below the incoming one. In the
+    /// single case the index never changes, so nothing transitions.
     private func draftCard(for draft: AIGeneratedRoutineDraft) -> some View {
+        ZStack {
+            draftCardContent(for: draft)
+                .id(focusedDraftIndex)
+                .transition(pagerTransition)
+        }
+    }
+
+    private func draftCardContent(for draft: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("WORKOUT DRAFT")
-                        .microLabel()
+                    HStack(spacing: 8) {
+                        Text("WORKOUT DRAFT")
+                            .microLabel()
+
+                        if drafts.count > 1 {
+                            pagerChip
+                        }
+                    }
 
                     Text(draft.title)
                         .font(.title3.weight(.bold))
@@ -550,7 +600,8 @@ struct CoachView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let latestChangeSummary = nonEmptyText(latestChangeSummary) {
+            if changeSummaryDraftIDs.contains(draft.id),
+               let latestChangeSummary = nonEmptyText(latestChangeSummary) {
                 Text(latestChangeSummary)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(AppTheme.textSecondary)
@@ -631,9 +682,102 @@ struct CoachView: View {
                     }
                 }
             }
+
+            if drafts.count > 1 {
+                pagerFooter
+            }
         }
         .padding(18)
         .glassCard()
+        .gesture(pagerSwipe)
+    }
+
+    // MARK: Draft pager (multi-draft replies only)
+
+    /// "1 OF 2" — tapping advances to the next draft, wrapping.
+    private var pagerChip: some View {
+        Button {
+            showDraft(at: (focusedDraftIndex + 1) % drafts.count, forward: true)
+        } label: {
+            Text("\(focusedDraftIndex + 1) OF \(drafts.count)")
+                .monospacedDigit()
+                .microLabel(AppTheme.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(AppTheme.mutedFill)
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Draft \(focusedDraftIndex + 1) of \(drafts.count), show next")
+    }
+
+    /// Dots to jump between drafts, plus one action to save every unsaved
+    /// draft — each through the same review-before-save path as its own button.
+    private var pagerFooter: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 6) {
+                ForEach(drafts.indices, id: \.self) { index in
+                    Button {
+                        showDraft(at: index, forward: index > focusedDraftIndex)
+                    } label: {
+                        Circle()
+                            .fill(index == focusedDraftIndex ? AppTheme.textPrimary : AppTheme.textTertiary)
+                            .frame(width: 6, height: 6)
+                            .frame(width: 16, height: 16)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Draft \(index + 1)")
+                }
+            }
+
+            Spacer()
+
+            if unsavedDraftCount > 1 {
+                Button(drafts.count == 2 ? "Save both" : "Save all") {
+                    saveAllDrafts()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private var unsavedDraftCount: Int {
+        drafts.filter { !savedDraftIDs.contains($0.id) }.count
+    }
+
+    /// Horizontal swipe on the card moves between drafts. A no-op with one
+    /// draft; vertical drags still belong to the chat scroll.
+    private var pagerSwipe: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                guard drafts.count > 1,
+                      abs(value.translation.width) > abs(value.translation.height) else { return }
+                let forward = value.translation.width < 0
+                showDraft(at: focusedDraftIndex + (forward ? 1 : -1), forward: forward)
+            }
+    }
+
+    private var pagerTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: .move(edge: pagerMovesForward ? .trailing : .leading).combined(with: .opacity),
+            removal: .move(edge: pagerMovesForward ? .leading : .trailing).combined(with: .opacity)
+        )
+    }
+
+    private func showDraft(at index: Int, forward: Bool) {
+        guard drafts.indices.contains(index), index != focusedDraftIndex else { return }
+        pagerMovesForward = forward
+        withAnimation(.easeOut(duration: reduceMotion ? 0.2 : 0.24)) {
+            focusedDraftIndex = index
+        }
     }
 
     private var contextKind: CoachContextKind {
@@ -743,30 +887,68 @@ struct CoachView: View {
         return store.routine(withID: lineageID) != nil
     }
 
-    /// Saves a draft to the routine library exactly once per draft version.
+    /// The one write path for a Coach draft, exactly once per draft version.
     /// A version whose lineage already produced a routine updates that routine
-    /// in place; otherwise it appends a new one. Marking the id saved before
-    /// writing makes the action idempotent even against re-entrant taps.
-    private func saveDraft(_ draft: AIGeneratedRoutineDraft) {
-        guard savedDraftIDs.insert(draft.id).inserted else { return }
+    /// in place; otherwise it appends a new one and records the lineage.
+    /// Marking the id saved before writing makes the action idempotent even
+    /// against re-entrant taps.
+    private func persistDraft(_ draft: AIGeneratedRoutineDraft) -> CoachRoutinePersistence.Result? {
+        guard savedDraftIDs.insert(draft.id).inserted else { return nil }
 
         guard let result = CoachRoutinePersistence.save(
             draft,
             replacing: savedRoutineIDsByDraft[draft.id],
             in: store
-        ) else { return }
+        ) else { return nil }
+
+        switch result {
+        case .updated:
+            updatedDraftIDs.insert(draft.id)
+        case .added(let routine):
+            savedRoutineIDsByDraft[draft.id] = routine.id
+        }
+        return result
+    }
+
+    private func saveDraft(_ draft: AIGeneratedRoutineDraft) {
+        guard let result = persistDraft(draft) else { return }
 
         switch result {
         case .updated(let routine):
-            updatedDraftIDs.insert(draft.id)
             withAnimation(.easeOut(duration: 0.18)) {
                 saveNotice = SaveNotice(title: "Routine updated", text: "\(routine.name) now matches this draft.")
             }
-        case .added(let routine):
-            savedRoutineIDsByDraft[draft.id] = routine.id
+        case .added:
             withAnimation(.easeOut(duration: 0.18)) {
                 saveNotice = SaveNotice(title: "Saved to routines", text: "\(draft.title) is now saved in your routines.")
             }
+        }
+    }
+
+    /// Saves every unsaved draft of a multi reply, one lineage each.
+    private func saveAllDrafts() {
+        var savedCount = 0
+        var updatedCount = 0
+        for draft in drafts where !savedDraftIDs.contains(draft.id) {
+            switch persistDraft(draft) {
+            case .added?:
+                savedCount += 1
+            case .updated?:
+                updatedCount += 1
+            case nil:
+                break
+            }
+        }
+
+        let total = savedCount + updatedCount
+        guard total > 0 else { return }
+        withAnimation(.easeOut(duration: 0.18)) {
+            saveNotice = SaveNotice(
+                title: updatedCount > 0 ? "Routines saved" : "Saved to routines",
+                text: total == 1
+                    ? "1 workout is now in your routines."
+                    : "\(total) workouts are now in your routines."
+            )
         }
     }
 
@@ -834,14 +1016,19 @@ struct CoachView: View {
                     showTypingIndicator = false
 
                     if result.action.changedDraft {
+                        let incoming = result.drafts
+
                         // Carry the lineage forward: the new draft version keeps
                         // pointing at whatever routine its ancestor saved, so a
                         // later save updates that routine instead of appending.
-                        if let newDraft = result.routine,
+                        // Lineage rules apply to the FIRST incoming draft exactly
+                        // as before (the backend's editedRoutineID describes it);
+                        // every further draft of a multi reply starts fresh.
+                        if let newDraft = incoming.first,
                            let previousDraftID = currentDraft?.id,
                            let lineageRoutineID = savedRoutineIDsByDraft[previousDraftID] {
                             savedRoutineIDsByDraft[newDraft.id] = lineageRoutineID
-                        } else if let newDraft = result.routine,
+                        } else if let newDraft = incoming.first,
                                   let editedRoutineID = result.editedRoutineID,
                                   store.routine(withID: editedRoutineID) != nil {
                             // The backend built this draft as an edit of a saved
@@ -850,7 +1037,18 @@ struct CoachView: View {
                             // user still has to tap; nothing is written here.
                             savedRoutineIDsByDraft[newDraft.id] = editedRoutineID
                         }
-                        currentDraft = result.routine
+
+                        if incoming.count >= 2 {
+                            // A multi reply replaces the whole set. A single reply
+                            // replaces only the focused draft, so a revise on
+                            // draft 2 never touches draft 1.
+                            pagerMovesForward = true
+                            drafts = incoming
+                            focusedDraftIndex = 0
+                        } else {
+                            currentDraft = incoming.first
+                        }
+                        changeSummaryDraftIDs = Set(incoming.map(\.id))
                     }
                     latestChangeSummary = result.changeSummary
                     conversationMessages.append(.assistant(result.assistantReply))

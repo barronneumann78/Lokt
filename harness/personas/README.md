@@ -13,6 +13,9 @@ from the quiz, `UserMemoryStore`-shaped memory digests):
 1. **generate** — initial workout from the persona's own prompt + saved prefs
 2. **revise** — an in-character edit complaint ("that pinched my shoulder")
 3. **coach** — a question or second edit against the saved routine
+   (3b. **multi** — only for personas with a `multiDraftMessage`: one message
+   asking for more than one workout; asserts 2–5 distinct complete drafts in
+   `routines` with `routines[0]` equal to `routine`, in `steps[].checks`)
 4. **voice** — one rambling persona-phrased transcript through voice parse
 5. **followup** — three simulated weeks later, an evolving memory digest
    (check-ins + pain notes generated per temperament) rides along and the coach
@@ -71,7 +74,8 @@ Drop a `<id>.json` next to the runner (see any existing file for the shape):
   optional `missedSessionsPerWeek`; this drives the simulated history
 - `history.liftPool` — plausible lifts w/ weekly progression for the digest
 - `journey` — five in-character texts: `initialPrompt`, `editPrompt`,
-  `coachMessage`, `followUpMessage`, `voiceTranscript`
+  `coachMessage`, `followUpMessage`, `voiceTranscript`; optional
+  `painCoachMessage` and `multiDraftMessage` (adds the `multi` step, +1 call)
 
 Keep the roster diverse in goals AND temperament — at least one persona should
 persistently report pain / "too hard" (adaptation-loop fodder), one should

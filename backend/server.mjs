@@ -731,10 +731,15 @@ const voiceWorkoutParseSchema = {
   }
 };
 
+// Multi-draft cap: five is a training week. The cap, the duplicate drop, and
+// the context guard are enforced in code (sanitizeCoachDrafts), never trusted
+// to the prompt. The schema caps additionalRoutines (extras beyond `routine`).
+const maxCoachDrafts = 5;
+
 const coachChatSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["reply", "action", "changeSummary", "routine", "editedRoutineID"],
+  required: ["reply", "action", "changeSummary", "routine", "editedRoutineID", "additionalRoutines"],
   properties: {
     reply: { type: "string" },
     action: {
@@ -759,6 +764,12 @@ const coachChatSchema = {
         { type: "null" }
       ],
       description: "The exact id of the saved routine this draft modifies, copied verbatim from the saved routine list or the active workout context. null when the draft is brand-new or when no routine is returned."
+    },
+    additionalRoutines: {
+      type: "array",
+      maxItems: maxCoachDrafts - 1,
+      items: workoutSchema,
+      description: "Workouts beyond the first, ONLY when the user clearly asked for more than one workout in this message (an explicit count, an A and B version, a day-by-day plan). The first workout always goes in routine. Empty in every other case."
     }
   }
 };
@@ -1004,6 +1015,18 @@ const importRevisionInstructions = [
   "Only return JSON matching the schema."
 ].join(" ");
 
+// Owner ask 2026-09-23: "one at a time is the default, but it should be able
+// to do at least two if the person asks for it" — Coach tab only. The prompt
+// asks for the default; the deterministic guards live in sanitizeCoachDrafts.
+const multiDraftInstructions = [
+  "One workout per reply is the default. Build more than one ONLY when the user clearly asks for more than one in this message: an explicit count such as two workouts, an A version and a B version, a second variant that swaps named exercises, or a day-by-day plan for several days.",
+  "When you build more than one, put the first workout in routine and every further workout in additionalRoutines, in the order the user asked, at most five in total. Give each a distinct title that says which is which, such as Leg Day A and Leg Day B or Monday Push and Wednesday Pull, and make the contents genuinely different when the user asked for variants.",
+  "Every workout in additionalRoutines follows every rule that applies to routine: exercise library names, the time budget, the equipment list, the exercise count, and the safe-personalization rules.",
+  "In every other case additionalRoutines is an empty array. One session that covers several muscle groups, or a message that mentions other days in passing, is still one workout.",
+  "If it is genuinely unclear whether the user wants one session or several, ask one short clarifying question with action reply_only instead of guessing. Never ask when the request is explicit.",
+  "When there is more than one workout, the reply names each one in a sentence or two."
+].join(" ");
+
 const coachChatInstructions = [
   "You are Lokt, a chat-first gym coach inside a workout app.",
   "The user may be planning a new workout, editing a current draft, or asking for help during an active workout.",
@@ -1023,7 +1046,8 @@ const coachChatInstructions = [
   "If the user is in active workout context, prefer practical coaching help unless they clearly ask for the rest of the workout to be rebuilt.",
   "If the Coach context is Routine editing, it reflects a local form that may still be unsaved. Give whole-workout advice only: use reply_only or suggestion, set routine and changeSummary to null, and never create or edit a routine from that context.",
   "When action is created_draft or updated_draft, return a complete routine in the schema and write a short changeSummary.",
-  "When action is reply_only or suggestion, set routine to null and changeSummary to null.",
+  "When action is reply_only or suggestion, set routine to null, changeSummary to null, and additionalRoutines to an empty array.",
+  multiDraftInstructions,
   "If a routine is returned, keep the name field to exercise names only, never sets, reps, numbering, or prescription text.",
   catalogGroundingInstructions,
   timeBudgetInstructions,
@@ -1547,6 +1571,10 @@ const server = http.createServer(async (request, response) => {
         changeSummary: coachResult.changeSummary,
         routine: coachResult.routine,
         editedRoutineID: coachResult.editedRoutineID,
+        // Full ordered draft list when the user asked for more than one
+        // (routines[0] is `routine`); null otherwise. Additive — older clients
+        // keep reading the single `routine`.
+        routines: coachResult.routines,
         requestId: coachResult.requestId,
         model: workoutGeneratorModel
       });
@@ -2580,14 +2608,33 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
     throw new Error("OpenAI returned malformed coach JSON.");
   }
 
+  return {
+    requestId: payload.id ?? null,
+    ...buildCoachChatResult({ coachResponse, context, savedRoutines, currentRoutine })
+  };
+}
+
+// Everything after the model's JSON is parsed, kept pure so the multi-draft
+// guards are logic-checked against this exact code with zero OpenAI cost
+// (harness/logic-checks/backend-coach-multi-draft). `routine`, `editedRoutineID`,
+// and `changeSummary` describe the FIRST draft exactly as before; `routines` is
+// the full ordered list (routines[0] === routine) and null unless there are
+// at least two, so every existing client keeps reading a single draft.
+function buildCoachChatResult({ coachResponse, context, savedRoutines, currentRoutine }) {
   const isRoutineEditingContext = context?.kind === "routine_editing";
   // The routine editor sends an in-progress local form for whole-workout
   // questions. It has no review/apply path in Coach, so never let a malformed
   // or over-eager model response turn that advice into a hidden new draft.
   const action = coachActionForContext(coachResponse?.action, context);
+
+  // A model that puts every workout in additionalRoutines and leaves routine
+  // null still yields a first draft; the extras never replace a stated one.
+  const rawExtras = Array.isArray(coachResponse?.additionalRoutines) ? [...coachResponse.additionalRoutines] : [];
+  const rawPrimary = coachResponse?.routine ?? (rawExtras.length > 0 ? rawExtras.shift() : null);
+
   const sanitizedRoutine = isRoutineEditingContext
     ? null
-    : sanitizeOptionalRoutine(coachResponse?.routine, action);
+    : sanitizeOptionalRoutine(rawPrimary, action);
   const editedRoutineID = sanitizedRoutine
     ? sanitizeEditedRoutineID(coachResponse?.editedRoutineID, savedRoutines, context)
     : null;
@@ -2604,14 +2651,92 @@ async function chatWithCoach({ message, conversation, currentRoutine, context, s
     }
   }
 
+  const routines = sanitizedRoutine && coachMultiDraftAllowed(context)
+    ? sanitizeCoachDrafts(sanitizedRoutine, rawExtras, action)
+    : null;
+
   return {
-    requestId: payload.id ?? null,
     action,
     reply: sanitizeReply(coachResponse?.reply),
     changeSummary,
     routine: sanitizedRoutine,
-    editedRoutineID
+    editedRoutineID,
+    routines
   };
+}
+
+// Multi-draft replies exist for planning (and refining a planning draft) only.
+// The active-workout context is where the M4 safety branch lands (pain /
+// repeated too-hard check-in notes ride in as `checkInNote`): that conversation
+// stays about the ONE routine that hurt, so the multi path can never route
+// around it. Routine editing already yields no draft at all.
+function coachMultiDraftAllowed(context) {
+  return context?.kind === "planning" || context?.kind === "draft_editing";
+}
+
+// Two drafts are duplicates when they prescribe the same exercises with the
+// same sets and reps — titles do not count. A week plan that repeats a session
+// three times needs one saved routine, not three copies.
+function coachDraftFingerprint(routine) {
+  return (Array.isArray(routine?.exercises) ? routine.exercises : [])
+    .map((exercise) => [
+      String(exercise?.name ?? "").trim().toLowerCase(),
+      Number(exercise?.sets) || 0,
+      String(exercise?.reps ?? "").trim().toLowerCase()
+    ].join("|"))
+    .join("\n");
+}
+
+// The first draft is already sanitized. Every extra runs through the SAME
+// sanitizeOptionalRoutine (merge, clamp, catalog recompute) — nothing forks.
+// Deterministic guards: cap at maxCoachDrafts, drop duplicates, drop (never
+// fail on) an incomplete extra, and keep titles distinct for the routine
+// library. Returns the full ordered list, or null when only one draft remains.
+function sanitizeCoachDrafts(primaryRoutine, additionalRoutines, action) {
+  const drafts = [primaryRoutine];
+  const seen = new Set([coachDraftFingerprint(primaryRoutine)]);
+
+  for (const candidate of Array.isArray(additionalRoutines) ? additionalRoutines : []) {
+    if (drafts.length >= maxCoachDrafts) {
+      console.log(`[coach] dropped extra draft past the cap of ${maxCoachDrafts}`);
+      break;
+    }
+
+    let sanitized;
+    try {
+      sanitized = sanitizeOptionalRoutine(candidate, action);
+    } catch (error) {
+      console.log(`[coach] dropped incomplete extra draft: ${error instanceof Error ? error.message : error}`);
+      continue;
+    }
+    if (!sanitized) {
+      continue;
+    }
+
+    const fingerprint = coachDraftFingerprint(sanitized);
+    if (seen.has(fingerprint)) {
+      console.log(`[coach] dropped duplicate draft "${sanitized.title}"`);
+      continue;
+    }
+    seen.add(fingerprint);
+    drafts.push(sanitized);
+  }
+
+  if (drafts.length < 2) {
+    return null;
+  }
+
+  const titleCounts = new Map();
+  for (const draft of drafts) {
+    const key = draft.title.toLowerCase();
+    const count = (titleCounts.get(key) ?? 0) + 1;
+    titleCounts.set(key, count);
+    if (count > 1) {
+      draft.title = `${draft.title} ${count}`;
+    }
+  }
+
+  return drafts;
 }
 
 async function suggestExerciseSwaps({ currentExercise, reason, candidates, preferences }) {

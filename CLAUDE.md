@@ -77,6 +77,12 @@ Always build with the real compiler after Swift changes; fix errors, don't guess
 - **Coach seams** (in `CoachView.swift`): `savedDraftIDs` (one-shot save),
   `savedRoutineIDsByDraft` (edit-in-place lineage; backend returns
   `editedRoutineID`), `SendMorphRender` (iMessage send morph). Touch carefully.
+  Multi-draft (Coach tab only): `drafts` + `focusedDraftIndex` back the
+  computed `currentDraft`; a reply with ≥2 drafts replaces the set, a single
+  reply replaces only the focused draft; lineage/`editedRoutineID` apply to the
+  first draft, the rest start fresh. Backend guards live in
+  `sanitizeCoachDrafts` (cap 5, duplicate drop, planning/draft_editing only —
+  the check-in safety branch stays single-draft).
 - **Adaptation loop (M4)**: after a session saves, `SessionCheckInSheet` (one
   ultra-light check-in, 2 taps happy path) persists via
   `WorkoutStore.recordCheckIn`, then offers a constrained nudge from
@@ -91,7 +97,9 @@ Always build with the real compiler after Swift changes; fix errors, don't guess
   UserDefaults key `adaptationMetricsV1` (`AdaptationMetrics`).
 - **Backend endpoints**: workout-generator (+`/revise`, `/explain`), workout-addon,
   workout-nudge (M4: strict echo-verbatim target deltas; 422 on pain check-ins),
-  coach/chat (accepts `savedRoutines` + `memory` + `checkInNote`, returns `editedRoutineID`),
+  coach/chat (accepts `savedRoutines` + `memory` + `checkInNote`, returns `editedRoutineID`
+  and, only when the user clearly asks for more than one workout, `routines` — the
+  full ordered 2–5 draft list with `routines[0]` equal to `routine`; null otherwise),
   exercise-coach/answer + `/explain` (cues|simple), photo/voice import, `GET /health`.
   Generator schema: per-exercise required `reasoning` (≤15 words) + `tip`
   (≤12 words); `summary` = one concrete sentence, filler banned.

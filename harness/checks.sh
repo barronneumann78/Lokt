@@ -53,6 +53,12 @@ rm -f "$TMP_CATALOG"
 #     PASS/FAIL lines.
 if ! node harness/logic-checks/backend-sanitize-merge/check.mjs; then FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); fi
 
+# 3e. Coach multi-draft path (owner ask 2026-09-23: "one at a time is the
+#     default, but at least two if the person asks"). Count cap, duplicate
+#     drop, same sanitize pipeline per draft, single-draft shape unchanged,
+#     safety-branch contexts stay single. Extracted from the real server.mjs.
+if ! node harness/logic-checks/backend-coach-multi-draft/check.mjs; then FAIL=1; FAILED_COUNT=$((FAILED_COUNT+1)); fi
+
 # 4. Exactly one ExerciseStore() construction (app root). Per-view copies each
 #    re-decoded 2MB of JSON (fixed in f4d6798).
 COUNT=$(grep -rn "ExerciseStore()" --include="*.swift" "$SRC" | wc -l | tr -d ' ')

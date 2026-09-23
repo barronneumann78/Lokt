@@ -457,6 +457,27 @@ async function backendPost(path, body) {
   return { status: 429, ms: 0, body: { error: "rate-limited after retries" } };
 }
 
+// Owner ask 2026-09-23: an explicit "push day AND pull day" must come back as
+// two drafts in ONE reply — `routines` (full ordered list, [0] equals
+// `routine`), distinct titles, every draft complete, never past the cap of 5.
+function multiDraftChecks(status, body) {
+  const issues = [];
+  const routines = Array.isArray(body?.routines) ? body.routines : [];
+  if (status !== 200) issues.push(`status ${status}`);
+  if (!["created_draft", "updated_draft"].includes(body?.action)) issues.push(`action ${body?.action ?? "?"}`);
+  if (routines.length < 2) issues.push(`expected >= 2 drafts, got ${routines.length}`);
+  if (routines.length > 5) issues.push(`more than 5 drafts (${routines.length})`);
+  if (routines.length >= 1 && JSON.stringify(routines[0]) !== JSON.stringify(body?.routine)) issues.push("routines[0] differs from routine");
+  const titles = routines.map((r) => String(r?.title ?? "").trim().toLowerCase());
+  if (new Set(titles).size !== titles.length) issues.push("duplicate titles");
+  routines.forEach((r, i) => {
+    if (!r?.title || !Array.isArray(r?.exercises) || r.exercises.length === 0) issues.push(`draft ${i + 1} incomplete`);
+    const names = (r?.exercises ?? []).map((e) => String(e?.name ?? "").trim().toLowerCase());
+    if (new Set(names).size !== names.length) issues.push(`draft ${i + 1} repeats an exercise`);
+  });
+  return { expected: "2+ distinct complete drafts in one reply", pass: issues.length === 0, issues };
+}
+
 // ------------------------------------------------------------- journey steps
 
 function routineToPayload(routine) {
@@ -534,6 +555,27 @@ async function runJourney(persona) {
   };
   const coach = DRY_RUN ? null : await backendPost("/api/ai/coach/chat", coachBody);
   record("coach", "/api/ai/coach/chat", coachBody, coach);
+
+  // 3b. Multi-draft ask (Coach tab only) — personas that carry
+  //     journey.multiDraftMessage ask for more than one workout in one message
+  //     and the deterministic contract is asserted in steps[].checks.
+  if (persona.journey.multiDraftMessage) {
+    console.log("  step 3b multi-draft ask");
+    const multiBody = {
+      message: persona.journey.multiDraftMessage,
+      conversation: [],
+      context: { kind: "planning", activeWorkout: null },
+      savedRoutines: [saved],
+      preferences
+    };
+    const multi = DRY_RUN ? null : await backendPost("/api/ai/coach/chat", multiBody);
+    record("multi", "/api/ai/coach/chat", multiBody, multi);
+    if (!DRY_RUN) {
+      const multiStep = log.steps[log.steps.length - 1];
+      multiStep.checks = multiDraftChecks(multi.status, multi.body);
+      console.log(`    ${multiStep.checks.pass ? "PASS" : "FAIL"} (${multiStep.checks.expected})${multiStep.checks.issues.length ? " — " + multiStep.checks.issues.join("; ") : ""}`);
+    }
+  }
 
   // 4. Voice import — persona-phrased rambling transcript.
   console.log("  step 4/6 voice parse");
@@ -653,7 +695,7 @@ async function openaiJson({ instructions, inputText, schemaName, schema }) {
   return JSON.parse(text);
 }
 
-const STEP_ENUM = ["generate", "revise", "coach", "voice", "followup", "checkin", "checkin_coach"];
+const STEP_ENUM = ["generate", "revise", "coach", "multi", "voice", "followup", "checkin", "checkin_coach"];
 
 const complaintSchema = {
   type: "object",
@@ -730,6 +772,16 @@ function journeyDigest(persona, log) {
   parts.push(`STEP "coach" — you asked: "${coach?.request?.message}"`,
     `Coach replied (status ${coach?.status}, action=${coach?.response?.action ?? "?"}${coach?.response?.editedRoutineID ? `, edited your saved routine` : ""}): "${excerpt(coach?.response?.reply ?? "", 1400)}"`,
     coach?.response?.routine ? `Coach's routine:\n${routineDigest(coach.response.routine)}` : "", "");
+
+  const multi = byStep.multi;
+  if (multi) {
+    const list = Array.isArray(multi.response?.routines)
+      ? multi.response.routines
+      : (multi.response?.routine ? [multi.response.routine] : []);
+    parts.push(`STEP "multi" — you asked for more than one workout in a single message: "${multi.request?.message}"`,
+      `Coach replied (status ${multi.status}, action=${multi.response?.action ?? "?"}, ${list.length} draft${list.length === 1 ? "" : "s"} came back): "${excerpt(multi.response?.reply ?? "", 1000)}"`,
+      ...list.map((r, i) => `Draft ${i + 1}:\n${routineDigest(r)}`), "");
+  }
 
   const voice = byStep.voice;
   parts.push(`STEP "voice" — you rambled into the mic: "${voice?.request?.transcript}"`,

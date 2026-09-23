@@ -40,8 +40,14 @@ struct CoachChatResult {
     var changeSummary: String?
     var routine: AIGeneratedRoutineDraft?
     /// Set when the backend built this draft as an edit of a specific saved
-    /// routine, so the view can seed the save-in-place lineage.
+    /// routine, so the view can seed the save-in-place lineage. Describes the
+    /// FIRST draft only.
     var editedRoutineID: UUID?
+    /// Every draft this reply carries, in the coach's order: `[routine]` in
+    /// the usual single case, two to five when the user clearly asked for
+    /// more than one (backend `routines`, Coach tab only). Empty when the
+    /// reply carries no draft. `drafts.first` is the same instance as `routine`.
+    var drafts: [AIGeneratedRoutineDraft] = []
 }
 
 enum CoachChatError: LocalizedError {
@@ -108,9 +114,16 @@ struct CoachChatService {
 
         let decoded = try await sendRequest(body: payload)
         let sourcePrompt = currentDraft?.sourcePrompt ?? trimmedMessage
-        let routineDraft = decoded.routine.flatMap {
-            try? draftBuilder.makeDraftForSupplementaryBlock(from: $0, sourcePrompt: sourcePrompt, model: decoded.model)
+        func makeDraft(_ routine: AIWorkoutRoutinePayload) -> AIGeneratedRoutineDraft? {
+            try? draftBuilder.makeDraftForSupplementaryBlock(from: routine, sourcePrompt: sourcePrompt, model: decoded.model)
         }
+
+        // A multi-draft reply lists every draft in `routines` (routines[0] is
+        // `routine`). Building from the list keeps one id per draft; anything
+        // short of two usable drafts takes the single path exactly as before.
+        let listedDrafts = (decoded.routines ?? []).compactMap(makeDraft)
+        let routineDraft = listedDrafts.count >= 2 ? listedDrafts.first : decoded.routine.flatMap(makeDraft)
+        let drafts = listedDrafts.count >= 2 ? listedDrafts : (routineDraft.map { [$0] } ?? [])
 
         return CoachChatResult(
             action: decoded.action,
@@ -118,7 +131,8 @@ struct CoachChatService {
                 ?? "I’m with you. Keep talking me through what you want.",
             changeSummary: nonEmptyText(decoded.changeSummary),
             routine: routineDraft,
-            editedRoutineID: nonEmptyText(decoded.editedRoutineID).flatMap(UUID.init(uuidString:))
+            editedRoutineID: nonEmptyText(decoded.editedRoutineID).flatMap(UUID.init(uuidString:)),
+            drafts: drafts
         )
     }
 
@@ -222,6 +236,9 @@ private struct CoachChatResponseEnvelope: Codable {
     var changeSummary: String?
     var routine: AIWorkoutRoutinePayload?
     var editedRoutineID: String?
+    /// Full ordered draft list when the user asked for more than one workout;
+    /// nil (or absent, from an older backend) otherwise.
+    var routines: [AIWorkoutRoutinePayload]?
     var requestId: String?
     var model: String?
 }

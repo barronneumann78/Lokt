@@ -49,6 +49,7 @@
     "coachMessage": "Be straight with me: is it actually safe to keep training around a rotator cuff strain, or should I just rest it completely for a month? If you would change anything in my saved routine because of this, change it.",
     "followUpMessage": "It has been a few weeks now. My shoulder still aches after most sessions and honestly a lot of days feel too hard. Look at how my training has actually gone and tell me what I should do next.",
     "voiceTranscript": "Okay so today I did, uh, the flat dumbbell bench with the forty-fives, three sets of ten, shoulder felt okay-ish on the first two sets... then band pull-aparts, I don't know, maybe four sets of fifteen? Then single arm rows with the sixty, three by twelve each side, and I tried, um, lateral raises with the tens but I stopped after one set of eight because the shoulder started talking to me, and I finished with hammer curls, twenty-fives, three sets of twelve.",
-    "painCoachMessage": "There it is again — that sharp twinge in my right shoulder near the end of the session. I stopped the set early. Be straight with me: what exactly do we change so this stops happening?"
+    "multiDraftMessage": "Build me a push day and a pull day I can alternate \u2014 two separate workouts, 45 minutes each, dumbbells only, and nothing overhead for my right shoulder.",
+  "painCoachMessage": "There it is again — that sharp twinge in my right shoulder near the end of the session. I stopped the set early. Be straight with me: what exactly do we change so this stops happening?"
   }
 }
