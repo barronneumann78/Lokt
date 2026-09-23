@@ -43,6 +43,14 @@ Supersedes WEEK_PLAN.md. Statuses are honest as of writing. Owner in [brackets].
       raw captures done, compositor unwritten — resume for Phase D, not
       needed for TestFlight
 
+## Phase C+ — polish surfaced by the 2026-09-23 agent chain (Claude, small)
+- [ ] Home START pill truncates long AI routine names ("START 45-MINUTE DUMBBELL PUSH DAY (HIP-…") — clamp to a short name or fall back to "START NEXT WORKOUT"
+- [ ] Home hero card shows a tall empty gap when the week has no volume (chip hidden) — tighten spacing in the empty case
+- [ ] `AnalyticsModels.buildHeadline` still uses inclusive `DateInterval.contains` (a Monday-00:00 session counts in two weeks); HomeInsights already uses half-open — align
+- [ ] Coach multi-draft: widen the catalog subset for multi-day asks (a few names came back catalogMatch:false on a 3-day plan; app matcher still resolved them)
+- [ ] SessionEditView lists exercises in routine order, not the recorded `exerciseOrder`
+- [ ] Glow clipping: a gradient pill inside a glassCard (check-in sheet, Home empty state) loses ~2pt of glow to the card clip — eyeball, then pad or un-clip
+
 ## Phase D — post-friends milestones (decided, parked)
 - [ ] Accounts (approved 2026-09-09, MONETIZATION.md): OPTIONAL Sign in with
       Apple only, in-app deletion, backend user store + sync. Milestone-sized.
