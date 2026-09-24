@@ -50,7 +50,22 @@ struct CreateWorkoutOptionsView: View {
                 )
             }
             .buttonStyle(.plain)
+
+            presetPlanRow
         }
+    }
+
+    // The preset-plan generator (template-based, no model call) lives here
+    // since the Workout tab's CREATE card folded into its header "+" and the
+    // pinned GENERATE WORKOUT pill (look v2).
+    private var presetPlanRow: some View {
+        NavigationLink(destination: PresetWorkoutGeneratorView(onSave: handleChildSave)) {
+            optionCard(
+                title: "Start with a Preset Plan",
+                icon: "list.bullet.rectangle"
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var smartToolsSection: some View {
@@ -105,6 +120,8 @@ struct CreateWorkoutOptionsView: View {
                 )
             }
             .buttonStyle(.plain)
+
+            presetPlanRow
         }
     }
 

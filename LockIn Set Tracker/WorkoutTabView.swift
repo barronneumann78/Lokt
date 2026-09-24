@@ -1,11 +1,13 @@
 import SwiftUI
 
 // The action hub: create and start workouts. Owns the routine library and every
-// create-flow entry; the logger is pushed from here. All saved routines render
-// as one uniform list in stored order — nothing is promoted or reshuffled.
+// create-flow entry; the logger is pushed from here. Routines render in stored
+// order — group sections first (creation order), the ungrouped after — nothing
+// is reshuffled. The one promotion is the gradient START on each group's next
+// member (and on the overall next when it sits outside every group): the same
+// rotation rule Home's "Up next" reads, via `WorkoutTabInsights`.
 struct WorkoutTabView: View {
     @EnvironmentObject private var store: WorkoutStore
-    @EnvironmentObject private var exerciseStore: ExerciseStore
     @EnvironmentObject private var coachRouter: CoachRouter
     @State private var routines: [Routine] = []
     @State private var routineGroups: [RoutineGroup] = []
@@ -14,13 +16,12 @@ struct WorkoutTabView: View {
     @State private var navigateToLogger = false
     @State private var navigateToEdit = false
     @State private var navigateToCreate = false
-    @State private var navigateToPresetGenerator = false
     @State private var routinePendingDelete: Routine?
     /// Live in-progress workout (persisted by the logger) offered for resume.
     @State private var activeWorkout: ActiveWorkoutState?
     @State private var showDiscardActiveAlert = false
-    /// Routine whose Start Workout tap awaits the replace-in-progress
-    /// confirmation (another routine's workout holds the slot with content).
+    /// Routine whose START tap awaits the replace-in-progress confirmation
+    /// (another routine's workout holds the slot with content).
     @State private var routinePendingStart: Routine?
     /// Group management state — a new group is created inline from a
     /// routine's folder menu; rename/delete live on a group section's menu.
@@ -50,8 +51,6 @@ struct WorkoutTabView: View {
                             routineSection
                         }
 
-                        createSection
-
                         NavigationLink(destination: CreateWorkoutOptionsView(entryMode: .aiTools, onSave: {
                             loadRoutines()
                         }), isActive: $navigateToCreate) {
@@ -67,16 +66,13 @@ struct WorkoutTabView: View {
                         NavigationLink(destination: WorkoutLoggerView(routine: selectedRoutine ?? Routine(name: "", exercises: [])), isActive: $navigateToLogger) {
                             EmptyView()
                         }
-
-                        NavigationLink(destination: PresetWorkoutGeneratorView(onSave: {
-                            loadRoutines()
-                        }), isActive: $navigateToPresetGenerator) {
-                            EmptyView()
-                        }
                     }
                     .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.top, 20)
                     .padding(.bottom, 32)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    pinnedGenerate
                 }
                 .alert(replacePromptTitle, isPresented: replacePromptBinding) {
                     Button(activeWorkout.map { "Resume \($0.routineName)" } ?? "Resume") {
@@ -167,34 +163,53 @@ struct WorkoutTabView: View {
     }
 
     // MARK: - Header
+    // "WORKOUTS" in accent over the library count. The hairline "+" is the
+    // create-routine entry (the manual editor); generating is the pinned
+    // pill at the bottom of the screen.
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(routines.isEmpty ? "NO ROUTINES YET" : "\(routines.count) ROUTINE\(routines.count == 1 ? "" : "S") READY")
-                .microLabel()
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("WORKOUTS")
+                    .microLabel(AppTheme.primary)
 
-            Text("Workout")
-                .font(.system(size: 34, weight: .bold))
-                .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
+                Text(WorkoutTabInsights.countLine(routineCount: routines.count, groupCount: routineGroups.count))
+                    .font(.caption.weight(.semibold))
+                    .tracking(1.2)
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                routineToEdit = nil
+                navigateToEdit = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .overlay {
+                        Circle()
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("New routine")
         }
     }
 
     // MARK: - Empty state
+    // The header already says NO ROUTINES YET; the pinned GENERATE WORKOUT
+    // pill is the generate path, so the card offers the manual one.
 
     private var emptyHero: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("START")
-                .microLabel()
-
             Text("Build your first routine")
-                .font(.title3.weight(.bold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Button("Ask Lokt for a Workout") {
-                navigateToCreate = true
-            }
-            .buttonStyle(PrimaryButtonStyle())
 
             Button("Create Manually") {
                 routineToEdit = nil
@@ -204,6 +219,21 @@ struct WorkoutTabView: View {
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    // MARK: - Pinned generate
+    // The screen's primary gradient pill → the create flow's AI path. Only
+    // the next-up cards' small START pills share the gradient.
+
+    private var pinnedGenerate: some View {
+        Button("GENERATE WORKOUT") {
+            navigateToCreate = true
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(AppTheme.backgroundTop)
     }
 
     // MARK: - Resume in-progress workout
@@ -289,10 +319,11 @@ struct WorkoutTabView: View {
     }
 
     // MARK: - Saved routines
-    // Grouped routines render first as minimal sections (label + hairline),
-    // ordered by group creation order; ungrouped routines follow in the same
-    // stored-array order as before. A user who never creates a group sees
-    // this exact same flat list — zero groups means zero sections.
+    // Grouped routines render first as sections (name + hairline, with an
+    // accent chip naming the group's next member), ordered by group creation
+    // order; ungrouped routines follow under a quiet UNGROUPED label in the
+    // same stored-array order as before. A user who never creates a group
+    // sees the plain list — zero groups means zero sections and no label.
 
     private struct RoutineGroupSection: Identifiable {
         let group: RoutineGroup
@@ -318,38 +349,69 @@ struct WorkoutTabView: View {
     }
 
     private var routineSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        // One pass over the history per render: who is next, and when each
+        // routine was last done (the logger's id-or-name rule).
+        let sessions = store.sessions
+        let rotation = WorkoutTabInsights.rotation(routines: routines, groups: routineGroups, sessions: sessions)
+        let lastDone = HomeInsights.lastDoneDates(routines: routines, sessions: sessions)
+        let now = Date()
+        let calendar = HomeInsights.weekCalendar(.current)
+
+        return VStack(alignment: .leading, spacing: 20) {
             ForEach(groupedSections) { section in
-                groupSection(section)
+                VStack(alignment: .leading, spacing: 12) {
+                    groupHeader(section.group, next: rotation.nextByGroup[section.group.id])
+
+                    ForEach(section.routines) { routine in
+                        routineCard(
+                            routine,
+                            isNext: rotation.isNext(routine.id),
+                            lastDoneLabel: WorkoutTabInsights.lastDoneLabel(lastDone[routine.id], now: now, calendar: calendar)
+                        )
+                    }
+                }
             }
 
             if !ungroupedRoutines.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
+                    if !routineGroups.isEmpty {
+                        Text("UNGROUPED")
+                            .microLabel()
+                    }
+
                     ForEach(ungroupedRoutines) { routine in
-                        routineCard(routine)
+                        routineCard(
+                            routine,
+                            isNext: rotation.isNext(routine.id),
+                            lastDoneLabel: WorkoutTabInsights.lastDoneLabel(lastDone[routine.id], now: now, calendar: calendar)
+                        )
                     }
                 }
             }
         }
     }
 
-    private func groupSection(_ section: RoutineGroupSection) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            groupHeader(section.group)
-
-            ForEach(section.routines) { routine in
-                routineCard(routine)
-            }
-        }
-    }
-
-    private func groupHeader(_ group: RoutineGroup) -> some View {
+    private func groupHeader(_ group: RoutineGroup, next: Routine?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 8) {
                 Text(group.name.uppercased())
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
 
-                Spacer()
+                Spacer(minLength: 0)
+
+                if let next {
+                    Text(WorkoutTabInsights.nextChipText(for: next.name))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(AppTheme.accentChipFill)
+                        .clipShape(Capsule())
+                }
 
                 Menu {
                     Button("Rename") {
@@ -372,73 +434,95 @@ struct WorkoutTabView: View {
         }
     }
 
-    private func routineCard(_ routine: Routine) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(routine.name)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
+    private func routineCard(_ routine: Routine, isNext: Bool, lastDoneLabel: String) -> some View {
+        let preview = WorkoutTabInsights.exercisePreview(routine.exercises)
+        let count = routine.exercises.count
 
-                    Text("\(routine.exercises.count) exercises")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(routine.name)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
 
-                Spacer()
+                Spacer(minLength: 0)
 
-                HStack(spacing: 8) {
-                    groupMenu(for: routine)
-
-                    Button {
-                        routineToEdit = routine
-                        navigateToEdit = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .frame(width: 34, height: 34)
-                            .background(AppTheme.surfaceElevated)
-                            .clipShape(Circle())
-                    }
-
-                    Button {
-                        routinePendingDelete = routine
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.danger.opacity(0.85))
-                            .frame(width: 34, height: 34)
-                            .background(AppTheme.surfaceElevated)
-                            .clipShape(Circle())
-                    }
-                }
+                startButton(for: routine, isNext: isNext)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(routine.exercises.prefix(5), id: \.self) { exercise in
-                        ExerciseTextNavigationLink(exerciseName: exercise, exercises: exerciseStore.exercises) {
-                            Text(exercise)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(AppTheme.textSecondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(AppTheme.mutedFill)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
+            if !preview.isEmpty {
+                Text(preview)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
-            Button("Start Workout") {
-                requestStartWorkout(routine)
+            HStack(spacing: 8) {
+                chip("\(count) exercise\(count == 1 ? "" : "s")")
+                chip(lastDoneLabel)
+
+                Spacer(minLength: 0)
+
+                groupMenu(for: routine)
+                cardMenu(for: routine)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
         }
         .padding(AppTheme.rowPadding)
         .glassCard()
+    }
+
+    /// The gradient START marks the next-up card (the group's next member, or
+    /// the overall next among the ungrouped); every other card gets a ghost
+    /// capsule. Both run the same replace-in-progress guard.
+    @ViewBuilder
+    private func startButton(for routine: Routine, isNext: Bool) -> some View {
+        if isNext {
+            Button {
+                requestStartWorkout(routine)
+            } label: {
+                Text("START")
+                    .tracking(1)
+            }
+            .buttonStyle(PrimaryButtonStyle(isCompact: true))
+        } else {
+            Button {
+                requestStartWorkout(routine)
+            } label: {
+                Text("START")
+                    .tracking(1)
+            }
+            .buttonStyle(GhostButtonStyle(isCompact: true))
+        }
+    }
+
+    private func chip(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(AppTheme.textSecondary)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(AppTheme.mutedFill)
+            .clipShape(Capsule())
+    }
+
+    /// Edit and delete, folded behind "…" so the card's chrome stays at two
+    /// quiet icons: the folder for grouping, this one for the routine itself.
+    private func cardMenu(for routine: Routine) -> some View {
+        Menu {
+            Button("Edit") {
+                routineToEdit = routine
+                navigateToEdit = true
+            }
+
+            Button("Delete", role: .destructive) {
+                routinePendingDelete = routine
+            }
+        } label: {
+            iconChrome("ellipsis")
+        }
     }
 
     private func groupMenu(for routine: Routine) -> some View {
@@ -473,85 +557,17 @@ struct WorkoutTabView: View {
                 showNewGroupPrompt = true
             }
         } label: {
-            Image(systemName: "folder")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.textSecondary)
-                .frame(width: 34, height: 34)
-                .background(AppTheme.surfaceElevated)
-                .clipShape(Circle())
+            iconChrome("folder")
         }
     }
 
-    // MARK: - Create flows
-
-    private var createSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("CREATE")
-                .microLabel()
-                .padding(.bottom, 12)
-
-            Button {
-                navigateToCreate = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Ask Lokt for a Workout")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textTertiary)
-                }
-                .padding(.vertical, 16)
-            }
-            .buttonStyle(.plain)
-
-            createRow(title: "Create Manually", icon: "square.and.pencil") {
-                routineToEdit = nil
-                navigateToEdit = true
-            }
-
-            createRow(title: "Start with a Preset Plan", icon: "list.bullet.rectangle", isLast: true) {
-                navigateToPresetGenerator = true
-            }
-        }
-        .padding(.horizontal, AppTheme.cardPadding)
-        .padding(.vertical, AppTheme.rowPadding)
-        .glassCard()
-    }
-
-    private func createRow(title: String, icon: String, isLast: Bool = false, action: @escaping () -> Void) -> some View {
-        VStack(spacing: 0) {
-            hairline
-
-            Button(action: action) {
-                HStack(spacing: 12) {
-                    Image(systemName: icon)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .frame(width: 22)
-
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(AppTheme.textSecondary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(AppTheme.textTertiary)
-                }
-                .padding(.vertical, 13)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
+    private func iconChrome(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(AppTheme.textSecondary)
+            .frame(width: 30, height: 30)
+            .background(AppTheme.surfaceElevated)
+            .clipShape(Circle())
     }
 
     private var hairline: some View {
@@ -693,8 +709,8 @@ struct WorkoutTabView: View {
     }
 
     /// A `CoachRouter.requestWorkoutStart` request from another tab lands
-    /// here, so the routine goes through the SAME guard as the card's Start
-    /// Workout button — replace-in-progress prompt included. Deferred one runloop so
+    /// here, so the routine goes through the SAME guard as the card's START
+    /// button — replace-in-progress prompt included. Deferred one runloop so
     /// the NavigationLink activation never races the tab switch (or the
     /// stale-tab rebuild) that brought us here. A routine deleted meanwhile
     /// simply lands the user on the Workout tab.

@@ -445,13 +445,18 @@ extension View {
 // other fill (dark surfaces, `success`) stays flat in the same capsule.
 struct PrimaryButtonStyle: ButtonStyle {
     var fill: Color = AppTheme.primary
+    /// Chip sizing — the Workout tab's START on a next-up card: 12pt bold
+    /// label, 9pt vertical padding, hugging its content instead of filling
+    /// the row. Gradient and glow are unchanged; only the size shrinks.
+    var isCompact: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline.weight(.bold))
+            .font(isCompact ? .system(size: 12, weight: .bold) : .headline.weight(.bold))
             .foregroundStyle(labelColor)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .frame(maxWidth: isCompact ? nil : CGFloat.infinity)
+            .padding(.vertical, isCompact ? 9 : 16)
+            .padding(.horizontal, isCompact ? 16 : 0)
             .background {
                 Group {
                     if isAccentFill {
@@ -528,13 +533,18 @@ struct SecondaryButtonStyle: ButtonStyle {
 /// sits BESIDE the gradient pill (the coach draft's Revise).
 struct GhostButtonStyle: ButtonStyle {
     var verticalPadding: CGFloat = 12
+    /// Chip sizing to pair with `PrimaryButtonStyle(isCompact: true)`: the
+    /// same 12pt bold label and 9pt vertical padding, content-hugging — the
+    /// Workout tab's START on every card that is not up next.
+    var isCompact: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.subheadline.weight(.semibold))
+            .font(isCompact ? .system(size: 12, weight: .bold) : .subheadline.weight(.semibold))
             .foregroundStyle(AppTheme.textSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, verticalPadding)
+            .frame(maxWidth: isCompact ? nil : CGFloat.infinity)
+            .padding(.vertical, isCompact ? 9 : verticalPadding)
+            .padding(.horizontal, isCompact ? 16 : 0)
             .background(AppTheme.mutedFill.opacity(configuration.isPressed ? 1 : 0))
             .clipShape(Capsule())
             .overlay {
