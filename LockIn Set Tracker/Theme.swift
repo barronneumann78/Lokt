@@ -79,7 +79,8 @@ enum AccentScheme: String, CaseIterable, Identifiable {
 // the one place `LinearGradient`/`RadialGradient`/`.shadow(` may appear
 // (`harness/checks.sh` sensor 1b). Views reach depth through the tokens below:
 // `primaryGradient` + `.primaryGlow()` (the one primary pill per screen),
-// `cardHighlight` (inside `glassCard()`), `.heroGlow()` (the hero number).
+// `cardHighlight` (inside `glassCard()`), `.heroGlow()` (the hero number),
+// `chartFill` (the area under the Analytics progression line).
 enum AppTheme {
     static let screenPadding: CGFloat = 20
     static let cardPadding: CGFloat = 20
@@ -149,8 +150,16 @@ enum AppTheme {
     static var accentHairline: Color { activeScheme.color.opacity(0.3) }
 
     /// Fill of an accent-tinted capsule chip whose label is the accent —
-    /// the coach's "1 OF 2" pager chip (phase 4).
+    /// the coach's "1 OF 2" pager chip (phase 4), the Analytics metric chip.
     static var accentChipFill: Color { activeScheme.color.opacity(0.12) }
+
+    /// Soft accent fill under the Analytics progression line (phase 5): the
+    /// accent at 32% at the line fading to nothing at the baseline, top to
+    /// bottom. Data depth, not chrome — the line itself stays the accent.
+    static var chartFill: LinearGradient {
+        LinearGradient(colors: [activeScheme.color.opacity(0.32), activeScheme.color.opacity(0)],
+                       startPoint: .top, endPoint: .bottom)
+    }
 
     /// 1px inner top highlight on cards (Whoop-style depth) — sits inside the
     /// `cardBorder` hairline and fades out down the sides.
@@ -293,18 +302,20 @@ struct AppBackground: View {
 // with a 1px inner top highlight just inside it (`AppTheme.cardHighlight`).
 // Keeps the `glassCard()` name so call sites don't change — no longer glassy.
 struct GlassCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = AppTheme.cardCornerRadius
+
     func body(content: Content) -> some View {
         content
             .background(AppTheme.card)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
             .overlay {
                 // Inset one point so the highlight sits inside the hairline;
                 // the vertical fade keeps it a top edge, not a full ring.
-                RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius - 1, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius - 1, style: .continuous)
                     .inset(by: 1)
                     .stroke(
                         LinearGradient(colors: [AppTheme.cardHighlight, AppTheme.cardHighlight.opacity(0)],
@@ -379,8 +390,10 @@ struct SurfaceCardModifier: ViewModifier {
 }
 
 extension View {
-    func glassCard() -> some View {
-        modifier(GlassCardModifier())
+    /// The card look at the default 22pt radius; pass a smaller radius for
+    /// the compact stat tiles (Analytics headline strip: 16pt).
+    func glassCard(cornerRadius: CGFloat = AppTheme.cardCornerRadius) -> some View {
+        modifier(GlassCardModifier(cornerRadius: cornerRadius))
     }
 
     func surfaceCard(cornerRadius: CGFloat = AppTheme.rowCornerRadius, border: Color = AppTheme.cardBorder) -> some View {

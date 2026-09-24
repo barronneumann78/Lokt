@@ -166,6 +166,7 @@ composer is a 50pt card-fill capsule with a 38pt `primaryGradient` send
 circle. The multi-draft seams (`drafts`/`focusedDraftIndex`, lineage,
 `persistDraft`) are unchanged. The v2 look is complete; further work is
 polish, not phases.
+Phase 5 (done, Analytics): `AnalyticsView` matches the "Progress — charts with volt depth" board — VOLUME·7D / SETS·30D / PRs·e1RM tiles (16pt `glassCard(cornerRadius:)`), the progression line over `AppTheme.chartFill` with in-card exercise / metric (e1RM · Top set · Volume) / window (7d · 30d · 90d · All) controls, a PRs·e1RM board (tap a row to drill the chart down to that lift), the muscle-split donut and distribution radar each with a 30d · 90d · All switch; every control persists through the `AnalyticsControls` `@AppStorage` keys, the math stays in `AnalyticsSnapshot` parameterized by `AnalyticsWindow`/`ProgressionMetric` (completed sets only), logic-checked in `harness/logic-checks/analytics-controls`.
 
 ## Conventions & guardrails
 

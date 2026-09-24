@@ -2,44 +2,65 @@ import SwiftUI
 import Charts
 import Combine
 
-/// The definitive analytics page: interactive exercise progression, training
-/// calendar, muscle-distribution radar, 30-day muscle split and rep ranges —
-/// all derived once per data change in `AnalyticsSnapshot`.
+/// The Progress screen: headline tiles, the exercise progression line, the
+/// PR board, the muscle-split donut, the training calendar, the muscle
+/// distribution radar and rep ranges — all derived once per data change in
+/// `AnalyticsSnapshot`. Each chart carries its own small controls (exercise,
+/// metric, window) persisted through `@AppStorage` (`AnalyticsControls`) so
+/// they survive relaunch.
 struct AnalyticsView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var exerciseStore: ExerciseStore
     @State private var snapshot: AnalyticsSnapshot = .empty
+    /// Shared with `ProgressionCard`: a PR row tap writes it, the chart reads it.
+    @AppStorage(AnalyticsControls.progressionExerciseKey) private var progressionExercise = ""
+    /// Owned here because the PRs headline tile follows the PR board's window.
+    @AppStorage(AnalyticsControls.prWindowKey) private var prWindow = AnalyticsControls.defaultPRWindow
+
+    private enum Anchor: Hashable {
+        case progression
+    }
 
     var body: some View {
         ZStack {
             AppBackground()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        header
 
-                    if snapshot.totalSessions == 0 {
-                        emptyState
-                    } else {
-                        if let headline = snapshot.headline {
-                            headlineStrip(headline)
+                        if snapshot.totalSessions == 0 {
+                            emptyState
+                        } else {
+                            if let headline = snapshot.headline {
+                                headlineStrip(headline)
+                            }
+                            ProgressionCard(snapshot: snapshot)
+                                .id(Anchor.progression)
+                            PRCard(
+                                records: snapshot.prRecords,
+                                window: $prWindow,
+                                chartable: chartableExercises
+                            ) { exercise in
+                                drillDown(to: exercise, proxy: proxy)
+                            }
+                            MuscleDonutCard(snapshot: snapshot)
+                            CalendarCard(
+                                snapshot: snapshot,
+                                exercises: exerciseStore.exercises,
+                                routineOrders: routineOrders
+                            )
+                            MuscleDistributionCard(snapshot: snapshot)
+                            if !snapshot.repBins.isEmpty {
+                                repRangeCard
+                            }
+                            ExerciseOrderCard(profiles: snapshot.exerciseOrderProfiles)
                         }
-                        ProgressionCard(snapshot: snapshot)
-                        CalendarCard(
-                            snapshot: snapshot,
-                            exercises: exerciseStore.exercises,
-                            routineOrders: routineOrders
-                        )
-                        MuscleDistributionCard(sessions: store.sessions, exercises: exerciseStore.exercises)
-                        MuscleDonutCard(donut: snapshot.donut, insight: snapshot.donutInsight)
-                        if !snapshot.repBins.isEmpty {
-                            repRangeCard
-                        }
-                        ExerciseOrderCard(profiles: snapshot.exerciseOrderProfiles)
                     }
+                    .padding(.horizontal, AppTheme.screenPadding)
+                    .padding(.vertical, 20)
                 }
-                .padding(.horizontal, AppTheme.screenPadding)
-                .padding(.vertical, 20)
             }
         }
         .navigationTitle("")
@@ -58,23 +79,35 @@ struct AnalyticsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
+            Text("Progress")
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+
             if snapshot.totalSessions > 0 {
                 Text("\(snapshot.totalSessions) sessions logged")
-                    .font(.footnote.weight(.medium))
+                    .font(.system(size: 13))
                     .monospacedDigit()
                     .foregroundStyle(AppTheme.textSecondary)
             }
-
-            Text("Progress")
-                .font(.system(size: 34, weight: .bold))
-                .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, 2)
     }
 
     private var routineOrders: [UUID: [String]] {
         ExercisePositionLogic.routineOrders(from: store.routines)
+    }
+
+    /// Lifts the progression chart can show — the PR rows that drill down.
+    private var chartableExercises: Set<String> {
+        Set(snapshot.progressionPickerOptions.map(\.name))
+    }
+
+    /// PRs · e1RM: records that beat an earlier one, in the PR board's window.
+    private var prCount: Int {
+        AnalyticsSnapshot.prRecords(snapshot.prRecords, in: prWindow, now: Date(), calendar: .current)
+            .filter(\.isPR)
+            .count
     }
 
     private func rebuild(with sessions: [WorkoutSession]) {
@@ -84,6 +117,15 @@ struct AnalyticsView: View {
             resolve: { exercises.resolvedExercise(named: $0) },
             routineOrders: routineOrders
         )
+    }
+
+    /// One tap on a PR row: the progression chart switches to that lift and
+    /// scrolls into view.
+    private func drillDown(to exercise: String, proxy: ScrollViewProxy) {
+        progressionExercise = exercise
+        withAnimation(.easeInOut(duration: 0.35)) {
+            proxy.scrollTo(Anchor.progression, anchor: .top)
+        }
     }
 
     // MARK: - Empty state
@@ -112,75 +154,37 @@ struct AnalyticsView: View {
     // MARK: - Headline strip
 
     private func headlineStrip(_ headline: AnalyticsSnapshot.Headline) -> some View {
-        HStack(spacing: 10) {
-            statTile(
-                label: "Sessions",
-                value: "\(headline.thisWeekSessions)",
-                detail: "this week"
-            )
-
-            if headline.volumeIsMeaningful {
-                statTile(
-                    label: "Volume",
-                    value: AnalyticsFormat.compact(headline.thisWeekVolume),
-                    detail: "lbs this week",
-                    delta: headline.volumeDeltaPercent.map { delta in
-                        (text: AnalyticsFormat.signedPercent(delta) + " vs avg", isPositive: delta >= 0)
-                    }
-                )
-            } else {
-                statTile(
-                    label: "Sets",
-                    value: "\(headline.thisWeekSets)",
-                    detail: "this week"
-                )
-            }
-
-            statTile(
-                label: "Streak",
-                value: headline.streakWeeks == 0 ? "—" : "\(headline.streakWeeks) wk",
-                detail: headline.streakWeeks == 0 ? "train to start one" : "in a row"
-            )
+        HStack(spacing: 8) {
+            statTile(label: "VOLUME · 7D", value: AnalyticsFormat.compact(headline.volumeLast7Days))
+            statTile(label: "SETS · 30D", value: "\(headline.setsLast30Days)")
+            statTile(label: "PRs · e1RM", value: "\(prCount)", accent: true)
         }
     }
 
-    private func statTile(
-        label: String,
-        value: String,
-        detail: String,
-        delta: (text: String, isPositive: Bool)? = nil
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label.uppercased())
-                .microLabel()
+    /// Concept tile: 16pt card, 10pt micro label, 22pt mono number — the PR
+    /// count in the accent. The three keep the phase-1 hero glow.
+    private func statTile(label: String, value: String, accent: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.2)
+                .foregroundStyle(AppTheme.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
 
             Text(value)
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 22, weight: .bold))
                 .monospacedDigit()
                 .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
+                .foregroundStyle(accent ? AppTheme.primary : AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
                 .heroGlow()
-
-            if let delta {
-                Text(delta.text)
-                    .font(.caption2.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(delta.isPositive ? AppTheme.success : AppTheme.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            } else {
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textTertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard()
+        .padding(12)
+        .glassCard(cornerRadius: 16)
     }
 
     // MARK: - Rep ranges
@@ -270,6 +274,76 @@ struct AnalyticsView: View {
     }
 }
 
+// MARK: - Card controls
+
+/// Window switch: small text tabs ("30d  90d  All"), the selected one bright.
+/// Windows without enough data (`enabled`) are dimmed and inert.
+private struct WindowSwitch: View {
+    @Binding var selection: AnalyticsWindow
+    let options: [AnalyticsWindow]
+    var enabled: Set<AnalyticsWindow>? = nil
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options) { window in
+                let isEnabled = enabled?.contains(window) ?? true
+                let isOn = window == selection
+                Button {
+                    guard isEnabled, !isOn else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        selection = window
+                    }
+                } label: {
+                    Text(window.label)
+                        .font(.caption2.weight(isOn ? .bold : .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(isOn ? AppTheme.textPrimary : AppTheme.textTertiary)
+                        .opacity(isEnabled ? 1 : 0.4)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!isEnabled)
+            }
+        }
+    }
+}
+
+/// Metric switch: three hairline capsules, the selected one accent-tinted
+/// (`accentChipFill` + `accentHairline`) — the one accent chrome in the card.
+private struct MetricSwitch: View {
+    @Binding var selection: ProgressionMetric
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(ProgressionMetric.allCases) { metric in
+                let isOn = metric == selection
+                Button {
+                    guard !isOn else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        selection = metric
+                    }
+                } label: {
+                    Text(metric.label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(isOn ? AppTheme.accent : AppTheme.textSecondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(isOn ? AppTheme.accentChipFill : Color.clear)
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(isOn ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
 // MARK: - Muscle palette
 //
 // Fixed muscle -> series color mapping for the donut (color follows the
@@ -311,19 +385,6 @@ private enum AnalyticsFormat {
         }
         return "\(prefix)\(rounded.formatted(.number.precision(.fractionLength(1))))%"
     }
-
-    static func axisValue(_ value: Double) -> String {
-        if abs(value) >= 10_000 {
-            return String(format: "%.0fk", value / 1000)
-        }
-        if abs(value) >= 1_000 {
-            let compact = value / 1000
-            return compact == compact.rounded()
-                ? String(format: "%.0fk", compact)
-                : String(format: "%.1fk", compact)
-        }
-        return "\(Int(value.rounded()))"
-    }
 }
 
 private struct AnalyticsInsightLine: View {
@@ -344,40 +405,69 @@ private struct AnalyticsInsightLine: View {
 
 // MARK: - Chart 1 · Exercise progression
 
+/// Concept: accent line over a soft accent fill, a hollow accent dot on the
+/// latest point, a hairline baseline, month labels bottom-left and the
+/// latest value bottom-right. Everything shown derives from the snapshot and
+/// three persisted picks (exercise / metric / window); the picker lists lifts
+/// with at least two e1RM points, most-trained first.
 private struct ProgressionCard: View {
     let snapshot: AnalyticsSnapshot
 
-    struct MetricPoint: Identifiable, Equatable {
-        var id: Date { date }
-        var date: Date
-        var value: Double
-    }
+    private typealias MetricPoint = AnalyticsSnapshot.MetricPoint
 
-    @State private var selectedExercise: String?
-    @State private var metric: ProgressionMetric = .estOneRepMax
-    @State private var timeframe: AnalyticsTimeframe = .threeMonths
-    @State private var points: [MetricPoint] = []
-    @State private var enabledTimeframes: Set<AnalyticsTimeframe> = []
+    @AppStorage(AnalyticsControls.progressionExerciseKey) private var storedExercise = ""
+    @AppStorage(AnalyticsControls.progressionMetricKey) private var metric = AnalyticsControls.defaultMetric
+    @AppStorage(AnalyticsControls.progressionWindowKey) private var storedWindow = AnalyticsControls.defaultProgressionWindow
     @State private var scrub: MetricPoint?
     @State private var tooltipSize: CGSize = .zero
-    @Namespace private var metricNamespace
+
+    private var calendar: Calendar { .current }
+
+    private var options: [AnalyticsSnapshot.ExerciseOption] {
+        snapshot.progressionPickerOptions
+    }
+
+    private var exercise: String? {
+        AnalyticsSnapshot.progressionExercise(stored: storedExercise, options: options)
+    }
+
+    private var series: [AnalyticsSnapshot.ProgressionPoint] {
+        exercise.flatMap { snapshot.progression[$0] } ?? []
+    }
+
+    private var enabledWindows: Set<AnalyticsWindow> {
+        AnalyticsSnapshot.enabledWindows(series, metric: metric, now: Date(), calendar: calendar)
+    }
+
+    private var window: AnalyticsWindow {
+        AnalyticsSnapshot.effectiveWindow(stored: storedWindow, enabled: enabledWindows)
+    }
+
+    private var points: [MetricPoint] {
+        AnalyticsSnapshot.progressionPoints(series, metric: metric, window: window, now: Date(), calendar: calendar)
+    }
+
+    /// Shows the window actually drawn; a tap stores the pick.
+    private var windowBinding: Binding<AnalyticsWindow> {
+        Binding(get: { window }, set: { storedWindow = $0 })
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if snapshot.exerciseOptions.isEmpty {
-                placeholder
+        let points = points
+
+        VStack(alignment: .leading, spacing: 12) {
+            if let exercise {
+                headerRow(exercise)
+                chart(points)
+                footerRow(points)
+                controls
             } else {
-                exerciseMenu
-                heroRow
-                metricPicker
-                timeframeRow
-                chart
+                placeholder
             }
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
-        .onAppear { syncSelection() }
-        .onChange(of: snapshot.exerciseOptions.map(\.name)) { _, _ in syncSelection() }
+        .onChange(of: points) { _, _ in scrub = nil }
         .sensoryFeedback(.selection, trigger: scrub?.date)
     }
 
@@ -392,235 +482,87 @@ private struct ProgressionCard: View {
         }
     }
 
-    // MARK: Selection & caching
+    // MARK: Header, footer, controls
 
-    private func syncSelection() {
-        let names = snapshot.exerciseOptions.map(\.name)
-        if selectedExercise == nil || !names.contains(selectedExercise ?? "") {
-            selectedExercise = names.first
-        }
-        refreshTimeframes()
-        if !enabledTimeframes.contains(timeframe) {
-            timeframe = enabledTimeframes.contains(.threeMonths) ? .threeMonths : .all
-        }
-        rebuildPoints(animated: false)
-    }
+    private func headerRow(_ exercise: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("PROGRESSION")
+                .microLabel()
 
-    private func fullSeries(for metric: ProgressionMetric) -> [MetricPoint] {
-        guard let name = selectedExercise,
-              let series = snapshot.progression[name] else { return [] }
-        return series.compactMap { point in
-            point.value(for: metric).map { MetricPoint(date: point.date, value: $0) }
-        }
-    }
+            Spacer(minLength: 12)
 
-    private func windowed(_ series: [MetricPoint], timeframe: AnalyticsTimeframe) -> [MetricPoint] {
-        guard let start = timeframe.startDate(now: Date(), calendar: .current) else { return series }
-        return series.filter { $0.date >= start }
-    }
-
-    private func refreshTimeframes() {
-        let series = fullSeries(for: metric)
-        var enabled: Set<AnalyticsTimeframe> = []
-        for frame in AnalyticsTimeframe.allCases {
-            let count = windowed(series, timeframe: frame).count
-            if frame == .all ? count >= 1 : count >= 2 {
-                enabled.insert(frame)
-            }
-        }
-        enabledTimeframes = enabled
-    }
-
-    private func rebuildPoints(animated: Bool) {
-        let newPoints = windowed(fullSeries(for: metric), timeframe: timeframe)
-        if animated {
-            withAnimation(.easeInOut(duration: 0.35)) {
-                points = newPoints
-            }
-        } else {
-            points = newPoints
-        }
-        scrub = nil
-    }
-
-    private func select(metric newMetric: ProgressionMetric) {
-        guard newMetric != metric else { return }
-        metric = newMetric
-        refreshTimeframes()
-        if !enabledTimeframes.contains(timeframe) {
-            timeframe = .all
-        }
-        rebuildPoints(animated: true)
-    }
-
-    private func select(timeframe newTimeframe: AnalyticsTimeframe) {
-        guard newTimeframe != timeframe, enabledTimeframes.contains(newTimeframe) else { return }
-        timeframe = newTimeframe
-        rebuildPoints(animated: true)
-    }
-
-    private func select(exercise name: String) {
-        guard name != selectedExercise else { return }
-        selectedExercise = name
-        refreshTimeframes()
-        if !enabledTimeframes.contains(timeframe) {
-            timeframe = enabledTimeframes.contains(.threeMonths) ? .threeMonths : .all
-        }
-        rebuildPoints(animated: true)
-    }
-
-    // MARK: Header pieces
-
-    private var exerciseMenu: some View {
-        Menu {
-            ForEach(snapshot.exerciseOptions) { option in
-                Button {
-                    select(exercise: option.name)
-                } label: {
-                    if option.name == selectedExercise {
-                        Label(option.name, systemImage: "checkmark")
-                    } else {
-                        Text(option.name)
+            Menu {
+                ForEach(options) { option in
+                    Button {
+                        storedExercise = option.name
+                    } label: {
+                        if option.name == exercise {
+                            Label(option.name, systemImage: "checkmark")
+                        } else {
+                            Text(option.name)
+                        }
                     }
                 }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(selectedExercise ?? "")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
+            } label: {
+                HStack(spacing: 4) {
+                    Text("\(exercise) · \(metric.label)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
             }
         }
     }
 
-    private var heroRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(heroValueText)
-                .font(.system(size: 34, weight: .bold))
+    private func footerRow(_ points: [MetricPoint]) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(timeline(points))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(AppTheme.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Spacer(minLength: 12)
+
+            Text(latestText(points))
+                .font(.system(size: 15, weight: .bold))
                 .monospacedDigit()
-                .tracking(-1)
-                .foregroundStyle(AppTheme.textPrimary)
+                .foregroundStyle(AppTheme.primary)
                 .contentTransition(.numericText())
+        }
+    }
 
-            Text("lb")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textSecondary)
-
-            Spacer(minLength: 8)
-
-            if let delta = windowDeltaPercent {
-                deltaBadge(delta)
+    private var controls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                MetricSwitch(selection: $metric)
+                Spacer(minLength: 8)
+                WindowSwitch(selection: windowBinding, options: AnalyticsWindow.progression, enabled: enabledWindows)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                MetricSwitch(selection: $metric)
+                WindowSwitch(selection: windowBinding, options: AnalyticsWindow.progression, enabled: enabledWindows)
             }
         }
     }
 
-    private var heroValueText: String {
+    private func timeline(_ points: [MetricPoint]) -> String {
+        guard let first = points.first, let last = points.last else { return "" }
+        return AnalyticsSnapshot.timelineLabels(from: first.date, to: last.date, calendar: calendar)
+            .joined(separator: " · ")
+    }
+
+    private func latestText(_ points: [MetricPoint]) -> String {
         guard let latest = points.last else { return "—" }
-        return AnalyticsFormat.compact(latest.value)
-    }
-
-    private var windowDeltaPercent: Double? {
-        guard let first = points.first, let last = points.last,
-              points.count >= 2, first.value > 0 else { return nil }
-        return (last.value - first.value) / first.value * 100
-    }
-
-    private func deltaBadge(_ delta: Double) -> some View {
-        let direction: (icon: String, color: Color)
-        if delta > 1.5 {
-            direction = ("arrow.up.right", AppTheme.success)
-        } else if delta < -1.5 {
-            direction = ("arrow.down.right", AppTheme.danger)
-        } else {
-            direction = ("minus", AppTheme.textSecondary)
-        }
-
-        return HStack(spacing: 3) {
-            Image(systemName: direction.icon)
-                .font(.system(size: 8, weight: .bold))
-            Text(AnalyticsFormat.signedPercent(delta))
-                .font(.caption2.weight(.semibold))
-                .monospacedDigit()
-        }
-        .foregroundStyle(direction.color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(direction.color.opacity(0.14))
-        .clipShape(Capsule())
-    }
-
-    private var metricPicker: some View {
-        HStack(spacing: 4) {
-            ForEach(ProgressionMetric.allCases) { candidate in
-                Button {
-                    select(metric: candidate)
-                } label: {
-                    Text(candidate.shortLabel)
-                        .font(.caption2.weight(.semibold))
-                        .tracking(0.8)
-                        .foregroundStyle(candidate == metric ? AppTheme.textPrimary : AppTheme.textTertiary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background {
-                            if candidate == metric {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(AppTheme.surfaceElevated)
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .stroke(AppTheme.cardBorder, lineWidth: 1)
-                                    }
-                                    .matchedGeometryEffect(id: "metric", in: metricNamespace)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(3)
-        .background(AppTheme.mutedFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .animation(.easeInOut(duration: 0.22), value: metric)
-    }
-
-    private var timeframeRow: some View {
-        HStack(spacing: 8) {
-            ForEach(AnalyticsTimeframe.allCases) { frame in
-                let isEnabled = enabledTimeframes.contains(frame)
-                Button {
-                    select(timeframe: frame)
-                } label: {
-                    Text(frame.rawValue)
-                        .font(.caption2.weight(.semibold))
-                        .tracking(0.8)
-                        .monospacedDigit()
-                        .foregroundStyle(
-                            frame == timeframe
-                                ? AppTheme.textPrimary
-                                : (isEnabled ? AppTheme.textTertiary : AppTheme.textTertiary.opacity(0.4))
-                        )
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background {
-                            if frame == timeframe {
-                                Capsule().fill(AppTheme.surfaceElevated)
-                                    .overlay { Capsule().stroke(AppTheme.cardBorder, lineWidth: 1) }
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-                .disabled(!isEnabled)
-            }
-            Spacer()
-        }
+        return AnalyticsFormat.compact(latest.value) + " lb"
     }
 
     // MARK: Chart
 
-    private var yDomain: ClosedRange<Double> {
+    private func yDomain(_ points: [MetricPoint]) -> ClosedRange<Double> {
         let values = points.map(\.value)
         guard let low = values.min(), let high = values.max() else { return 0...1 }
         let span = max(high - low, max(high * 0.05, 1))
@@ -630,53 +572,49 @@ private struct ProgressionCard: View {
         return lower...upper
     }
 
-    private var chart: some View {
-        Chart(points) { point in
-            LineMark(
-                x: .value("Date", point.date),
-                y: .value(metric.label, point.value)
-            )
-            .interpolationMethod(.monotone)
-            .foregroundStyle(AppTheme.primary)
-            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-
-            // Latest value gets an end-dot with a card-colored ring.
-            if point.date == points.last?.date {
-                PointMark(
+    private func chart(_ points: [MetricPoint]) -> some View {
+        Chart {
+            ForEach(points) { point in
+                AreaMark(
                     x: .value("Date", point.date),
                     y: .value(metric.label, point.value)
                 )
-                .symbolSize(120)
-                .foregroundStyle(AppTheme.card)
+                .interpolationMethod(.monotone)
+                .foregroundStyle(AppTheme.chartFill)
 
-                PointMark(
+                LineMark(
                     x: .value("Date", point.date),
                     y: .value(metric.label, point.value)
                 )
-                .symbolSize(52)
+                .interpolationMethod(.monotone)
                 .foregroundStyle(AppTheme.primary)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
             }
-        }
-        .chartYScale(domain: yDomain)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
-                    .foregroundStyle(AppTheme.cardBorder)
-                AxisValueLabel {
-                    if let number = value.as(Double.self) {
-                        Text(AnalyticsFormat.axisValue(number))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.textTertiary)
-                    }
+
+            // Latest value: a hollow accent dot on the card surface.
+            if let last = points.last {
+                PointMark(
+                    x: .value("Date", last.date),
+                    y: .value(metric.label, last.value)
+                )
+                .symbol {
+                    Circle()
+                        .fill(AppTheme.card)
+                        .overlay {
+                            Circle().stroke(AppTheme.primary, lineWidth: 2.5)
+                        }
+                        .frame(width: 10, height: 10)
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textTertiary)
+        .chartYScale(domain: yDomain(points))
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartPlotStyle { plot in
+            plot.overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(AppTheme.cardBorder)
+                    .frame(height: 1)
             }
         }
         .chartOverlay { proxy in
@@ -684,29 +622,30 @@ private struct ProgressionCard: View {
                 Rectangle()
                     .fill(Color.clear)
                     .contentShape(Rectangle())
-                    .gesture(scrubGesture(proxy: proxy, geo: geo))
+                    .gesture(scrubGesture(points, proxy: proxy, geo: geo))
 
                 if let scrub {
                     scrubIndicator(for: scrub, proxy: proxy, geo: geo)
                 }
             }
         }
-        .frame(height: 240)
+        .frame(height: 150)
+        .animation(.easeInOut(duration: 0.35), value: points)
     }
 
-    private func scrubGesture(proxy: ChartProxy, geo: GeometryProxy) -> some Gesture {
+    private func scrubGesture(_ points: [MetricPoint], proxy: ChartProxy, geo: GeometryProxy) -> some Gesture {
         LongPressGesture(minimumDuration: 0.15)
             .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
             .onChanged { value in
                 guard case .second(true, let drag) = value, let drag else { return }
-                updateScrub(at: drag.location, proxy: proxy, geo: geo)
+                updateScrub(points, at: drag.location, proxy: proxy, geo: geo)
             }
             .onEnded { _ in
                 withAnimation(.easeOut(duration: 0.18)) { scrub = nil }
             }
     }
 
-    private func updateScrub(at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
+    private func updateScrub(_ points: [MetricPoint], at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
         guard !points.isEmpty,
               let plotAnchor = proxy.plotFrame else { return }
         let plotFrame = geo[plotAnchor]
@@ -786,6 +725,116 @@ private struct ProgressionCard: View {
         } action: { size in
             tooltipSize = size
         }
+    }
+}
+
+// MARK: - PR board
+
+/// "Exercise …… 225 lb ↑ 10": standing e1RM records set inside the window,
+/// most recent first. The gain over the previous record is green; a
+/// first-ever record (nothing to beat) shows its value plain. Tapping a row
+/// whose lift the progression chart can draw drills down to it.
+private struct PRCard: View {
+    let records: [AnalyticsSnapshot.PRRecord]
+    @Binding var window: AnalyticsWindow
+    let chartable: Set<String>
+    let onSelect: (String) -> Void
+
+    @State private var expanded = false
+
+    private static let foldCount = 6
+
+    var body: some View {
+        let rows = AnalyticsSnapshot.prRecords(records, in: window, now: Date(), calendar: .current)
+        let visible = expanded ? rows : Array(rows.prefix(Self.foldCount))
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("PRs · e1RM")
+                    .microLabel()
+                Spacer()
+                WindowSwitch(selection: $window, options: AnalyticsWindow.prs)
+            }
+
+            if rows.isEmpty {
+                Text(emptyText)
+                    .font(.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .padding(.vertical, 12)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, record in
+                        row(record)
+                        if index < visible.count - 1 {
+                            Divider().overlay(AppTheme.cardBorder)
+                        }
+                    }
+                }
+
+                if rows.count > Self.foldCount {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            expanded.toggle()
+                        }
+                    } label: {
+                        Text(expanded ? "Show less" : "+ \(rows.count - Self.foldCount) more")
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .padding(.top, 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private var emptyText: String {
+        if let days = window.days {
+            return "No PRs in the last \(days) days."
+        }
+        return "No PRs yet."
+    }
+
+    private func row(_ record: AnalyticsSnapshot.PRRecord) -> some View {
+        let canDrill = chartable.contains(record.exercise)
+
+        return Button {
+            onSelect(record.exercise)
+        } label: {
+            HStack(spacing: 8) {
+                Text(record.exercise)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 8)
+
+                Text("\(AnalyticsMath.formattedWeight(record.e1RM)) lb")
+                    .font(.system(size: 14, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(record.delta == nil ? AppTheme.textSecondary : AppTheme.textPrimary)
+
+                if let delta = record.delta {
+                    HStack(spacing: 2) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 9, weight: .bold))
+                        Text(AnalyticsMath.formattedWeight(delta))
+                            .font(.system(size: 13, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(AppTheme.success)
+                }
+            }
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canDrill)
     }
 }
 
@@ -1180,90 +1229,49 @@ private struct DaySummarySheet: View {
 
 // MARK: - Chart 2 · Muscle distribution radar
 
+/// Kept from the previous layout, same card vocabulary: micro label, the
+/// window switch in the header (30d / 90d / All — precomputed per window in
+/// the snapshot), the radar, the stat tiles. "All" has no previous window,
+/// so its previous polygon, legend and deltas are hidden.
 private struct MuscleDistributionCard: View {
-    let sessions: [WorkoutSession]
-    let exercises: [Exercise]
+    let snapshot: AnalyticsSnapshot
 
-    @State private var timeframe: DistributionTimeframe = .month
+    @AppStorage(AnalyticsControls.distributionWindowKey) private var window = AnalyticsControls.defaultDistributionWindow
 
     var body: some View {
-        let distribution = AnalyticsSnapshot.muscleDistribution(
-            sessions: sessions,
-            resolve: { exercises.resolvedExercise(named: $0) },
-            days: timeframe.days
-        )
-
         VStack(alignment: .leading, spacing: 14) {
-            Text("MUSCLE DISTRIBUTION")
-                .microLabel()
-
-            timeframeMenu
-
-            if distribution.currentGroupCount >= 2 {
-                RadarChart(
-                    labels: distribution.axes.map(\.group),
-                    current: distribution.currentFractions,
-                    previous: distribution.previousFractions
-                )
-                .frame(height: 240)
-
-                legend
-            } else {
-                Text("Not enough training in this window.")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textTertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 44)
+            HStack(alignment: .firstTextBaseline) {
+                Text("MUSCLE DISTRIBUTION")
+                    .microLabel()
+                Spacer()
+                WindowSwitch(selection: $window, options: AnalyticsWindow.muscle)
             }
 
-            tileGrid(distribution)
+            if let distribution = snapshot.distributions[window] {
+                if distribution.currentGroupCount >= 2 {
+                    RadarChart(
+                        labels: distribution.axes.map(\.group),
+                        current: distribution.currentFractions,
+                        previous: distribution.hasPrevious ? distribution.previousFractions : nil
+                    )
+                    .frame(height: 240)
+
+                    if distribution.hasPrevious {
+                        legend
+                    }
+                } else {
+                    Text("Not enough training in this window.")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 44)
+                }
+
+                tileGrid(distribution)
+            }
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
-    }
-
-    // MARK: Timeframe
-
-    private var timeframeMenu: some View {
-        Menu {
-            ForEach(DistributionTimeframe.allCases) { option in
-                Button {
-                    select(option)
-                } label: {
-                    if option == timeframe {
-                        Label(option.rawValue, systemImage: "checkmark")
-                    } else {
-                        Text(option.rawValue)
-                    }
-                }
-            }
-        } label: {
-            HStack {
-                Text(timeframe.rawValue)
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer()
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(AppTheme.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
-        }
-    }
-
-    private func select(_ option: DistributionTimeframe) {
-        guard option != timeframe else { return }
-        withAnimation(.easeInOut(duration: 0.35)) {
-            timeframe = option
-        }
     }
 
     // MARK: Legend
@@ -1297,26 +1305,27 @@ private struct MuscleDistributionCard: View {
 
     private func tileGrid(_ distribution: AnalyticsSnapshot.MuscleDistribution) -> some View {
         let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+        let compare = distribution.hasPrevious
         return LazyVGrid(columns: columns, spacing: 10) {
             tile(
                 label: "Workouts",
                 value: "\(distribution.currentWorkouts)",
-                delta: countDelta(distribution.currentWorkouts - distribution.previousWorkouts)
+                delta: compare ? countDelta(distribution.currentWorkouts - distribution.previousWorkouts) : nil
             )
             tile(
                 label: "Duration",
                 value: distribution.currentDurationSeconds.map { AnalyticsMath.durationText(seconds: $0) } ?? "—",
-                delta: durationDelta(distribution)
+                delta: compare ? durationDelta(distribution) : nil
             )
             tile(
                 label: "Volume",
                 value: AnalyticsMath.compactVolume(distribution.currentVolume) + " lbs",
-                delta: volumeDelta(distribution)
+                delta: compare ? volumeDelta(distribution) : nil
             )
             tile(
                 label: "Sets",
                 value: "\(distribution.currentSets)",
-                delta: countDelta(distribution.currentSets - distribution.previousSets)
+                delta: compare ? countDelta(distribution.currentSets - distribution.previousSets) : nil
             )
         }
     }
@@ -1362,6 +1371,7 @@ private struct MuscleDistributionCard: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -1390,7 +1400,8 @@ private struct MuscleDistributionCard: View {
 private struct RadarChart: View {
     let labels: [String]
     let current: [Double]
-    let previous: [Double]
+    /// Nil for the "All" window — nothing to compare against.
+    let previous: [Double]?
 
     @State private var labelSizes: [Int: CGSize] = [:]
 
@@ -1407,10 +1418,12 @@ private struct RadarChart: View {
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
 
                 // Previous period — dim, behind.
-                RadarPolygonShape(fractions: RadarVector(previous), inset: labelClearance)
-                    .fill(AppTheme.textTertiary.opacity(0.14))
-                RadarPolygonShape(fractions: RadarVector(previous), inset: labelClearance)
-                    .stroke(AppTheme.textTertiary, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+                if let previous {
+                    RadarPolygonShape(fractions: RadarVector(previous), inset: labelClearance)
+                        .fill(AppTheme.textTertiary.opacity(0.14))
+                    RadarPolygonShape(fractions: RadarVector(previous), inset: labelClearance)
+                        .stroke(AppTheme.textTertiary, style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+                }
 
                 // Current period — volt, on top.
                 RadarPolygonShape(fractions: RadarVector(current), inset: labelClearance)
@@ -1564,26 +1577,35 @@ private struct RadarVector: VectorArithmetic {
     }
 }
 
-// MARK: - Chart 3 · Muscle distribution donut
+// MARK: - Chart 3 · Muscle split donut
 
+/// Concept: the donut on the left with the set count (22pt mono) and
+/// "SETS · 30D" in its center, the legend on the right — color dot, group,
+/// share. The window switch (30d / 90d / All) picks one of the snapshot's
+/// precomputed donuts and relabels the center.
 private struct MuscleDonutCard: View {
-    let donut: AnalyticsSnapshot.DonutModel?
-    let insight: String?
+    let snapshot: AnalyticsSnapshot
+
+    @AppStorage(AnalyticsControls.splitWindowKey) private var window = AnalyticsControls.defaultSplitWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("MUSCLE SPLIT")
-                .microLabel()
+            HStack(alignment: .firstTextBaseline) {
+                Text("MUSCLE SPLIT")
+                    .microLabel()
+                Spacer()
+                WindowSwitch(selection: $window, options: AnalyticsWindow.muscle)
+            }
 
-            if let donut {
-                ring(donut)
-                legend(donut)
-                if let insight {
-                    AnalyticsInsightLine(text: insight)
+            if let donut = snapshot.donuts[window] {
+                HStack(alignment: .center, spacing: 18) {
+                    ring(donut)
+                    legend(donut)
                 }
             } else {
-                Text("No sets in the last 30 days.")
+                Text(emptyText)
                     .font(.footnote)
+                    .monospacedDigit()
                     .foregroundStyle(AppTheme.textTertiary)
                     .padding(.vertical, 24)
             }
@@ -1592,59 +1614,64 @@ private struct MuscleDonutCard: View {
         .glassCard()
     }
 
+    private var emptyText: String {
+        if let days = window.days {
+            return "No sets in the last \(days) days."
+        }
+        return "No sets logged yet."
+    }
+
     private func ring(_ donut: AnalyticsSnapshot.DonutModel) -> some View {
         ZStack {
             Chart(donut.segments) { segment in
                 SectorMark(
                     angle: .value("Sets", segment.sets),
-                    innerRadius: .ratio(0.7),
+                    innerRadius: .ratio(0.74),
                     angularInset: 1.4
                 )
                 .cornerRadius(3)
                 .foregroundStyle(MusclePalette.color(for: segment.group))
             }
 
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Text("\(donut.totalSets)")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .monospacedDigit()
-                    .tracking(-1)
+                    .tracking(-0.5)
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("SETS · 30D")
-                    .microLabel()
+                    .contentTransition(.numericText())
+                Text("SETS · \(window.suffix)")
+                    .font(.system(size: 8, weight: .semibold))
+                    .tracking(1)
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
-        .frame(height: 200)
-        .frame(maxWidth: .infinity)
+        .frame(width: 120, height: 120)
     }
 
     private func legend(_ donut: AnalyticsSnapshot.DonutModel) -> some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 7) {
             ForEach(donut.segments) { segment in
-                HStack(spacing: 9) {
+                HStack(spacing: 8) {
                     Circle()
                         .fill(MusclePalette.color(for: segment.group))
                         .frame(width: 8, height: 8)
 
                     Text(segment.group)
-                        .font(.footnote.weight(.medium))
+                        .font(.system(size: 13))
                         .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
 
                     Spacer(minLength: 8)
 
-                    Text("\(segment.sets) sets")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textTertiary)
-
                     Text("\(Int((segment.share * 100).rounded()))%")
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 13))
                         .monospacedDigit()
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .frame(width: 40, alignment: .trailing)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
