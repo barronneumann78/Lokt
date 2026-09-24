@@ -5,6 +5,11 @@ import SwiftUI
 /// Coach tab: the form stays visible underneath and the user's main Coach
 /// thread keeps its own history. The backend treats this context as advice-only
 /// too, so a reply can never write or replace the in-progress routine.
+///
+/// Look v2: the Coach tab's vocabulary — "Lokt Coach" 22pt over the routine
+/// name, sent messages as hairline bubbles on the elevated surface with a 4pt
+/// tail, coach prose as plain 14pt text, and the 50pt card-capsule composer
+/// with the 38pt gradient send circle (the sheet's one gradient).
 struct RoutineEditorCoachSheet: View {
     let snapshot: CoachRoutineSnapshot
 
@@ -45,58 +50,47 @@ struct RoutineEditorCoachSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("LOKT COACH")
-                        .microLabel()
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Lokt Coach")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
-                    Text(snapshot.routineName)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-                }
+                Text(snapshot.routineName)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
 
-                Spacer()
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .frame(width: 36, height: 36)
-                        .background(AppTheme.surfaceElevated)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close Coach")
+                TagChip(title: "\(snapshot.exercises.count) exercises in this routine")
+                    .padding(.top, 4)
             }
 
-            Text("Advice for this routine only — your edits stay here.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+            Spacer()
 
-            Text("\(snapshot.exercises.count) exercises in this routine")
-                .font(.caption.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppTheme.mutedFill)
-                .clipShape(Capsule())
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .frame(width: 36, height: 36)
+                    .background(AppTheme.surfaceElevated)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close Coach")
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
     }
 
     private var chat: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     ForEach(messages) { message in
-                        messageBubble(message)
+                        messageView(message)
                             .id(message.id)
                     }
 
@@ -109,9 +103,7 @@ struct RoutineEditorCoachSheet: View {
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+                        .padding(.vertical, 4)
                         .id("routine-editor-thinking")
                     }
 
@@ -131,7 +123,7 @@ struct RoutineEditorCoachSheet: View {
                         .frame(height: 1)
                         .id("routine-editor-chat-bottom")
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 8)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -151,25 +143,45 @@ struct RoutineEditorCoachSheet: View {
         }
     }
 
-    private func messageBubble(_ message: AIWorkoutConversationMessage) -> some View {
-        HStack {
-            if message.role == .user {
-                Spacer(minLength: 44)
-            }
+    /// Sent: 18pt-cornered hairline bubble on the elevated surface with a
+    /// tight 4pt bottom-trailing tail. Coach: plain text on the canvas.
+    @ViewBuilder
+    private func messageView(_ message: AIWorkoutConversationMessage) -> some View {
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 56)
 
+                Text(message.text)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Self.sentBubbleShape.fill(AppTheme.surfaceElevated))
+                    .overlay {
+                        Self.sentBubbleShape
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+            }
+        } else {
             Text(message.text)
-                .font(.body)
-                .foregroundStyle(message.role == .user ? AppTheme.backgroundTop : AppTheme.textPrimary)
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(message.role == .user ? AppTheme.accent : AppTheme.surfaceElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            if message.role == .assistant {
-                Spacer(minLength: 44)
-            }
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private static var sentBubbleShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 18,
+            bottomLeadingRadius: 18,
+            bottomTrailingRadius: 4,
+            topTrailingRadius: 18,
+            style: .continuous
+        )
     }
 
     private var suggestionRow: some View {
@@ -183,8 +195,8 @@ struct RoutineEditorCoachSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(AppTheme.mutedFill)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.surfaceElevated)
                     .clipShape(Capsule())
                     .overlay {
                         Capsule()
@@ -195,27 +207,47 @@ struct RoutineEditorCoachSheet: View {
         }
     }
 
+    /// The Coach composer: 50pt card-fill capsule holding the field and the
+    /// 38pt gradient send circle. Return still sends (`.onSubmit`), the
+    /// keyboard Done bar and tap-outside are the ways down.
     private var composer: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             TrackerTextField("Ask about this workout", text: $messageText, axis: .vertical)
-                .textFieldStyle(TrackerTextFieldStyle())
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
                 .lineLimit(1...3)
                 .submitLabel(.send)
                 .onSubmit(send)
+                .padding(.leading, 12)
+                .padding(.vertical, 8)
 
             Button {
                 send()
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(canSend ? AppTheme.primary : AppTheme.textSecondary.opacity(0.55))
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(AppTheme.backgroundTop)
+                    .frame(width: 38, height: 38)
+                    .background(AppTheme.primaryGradient)
+                    .clipShape(Circle())
+                    .opacity(canSend ? 1 : 0.4)
             }
             .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel("Send to Coach")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .background(AppTheme.card)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        }
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
         .background(AppTheme.backgroundTop)
     }
 

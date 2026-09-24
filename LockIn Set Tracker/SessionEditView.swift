@@ -5,6 +5,11 @@ import SwiftUI
 // delete one that never happened — then Save. Not a second logger: no rest
 // timers, no targets, no suggestions. All mutations run through
 // `SessionEditLogic`; persistence goes through `WorkoutStore.updateSession`.
+//
+// Look v2: the logger's set-table vocabulary — SET · LBS · REPS · check on
+// elevated hairline rows, 34pt numeric cells whose hairline turns accent
+// while focused (`LoggerSetColumns` widths, read-only). No PREV column: this
+// editor has no previous-session lookup, and adding one would be new logic.
 struct SessionEditView: View {
     @EnvironmentObject private var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +19,21 @@ struct SessionEditView: View {
     @State private var logs: [String: [WorkoutSet]]
     @State private var date: Date
     @State private var durationMinutesText: String
+
+    /// Which numeric cell is first responder — drives the accent hairline.
+    private struct EditField: Hashable {
+        enum Kind: Hashable {
+            case duration
+            case weight
+            case reps
+        }
+
+        let exercise: String
+        let index: Int
+        let kind: Kind
+    }
+
+    @FocusState private var focusedField: EditField?
 
     init(session: WorkoutSession) {
         original = session
@@ -28,6 +48,8 @@ struct SessionEditView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
+                    header
+
                     sessionCard
 
                     ForEach(orderedExerciseNames, id: \.self) { exercise in
@@ -48,8 +70,25 @@ struct SessionEditView: View {
         }
         .dismissKeyboardOnTap()
         .keyboardDoneBar()
-        .navigationTitle(original.routineName)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(original.routineName)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                .font(.system(size: 13))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(.bottom, 2)
     }
 
     // MARK: - Session date & duration
@@ -57,9 +96,8 @@ struct SessionEditView: View {
     private var sessionCard: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Date")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("DATE")
+                    .microLabel()
 
                 Spacer()
 
@@ -71,24 +109,18 @@ struct SessionEditView: View {
             hairline
 
             HStack {
-                Text("Duration")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                Text("DURATION")
+                    .microLabel()
 
                 Spacer()
 
-                TrackerTextField("—", text: $durationMinutesText)
-                    .keyboardType(.numberPad)
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                    .multilineTextAlignment(.trailing)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .tint(AppTheme.primary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(width: 72)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                numericField(
+                    text: $durationMinutesText,
+                    keyboard: .numberPad,
+                    field: EditField(exercise: "", index: 0, kind: .duration),
+                    placeholder: "—"
+                )
+                .frame(width: 72)
 
                 Text("min")
                     .font(.subheadline.weight(.medium))
@@ -104,11 +136,15 @@ struct SessionEditView: View {
     private func exerciseCard(_ exercise: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(exercise)
-                .font(.headline)
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
-            ForEach((logs[exercise] ?? []).indices, id: \.self) { index in
-                setRow(exercise: exercise, index: index)
+            VStack(spacing: 6) {
+                columnHeader
+
+                ForEach((logs[exercise] ?? []).indices, id: \.self) { index in
+                    setRow(exercise: exercise, index: index)
+                }
             }
 
             Button {
@@ -116,31 +152,64 @@ struct SessionEditView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
-                        .font(.caption.weight(.bold))
+                        .font(.system(size: 10, weight: .bold))
                     Text("Add Set")
-                        .font(.footnote.weight(.semibold))
                 }
-                .foregroundStyle(AppTheme.textSecondary)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(GhostButtonStyle(isCompact: true))
+            .padding(.top, 2)
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
+    /// SET · LBS · REPS over the check and delete columns, in the logger's
+    /// column widths.
+    private var columnHeader: some View {
+        HStack(spacing: LoggerSetColumns.spacing) {
+            Text("SET")
+                .microLabel()
+                .frame(width: LoggerSetColumns.setNumberWidth, alignment: .leading)
+
+            Text("LBS")
+                .microLabel()
+                .frame(maxWidth: .infinity)
+
+            Text("REPS")
+                .microLabel()
+                .frame(maxWidth: .infinity)
+
+            Color.clear
+                .frame(width: LoggerSetColumns.checkWidth, height: 1)
+
+            Color.clear
+                .frame(width: Self.deleteWidth, height: 1)
+        }
+        .padding(.horizontal, LoggerSetColumns.rowHorizontalPadding)
+        .padding(.bottom, 2)
+    }
+
+    private static let deleteWidth: CGFloat = 24
+
     private func setRow(exercise: String, index: Int) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: LoggerSetColumns.spacing) {
             Text("\(index + 1)")
-                .font(.caption.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(AppTheme.textTertiary)
-                .frame(width: 18, alignment: .leading)
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: LoggerSetColumns.setNumberWidth, alignment: .leading)
 
-            setField(text: fieldBinding(exercise: exercise, index: index, keyPath: \.weight), keyboard: .decimalPad)
+            numericField(
+                text: fieldBinding(exercise: exercise, index: index, keyPath: \.weight),
+                keyboard: .decimalPad,
+                field: EditField(exercise: exercise, index: index, kind: .weight)
+            )
 
-            setField(text: fieldBinding(exercise: exercise, index: index, keyPath: \.reps), keyboard: .numberPad)
+            numericField(
+                text: fieldBinding(exercise: exercise, index: index, keyPath: \.reps),
+                keyboard: .numberPad,
+                field: EditField(exercise: exercise, index: index, kind: .reps)
+            )
 
             checkButton(exercise: exercise, index: index)
 
@@ -150,30 +219,52 @@ struct SessionEditView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AppTheme.textTertiary)
-                    .frame(width: 28, height: 40)
+                    .frame(width: Self.deleteWidth, height: LoggerSetColumns.fieldHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Delete set \(index + 1)")
+        }
+        .padding(.horizontal, LoggerSetColumns.rowHorizontalPadding)
+        .padding(.vertical, 6)
+        .background(AppTheme.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
         }
     }
 
-    private func setField(text: Binding<String>, keyboard: UIKeyboardType) -> some View {
-        TrackerTextField("0", text: text)
+    /// The logger's numeric cell: 34pt on the field fill, 8pt corners, the
+    /// hairline turning accent while the cell is first responder.
+    private func numericField(
+        text: Binding<String>,
+        keyboard: UIKeyboardType,
+        field: EditField,
+        placeholder: String = "0"
+    ) -> some View {
+        TrackerTextField(placeholder, text: text)
             .keyboardType(keyboard)
-            .font(.system(size: 18, weight: .semibold))
+            .font(.system(size: 16, weight: .semibold))
             .monospacedDigit()
+            .multilineTextAlignment(.center)
             .foregroundStyle(AppTheme.textPrimary)
             .tint(AppTheme.primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .focused($focusedField, equals: field)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
-            .background(AppTheme.mutedFill)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(height: LoggerSetColumns.fieldHeight)
+            .background(AppTheme.fieldBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(focusedField == field ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+            }
     }
 
     // Checkmark semantics match the logger: only the explicit check completes
-    // a set, and checking needs parseable numbers. Rendered in neutral tones —
-    // volt stays reserved for Save on this screen.
+    // a set, and checking needs parseable numbers. Same glyph as the logger —
+    // filled success circle when done, hairline circle otherwise.
     private func checkButton(exercise: String, index: Int) -> some View {
         let isDone = logs[exercise]?[safe: index]?.isCompleted ?? false
         return Button {
@@ -181,8 +272,8 @@ struct SessionEditView: View {
         } label: {
             ZStack {
                 if isDone {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AppTheme.textPrimary)
+                    Circle()
+                        .fill(AppTheme.success)
                         .frame(width: 26, height: 26)
 
                     Image(systemName: "checkmark")
@@ -190,14 +281,15 @@ struct SessionEditView: View {
                         .foregroundStyle(AppTheme.backgroundTop)
                 } else {
                     Circle()
-                        .stroke(AppTheme.textTertiary, lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                        .frame(width: 26, height: 26)
                 }
             }
-            .frame(width: 40, height: 40)
+            .frame(width: LoggerSetColumns.checkWidth, height: LoggerSetColumns.fieldHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isDone ? "Set \(index + 1) completed" : "Mark set \(index + 1) completed")
     }
 
     // MARK: - Plumbing

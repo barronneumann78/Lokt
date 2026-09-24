@@ -155,6 +155,8 @@ struct CreateRoutineView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
+                    screenHeader
+
                     routineSetupSection
 
                     NavigationLink(
@@ -174,14 +176,16 @@ struct CreateRoutineView: View {
 
                     exerciseLibrarySection
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
-        .navigationTitle(screenTitle)
-        .searchable(text: $searchText, prompt: "Search Exercises")
+        // The screen carries its own 26pt title; the in-card search capsule
+        // is the one search input (it was also bound to the nav-bar search).
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: configureFormIfNeeded)
         // Cheap safety net: pick up custom exercises saved elsewhere.
         .onAppear(perform: exerciseStore.reloadCustomExercises)
@@ -195,19 +199,35 @@ struct CreateRoutineView: View {
         }
     }
 
+    // MARK: - Header
+
+    private var screenHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(screenTitle)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Text("\(selectedExercises.count) exercise\(selectedExercises.count == 1 ? "" : "s") • \(totalPreferredSets) sets")
+                .font(.system(size: 13))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(.bottom, 2)
+    }
+
+    // MARK: - Setup card
+    // ROUTINE NAME field over THE gradient pill of the screen. The block
+    // reason (empty name / no exercises) is one quiet line, not a box.
+
     private var routineSetupSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("ROUTINE NAME")
                     .microLabel()
 
                 TrackerTextField("Push Day, Pull Day, Legs...", text: $routineName)
                     .textFieldStyle(TrackerTextFieldStyle())
-            }
-
-            HStack(spacing: 10) {
-                summaryChip(title: "\(selectedExercises.count) exercises", systemImage: "list.bullet")
-                summaryChip(title: "\(totalPreferredSets) sets", systemImage: "number")
             }
 
             Button(saveButtonTitle) {
@@ -218,36 +238,28 @@ struct CreateRoutineView: View {
             .opacity(canSaveRoutine ? 1 : 0.6)
 
             if let saveBlockedMessage {
-                Label(saveBlockedMessage, systemImage: "info.circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
+                Text(saveBlockedMessage)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    // MARK: - Selected exercises
+    // Numbered mono rows on the elevated row surface: name link, set/pattern
+    // chips, the ask button, then the reorder controls and the set stepper.
 
     private var selectedExercisesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("SELECTED EXERCISES")
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
 
                 Spacer()
 
-                Text("\(selectedExercises.count) total")
-                    .font(.caption.weight(.bold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(Capsule())
+                TagChip(title: "\(selectedExercises.count) total")
             }
 
             if selectedExercises.isEmpty {
@@ -256,109 +268,109 @@ struct CreateRoutineView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.vertical, 12)
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 10) {
                     ForEach(Array(selectedExercises.enumerated()), id: \.element) { item in
-                        let index = item.offset
-                        let exercise = item.element
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(alignment: .top, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ExerciseTextNavigationLink(
-                                        exerciseName: exercise,
-                                        exercises: exerciseStore.exercises,
-                                        primaryAddAction: detailAddAction
-                                    ) {
-                                        Text("\(index + 1). \(exercise)")
-                                            .font(.headline)
-                                            .monospacedDigit()
-                                            .foregroundStyle(AppTheme.textPrimary)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-
-                                    HStack(spacing: 8) {
-                                        compactMetaChip(title: "\(preferredSetCount(for: exercise)) sets")
-
-                                        if let detail = selectedExerciseDetails.first(where: { $0.name == exercise }) {
-                                            compactMetaChip(title: detail.movementPattern.rawValue)
-                                        }
-                                    }
-                                }
-
-                                ExerciseAskButton(
-                                    context: ExerciseAskContext(
-                                        name: exercise,
-                                        sets: preferredSetCount(for: exercise)
-                                    ),
-                                    askTarget: $askTarget,
-                                    font: .subheadline,
-                                    hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
-                                )
-                            }
-
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 8) {
-                                    ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
-
-                                    reorderButton(systemImage: "arrow.up", disabled: index == 0) {
-                                        moveExercise(from: index, offset: -1)
-                                    }
-
-                                    reorderButton(systemImage: "arrow.down", disabled: index == selectedExercises.count - 1) {
-                                        moveExercise(from: index, offset: 1)
-                                    }
-
-                                    Spacer(minLength: 0)
-
-                                    Button("Remove") {
-                                        toggleSelection(exercise)
-                                    }
-                                    .buttonStyle(SecondaryButtonStyle())
-                                }
-
-                                TrackerStepper(
-                                    value: preferredSetBinding(for: exercise),
-                                    range: 1...12,
-                                    valueText: "Sets \(preferredSetCount(for: exercise))"
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        .padding(16)
-                        .surfaceCard()
-                        .onDrop(
-                            of: [.plainText],
-                            delegate: ExerciseReorderDropDelegate(
-                                targetExercise: exercise,
-                                exercises: $selectedExercises,
-                                draggedExercise: $draggedExercise
-                            )
-                        )
+                        selectedExerciseRow(item.element, index: item.offset)
                     }
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    private func selectedExerciseRow(_ exercise: String, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("\(index + 1).")
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .frame(width: 22, alignment: .leading)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ExerciseTextNavigationLink(
+                        exerciseName: exercise,
+                        exercises: exerciseStore.exercises,
+                        primaryAddAction: detailAddAction
+                    ) {
+                        Text(exercise)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack(spacing: 8) {
+                        TagChip(title: "\(preferredSetCount(for: exercise)) sets")
+
+                        if let detail = selectedExerciseDetails.first(where: { $0.name == exercise }) {
+                            TagChip(title: detail.movementPattern.rawValue)
+                        }
+                    }
+                }
+
+                ExerciseAskButton(
+                    context: ExerciseAskContext(
+                        name: exercise,
+                        sets: preferredSetCount(for: exercise)
+                    ),
+                    askTarget: $askTarget,
+                    font: .subheadline,
+                    hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
+                )
+            }
+
+            HStack(spacing: 8) {
+                ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
+
+                reorderButton(systemImage: "arrow.up", disabled: index == 0) {
+                    moveExercise(from: index, offset: -1)
+                }
+
+                reorderButton(systemImage: "arrow.down", disabled: index == selectedExercises.count - 1) {
+                    moveExercise(from: index, offset: 1)
+                }
+
+                Spacer(minLength: 0)
+
+                Button("Remove") {
+                    toggleSelection(exercise)
+                }
+                .buttonStyle(GhostButtonStyle(isCompact: true))
+            }
+
+            TrackerStepper(
+                value: preferredSetBinding(for: exercise),
+                range: 1...12,
+                valueText: "Sets \(preferredSetCount(for: exercise))"
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(AppTheme.rowPadding)
+        .surfaceCard()
+        .onDrop(
+            of: [.plainText],
+            delegate: ExerciseReorderDropDelegate(
+                targetExercise: exercise,
+                exercises: $selectedExercises,
+                draggedExercise: $draggedExercise
+            )
+        )
+    }
+
+    // MARK: - Filters
 
     private var filterSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("FILTERS")
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
 
                 Spacer()
 
-                Text("\(filteredExercises.count) matches")
-                    .font(.caption.weight(.bold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(Capsule())
+                TagChip(title: "\(filteredExercises.count) matches")
             }
 
             HStack(spacing: 12) {
@@ -368,87 +380,69 @@ struct CreateRoutineView: View {
 
             filterPicker(title: "Movement", selection: $selectedMovementPattern, options: movementPatternOptions)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    // MARK: - Builder feedback
+    // Hairline-separated lines instead of boxes inside the card.
 
     private var suggestionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("BUILDER FEEDBACK")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            ForEach(workoutSuggestions) { suggestion in
+            ForEach(Array(workoutSuggestions.enumerated()), id: \.element.id) { item in
+                if item.offset > 0 {
+                    hairline
+                }
+
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "sparkles")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .padding(.top, 3)
+                    Text(item.element.message)
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                        Text(suggestion.message)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if let pattern = suggestion.recommendedPattern {
+                    if let pattern = item.element.recommendedPattern {
                         Button("View \(pattern.rawValue) Exercises") {
                             suggestedLibraryPattern = pattern
                             navigateToExerciseLibrary = true
                         }
-                        .buttonStyle(SecondaryButtonStyle())
+                        .buttonStyle(GhostButtonStyle(isCompact: true))
                     }
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+                .padding(.vertical, 2)
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    // MARK: - Library
+    // Search capsule, the Ask Coach ghost, then hairline rows: name link +
+    // one tag chip, and an Add / Added chip on the right.
 
     private var exerciseLibrarySection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("EXERCISES")
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
 
                 Spacer()
 
-                Text("\(selectedExercises.count) selected")
-                    .font(.caption.weight(.bold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(Capsule())
+                TagChip(title: "\(selectedExercises.count) selected")
             }
 
-            TrackerTextField("Search this exercise list", text: $searchText)
-                .textFieldStyle(TrackerTextFieldStyle())
-                .autocorrectionDisabled()
+            TrackerSearchField("Search this exercise list", text: $searchText)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    askCoachAboutRoutine()
-                } label: {
-                    Label("Ask Coach about this workout", systemImage: "message")
-                }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(selectedExercises.isEmpty)
-                .opacity(selectedExercises.isEmpty ? 0.55 : 1)
-
-                Text(
-                    selectedExercises.isEmpty
-                        ? "Add an exercise first, then Coach can review the workout as a whole."
-                        : "Coach sees the exercises you selected and gives advice without changing this routine."
-                )
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                askCoachAboutRoutine()
+            } label: {
+                Label("Ask Coach about this workout", systemImage: "message")
             }
+            .buttonStyle(GhostButtonStyle())
+            .disabled(selectedExercises.isEmpty)
+            .opacity(selectedExercises.isEmpty ? 0.55 : 1)
 
             if filteredExercises.isEmpty {
                 Text("No exercises match those filters.")
@@ -456,59 +450,64 @@ struct CreateRoutineView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.vertical, 12)
             } else {
-                LazyVStack(spacing: 10) {
-                    ForEach(filteredExercises) { exercise in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ExerciseTextNavigationLink(
-                                    exerciseName: exercise.name,
-                                    exercises: exerciseStore.exercises,
-                                    primaryAddAction: detailAddAction
-                                ) {
-                                    Text(exercise.name)
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                }
-
-                                if let primaryTag = routineLibraryTags(for: exercise).first {
-                                    exerciseTag(primaryTag)
-                                }
-                            }
-
-                            Spacer()
-
-                            Button {
-                                toggleSelection(exercise.name)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: selectedExercises.contains(exercise.name) ? "checkmark.circle.fill" : "plus.circle.fill")
-                                        .font(.headline)
-
-                                    Text(selectedExercises.contains(exercise.name) ? "Added" : "Add")
-                                        .font(.subheadline.weight(.semibold))
-                                }
-                                .foregroundStyle(selectedExercises.contains(exercise.name) ? AppTheme.success : AppTheme.textPrimary)
-                                .monospacedDigit()
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(selectedExercises.contains(exercise.name) ? AppTheme.success.opacity(0.12) : AppTheme.mutedFill)
-                                .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(filteredExercises.enumerated()), id: \.element.id) { item in
+                        if item.offset > 0 {
+                            hairline
                         }
-                        .padding(16)
-                        .background(selectedExercises.contains(exercise.name) ? AppTheme.surfaceElevated : AppTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
-                                .stroke(selectedExercises.contains(exercise.name) ? AppTheme.success.opacity(0.3) : AppTheme.cardBorder, lineWidth: 1)
-                        }
+
+                        libraryRow(item.element)
                     }
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    private func libraryRow(_ exercise: Exercise) -> some View {
+        let isAdded = selectedExercises.contains(exercise.name)
+
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                ExerciseTextNavigationLink(
+                    exerciseName: exercise.name,
+                    exercises: exerciseStore.exercises,
+                    primaryAddAction: detailAddAction
+                ) {
+                    Text(exercise.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                if let primaryTag = routineLibraryTags(for: exercise).first {
+                    TagChip(title: primaryTag)
+                }
+            }
+
+            Spacer()
+
+            Button {
+                toggleSelection(exercise.name)
+            } label: {
+                TagChip(
+                    title: isAdded ? "Added" : "Add",
+                    isActive: isAdded,
+                    systemImage: isAdded ? "checkmark" : "plus"
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isAdded ? "Remove \(exercise.name)" : "Add \(exercise.name)")
+        }
+        .padding(.vertical, 12)
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(height: 1)
     }
 
     private var trimmedRoutineName: String {
@@ -532,19 +531,12 @@ struct CreateRoutineView: View {
             .padding(.vertical, 12)
             .background(AppTheme.fieldBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func exerciseTag(_ title: String) -> some View {
-        Text(title)
-            .font(.caption2.weight(.medium))
-            .monospacedDigit()
-            .foregroundStyle(AppTheme.textSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(AppTheme.mutedFill)
-            .clipShape(Capsule())
     }
 
     private func routineLibraryTags(for exercise: Exercise) -> [String] {
@@ -559,40 +551,18 @@ struct CreateRoutineView: View {
     private func reorderButton(systemImage: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
                 .foregroundStyle(disabled ? AppTheme.textTertiary : AppTheme.textPrimary)
-                .padding(10)
+                .frame(width: 34, height: 34)
                 .background(AppTheme.surfaceElevated)
                 .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
         .disabled(disabled)
-    }
-
-    private func summaryChip(title: String, systemImage: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.bold))
-
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .monospacedDigit()
-        }
-        .foregroundStyle(AppTheme.textSecondary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(AppTheme.mutedFill)
-        .clipShape(Capsule())
-    }
-
-    private func compactMetaChip(title: String) -> some View {
-        Text(title)
-            .font(.caption2.weight(.semibold))
-            .monospacedDigit()
-            .foregroundStyle(AppTheme.textSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(AppTheme.mutedFill)
-            .clipShape(Capsule())
     }
 
     private var totalPreferredSets: Int {

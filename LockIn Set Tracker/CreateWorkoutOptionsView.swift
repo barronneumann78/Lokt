@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// The create-flow hub. Look v2: a 26pt title, micro-label sections, one
+/// gradient pill for the AI path (Generate with AI) and every other entry as
+/// a hairline option card.
 struct CreateWorkoutOptionsView: View {
     enum EntryMode {
         case allOptions
@@ -18,6 +21,12 @@ struct CreateWorkoutOptionsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
+                    Text("Create Workout")
+                        .font(.system(size: 26, weight: .bold))
+                        .tracking(-0.3)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .padding(.bottom, 2)
+
                     smartToolsSection
                     if entryMode == .allOptions {
                         manualSection
@@ -25,11 +34,11 @@ struct CreateWorkoutOptionsView: View {
                         optionalManualFooter
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle("Create Workout")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: shouldDismissAfterChildSave) { _, shouldDismiss in
             if shouldDismiss {
@@ -39,9 +48,9 @@ struct CreateWorkoutOptionsView: View {
     }
 
     private var manualSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("START HERE")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             NavigationLink(destination: CreateRoutineView(onSave: handleChildSave)) {
                 optionCard(
@@ -69,18 +78,16 @@ struct CreateWorkoutOptionsView: View {
     }
 
     private var smartToolsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(entryMode == .aiTools ? "ASK LOKT" : "SMART TOOLS")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
+            // THE gradient pill of the screen: the AI path.
             NavigationLink(destination: AIWorkoutGeneratorView(onSave: handleChildSave)) {
-                optionCard(
-                    title: "Generate with AI",
-                    icon: "sparkles",
-                    isHero: true
-                )
+                Text("Generate with AI")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.bottom, 4)
 
             NavigationLink(destination: SupplementaryWorkoutGeneratorView(onSave: handleChildSave)) {
                 optionCard(
@@ -109,9 +116,9 @@ struct CreateWorkoutOptionsView: View {
     }
 
     private var optionalManualFooter: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("BUILD IT YOURSELF")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             NavigationLink(destination: CreateRoutineView(onSave: handleChildSave)) {
                 optionCard(
@@ -125,18 +132,23 @@ struct CreateWorkoutOptionsView: View {
         }
     }
 
-    // The one hero card carries the volt plate; every other row stays neutral.
-    private func optionCard(title: String, icon: String, isHero: Bool = false) -> some View {
+    /// Hairline option card: a 40pt hairline glyph circle, 16pt title, quiet
+    /// chevron. Neutral — the accent belongs to the gradient pill above.
+    private func optionCard(title: String, icon: String) -> some View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
-                .font(isHero ? .title2.weight(.bold) : .headline.weight(.semibold))
-                .foregroundStyle(isHero ? AppTheme.backgroundTop : AppTheme.textSecondary)
-                .padding(isHero ? 14 : 12)
-                .background(isHero ? AppTheme.primary : AppTheme.mutedFill)
-                .clipShape(RoundedRectangle(cornerRadius: isHero ? 18 : 14, style: .continuous))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: 40, height: 40)
+                .background(AppTheme.surfaceElevated)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
 
             Text(title)
-                .font(isHero ? .title3.weight(.bold) : .headline.weight(.semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
 
             Spacer()
@@ -145,8 +157,9 @@ struct CreateWorkoutOptionsView: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(AppTheme.textTertiary)
         }
-        .padding(isHero ? 18 : 14)
-        .surfaceCard(cornerRadius: 20)
+        .padding(AppTheme.rowPadding)
+        .contentShape(Rectangle())
+        .glassCard(cornerRadius: 18)
     }
 
     private func handleChildSave() {
