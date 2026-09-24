@@ -603,9 +603,24 @@ struct TrackerTextField: View {
     }
 }
 
+/// Form field: the field fill under a hairline that turns to the accent
+/// hairline while the field is first responder (look v2 consistency pass).
 struct TrackerTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<_Label>) -> some View {
+        FocusHairlineField(configuration: configuration)
+    }
+}
+
+/// Body of `TrackerTextFieldStyle`. Owns a read-only `@FocusState` so the
+/// hairline can follow focus without any plumbing at the call site; it sits
+/// beside whatever `.focused(_:)` binding the caller attaches.
+private struct FocusHairlineField<Field: View>: View {
+    let configuration: Field
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
         configuration
+            .focused($isFocused)
             .foregroundStyle(AppTheme.textPrimary)
             .monospacedDigit()
             .tint(AppTheme.primary)
@@ -615,8 +630,111 @@ struct TrackerTextFieldStyle: TextFieldStyle {
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    .stroke(isFocused ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
             }
+    }
+}
+
+/// Search capsule: magnifier, the field, and a clear button once there is
+/// text. 44pt on the field fill under the hairline (accent while focused) —
+/// the library, the routine editor and the mid-workout picker all search
+/// through this one control.
+struct TrackerSearchField: View {
+    private let prompt: String
+    @Binding private var text: String
+    @FocusState private var isFocused: Bool
+
+    init(_ prompt: String, text: Binding<String>) {
+        self.prompt = prompt
+        _text = text
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.textTertiary)
+
+            TrackerTextField(prompt, text: $text)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
+                .focused($isFocused)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .background(AppTheme.fieldBackground)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(isFocused ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+        }
+    }
+}
+
+/// Multi-line field: `textSecondary` placeholder over a `TextEditor` on the
+/// field fill, hairline turning accent while editing. The control radius for
+/// a form note; 18pt for a prompt composer.
+struct TrackerTextEditor: View {
+    private let placeholder: String
+    @Binding private var text: String
+    private let minHeight: CGFloat
+    private let cornerRadius: CGFloat
+    @FocusState private var isFocused: Bool
+
+    init(
+        _ placeholder: String,
+        text: Binding<String>,
+        minHeight: CGFloat = 92,
+        cornerRadius: CGFloat = AppTheme.controlCornerRadius
+    ) {
+        self.placeholder = placeholder
+        _text = text
+        self.minHeight = minHeight
+        self.cornerRadius = cornerRadius
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(placeholder)
+                    .font(.body)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .allowsHitTesting(false)
+            }
+
+            TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
+                .focused($isFocused)
+                .frame(minHeight: minHeight)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .trackerTextEditorStyle()
+        }
+        .background(AppTheme.fieldBackground)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(isFocused ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+        }
     }
 }
 
@@ -665,21 +783,34 @@ struct TrackerStepper: View {
     }
 }
 
+/// 11pt bold capsule chip — the app's one chip: hairline on the muted fill
+/// at rest; `isActive` swaps in the accent chip fill, accent hairline and
+/// accent label (the selected filter, the exercise already in the routine).
 struct TagChip: View {
     let title: String
-    var color: Color = AppTheme.primary
+    var isActive: Bool = false
+    var systemImage: String? = nil
 
     var body: some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(AppTheme.textSecondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(AppTheme.mutedFill)
-            .clipShape(Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+        HStack(spacing: 5) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .bold))
             }
+
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .monospacedDigit()
+        }
+        .foregroundStyle(isActive ? AppTheme.primary : AppTheme.textSecondary)
+        .lineLimit(1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isActive ? AppTheme.accentChipFill : AppTheme.mutedFill)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(isActive ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+        }
     }
 }

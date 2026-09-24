@@ -1,7 +1,9 @@
 import SwiftUI
 
-// Settings hub: hairline navigation rows grouped under micro-labels, each
-// pushing a focused sub-page. All pushes stay inside Home's NavigationView.
+// Settings hub: a 26pt screen title over hairline navigation rows grouped
+// under micro labels, each pushing a focused sub-page. All pushes stay inside
+// Home's NavigationView; the nav bar itself stays quiet (empty inline title)
+// so every page carries its own title in the app's vocabulary.
 struct SettingsView: View {
     @EnvironmentObject private var theme: ThemeStore
 
@@ -11,15 +13,17 @@ struct SettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
+                    SettingsScreenTitle("Settings")
+
                     VStack(alignment: .leading, spacing: 10) {
                         Text("APP")
-                            .microLabel()
+                            .microLabel(AppTheme.textSecondary)
 
                         VStack(spacing: 0) {
                             hubRow(title: "Appearance", destination: AppearanceSettingsView()) {
                                 Circle()
                                     .fill(AppTheme.accent)
-                                    .frame(width: 12, height: 12)
+                                    .frame(width: 10, height: 10)
                             }
                         }
                         .glassCard()
@@ -27,31 +31,24 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("WORKOUTS")
-                            .microLabel()
+                            .microLabel(AppTheme.textSecondary)
 
                         VStack(spacing: 0) {
                             hubRow(title: "Workout Preferences", destination: WorkoutPreferencesSettingsView())
 
-                            hairline
+                            SettingsHairline(leadingInset: AppTheme.cardPadding)
 
                             hubRow(title: "Workout History", destination: WorkoutHistorySettingsView())
                         }
                         .glassCard()
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var hairline: some View {
-        Rectangle()
-            .fill(AppTheme.cardBorder)
-            .frame(height: 1)
-            .padding(.leading, 20)
     }
 
     private func hubRow(
@@ -62,7 +59,7 @@ struct SettingsView: View {
         NavigationLink(destination: destination) {
             HStack(spacing: 12) {
                 Text(title)
-                    .font(.headline)
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
 
                 Spacer()
@@ -70,14 +67,56 @@ struct SettingsView: View {
                 accessory()
 
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(AppTheme.textTertiary)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, AppTheme.cardPadding)
             .padding(.vertical, 18)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Shared chrome
+
+/// 26pt bold screen title with an optional `textSecondary` subtitle — the
+/// same header the Analytics screen wears.
+private struct SettingsScreenTitle: View {
+    let title: String
+    var subtitle: String? = nil
+
+    init(_ title: String, subtitle: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .padding(.bottom, 2)
+    }
+}
+
+private struct SettingsHairline: View {
+    var leadingInset: CGFloat = 0
+
+    var body: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(height: 1)
+            .padding(.leading, leadingInset)
     }
 }
 
@@ -86,30 +125,33 @@ struct SettingsView: View {
 private struct AppearanceSettingsView: View {
     @EnvironmentObject private var theme: ThemeStore
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+    private static let tileCornerRadius: CGFloat = 16
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
 
     var body: some View {
         ZStack {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("ACCENT")
-                        .microLabel()
+                VStack(alignment: .leading, spacing: 24) {
+                    SettingsScreenTitle("Appearance")
 
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(AccentScheme.allCases) { scheme in
-                            swatch(for: scheme)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("ACCENT")
+                            .microLabel(AppTheme.textSecondary)
+
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(AccentScheme.allCases) { scheme in
+                                swatchTile(for: scheme)
+                            }
                         }
                     }
                 }
-                .padding(20)
-                .glassCard()
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle("Appearance")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         // Applies here instantly; the app-wide rebuild is committed on exit.
         .onDisappear {
@@ -117,46 +159,50 @@ private struct AppearanceSettingsView: View {
         }
     }
 
-    private func swatch(for scheme: AccentScheme) -> some View {
+    /// One scheme per tile: a 36pt swatch over the name. The selected tile
+    /// wears the chip vocabulary — accent chip fill, accent hairline, accent
+    /// name — plus a near-black check on its swatch.
+    private func swatchTile(for scheme: AccentScheme) -> some View {
         let isSelected = scheme == theme.scheme
+        let shape = RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous)
 
         return Button {
             theme.select(scheme)
         } label: {
             VStack(spacing: 10) {
                 ZStack {
-                    if isSelected {
-                        Circle()
-                            .stroke(scheme.color, lineWidth: 2)
-                            .frame(width: 54, height: 54)
-                    }
-
                     Circle()
                         .fill(scheme.color)
-                        .frame(width: 42, height: 42)
+                        .frame(width: 36, height: 36)
 
                     if isSelected {
                         Image(systemName: "checkmark")
-                            .font(.subheadline.weight(.bold))
+                            .font(.system(size: 13, weight: .heavy))
                             .foregroundStyle(AppTheme.backgroundTop)
                     }
                 }
-                .frame(width: 54, height: 54)
 
                 Text(scheme.displayName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textSecondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(AppTheme.mutedFill)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            .padding(.vertical, 16)
+            .background {
+                if isSelected {
+                    shape.fill(AppTheme.accentChipFill)
+                }
             }
+            .glassCard(cornerRadius: Self.tileCornerRadius)
+            .overlay {
+                if isSelected {
+                    shape.stroke(AppTheme.accentHairline, lineWidth: 1)
+                }
+            }
+            .contentShape(shape)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isSelected ? "\(scheme.displayName), selected" : scheme.displayName)
     }
 }
 
@@ -180,71 +226,88 @@ private struct WorkoutPreferencesSettingsView: View {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("AI WORKOUT PREFERENCES")
-                        .microLabel()
+                VStack(alignment: .leading, spacing: 24) {
+                    SettingsScreenTitle("Workout Preferences")
 
-                    preferenceField(
-                        title: "Preferred Equipment",
-                        placeholder: "Dumbbells, cables, machines",
-                        text: $preferredEquipmentText
-                    )
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("AI WORKOUT PREFERENCES")
+                            .microLabel(AppTheme.textSecondary)
 
-                    preferenceField(
-                        title: "Disliked Exercises",
-                        placeholder: "Burpees, upright rows, barbell back squat",
-                        text: $dislikedExercisesText
-                    )
+                        VStack(alignment: .leading, spacing: 16) {
+                            preferenceField(
+                                title: "Preferred Equipment",
+                                placeholder: "Dumbbells, cables, machines",
+                                text: $preferredEquipmentText
+                            )
 
-                    safetyProfileFields
+                            preferenceField(
+                                title: "Disliked Exercises",
+                                placeholder: "Burpees, upright rows, barbell back squat",
+                                text: $dislikedExercisesText
+                            )
 
-                    multilinePreferenceField(
-                        title: "Notes About Limitations",
-                        placeholder: "For example: avoid overhead pressing or deep knee bends",
-                        text: $limitationsText
-                    )
+                            SettingsHairline()
 
-                    preferenceField(
-                        title: "Primary Goal",
-                        placeholder: "Build muscle, get stronger, general fitness",
-                        text: $primaryGoalText
-                    )
+                            safetyProfileFields
 
-                    preferenceField(
-                        title: "Training Style",
-                        placeholder: "Hypertrophy-focused, simple compounds first, higher reps",
-                        text: $trainingStyleText
-                    )
+                            multilinePreferenceField(
+                                title: "Notes About Limitations",
+                                placeholder: "For example: avoid overhead pressing or deep knee bends",
+                                text: $limitationsText
+                            )
 
-                    preferenceField(
-                        title: "Default Time Limit (minutes)",
-                        placeholder: "45",
-                        text: $defaultTimeLimitText,
-                        keyboardType: .numberPad
-                    )
+                            SettingsHairline()
 
-                    HStack(spacing: 12) {
+                            preferenceField(
+                                title: "Primary Goal",
+                                placeholder: "Build muscle, get stronger, general fitness",
+                                text: $primaryGoalText
+                            )
+
+                            preferenceField(
+                                title: "Training Style",
+                                placeholder: "Hypertrophy-focused, simple compounds first, higher reps",
+                                text: $trainingStyleText
+                            )
+
+                            preferenceField(
+                                title: "Default Time Limit (minutes)",
+                                placeholder: "45",
+                                text: $defaultTimeLimitText,
+                                keyboardType: .numberPad
+                            )
+                        }
+                        .padding(AppTheme.cardPadding)
+                        .glassCard()
+                    }
+
+                    // THE gradient pill of the screen beside a fixed-width ghost —
+                    // the Coach draft card's Save / Revise pairing.
+                    HStack(spacing: 10) {
                         Button("Save Preferences") {
                             savePreferences()
                         }
-                        .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
+                        .buttonStyle(PrimaryButtonStyle())
 
                         Button("Retake Quiz") {
                             retakeQuiz()
                         }
-                        .buttonStyle(SecondaryButtonStyle())
+                        .buttonStyle(GhostButtonStyle(verticalPadding: 17))
+                        .frame(width: 128)
                     }
+
+                    Text("Lokt uses these as plan constraints, not medical advice.")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
-                .padding(20)
-                .glassCard()
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .keyboardDoneBar()
-        .navigationTitle("Workout Preferences")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             loadPreferences()
@@ -294,14 +357,12 @@ private struct WorkoutPreferencesSettingsView: View {
     }
 
     private var safetyProfileFields: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("SAFETY PROFILE")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Training Experience")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                fieldLabel("Training Experience")
 
                 Menu {
                     Button("Not set") {
@@ -347,66 +408,59 @@ private struct WorkoutPreferencesSettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Areas to Work Around")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
+                fieldLabel("Areas to Work Around")
 
-                Button {
+                selectionTile(title: "None right now", isSelected: selectedInjuryFlags.isEmpty) {
                     selectedInjuryFlags.removeAll()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: selectedInjuryFlags.isEmpty ? "checkmark.circle.fill" : "circle")
-                        Text("None right now")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(selectedInjuryFlags.isEmpty ? AppTheme.primary : AppTheme.textSecondary)
                 }
-                .buttonStyle(.plain)
 
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
                     spacing: 10
                 ) {
                     ForEach(InjuryFlag.allCases) { flag in
-                        injuryFlagButton(flag)
+                        selectionTile(title: flag.title, isSelected: selectedInjuryFlags.contains(flag)) {
+                            if selectedInjuryFlags.contains(flag) {
+                                selectedInjuryFlags.remove(flag)
+                            } else {
+                                selectedInjuryFlags.insert(flag)
+                            }
+                        }
                     }
                 }
             }
-
-            Text("Lokt uses these as plan constraints, not medical advice.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
         }
     }
 
-    private func injuryFlagButton(_ flag: InjuryFlag) -> some View {
-        let isSelected = selectedInjuryFlags.contains(flag)
+    /// Multi-select tile in the chip vocabulary: field fill + hairline at
+    /// rest; accent chip fill, accent hairline, accent label and a check
+    /// when selected.
+    private func selectionTile(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
 
-        return Button {
-            if isSelected {
-                selectedInjuryFlags.remove(flag)
-            } else {
-                selectedInjuryFlags.insert(flag)
-            }
-        } label: {
+        return Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.subheadline)
-                Text(flag.title)
-                    .font(.subheadline.weight(.semibold))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
                     .multilineTextAlignment(.leading)
+
                 Spacer(minLength: 0)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                }
             }
             .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? AppTheme.primary.opacity(0.14) : AppTheme.fieldBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
+            .background(isSelected ? AppTheme.accentChipFill : AppTheme.fieldBackground)
+            .clipShape(shape)
             .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
-                    .stroke(isSelected ? AppTheme.primary.opacity(0.65) : AppTheme.cardBorder, lineWidth: 1)
+                shape.stroke(isSelected ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
             }
+            .contentShape(shape)
         }
         .buttonStyle(.plain)
     }
@@ -418,6 +472,11 @@ private struct WorkoutPreferencesSettingsView: View {
         hasCompletedOnboarding = false
     }
 
+    private func fieldLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .microLabel()
+    }
+
     private func preferenceField(
         title: String,
         placeholder: String,
@@ -425,9 +484,7 @@ private struct WorkoutPreferencesSettingsView: View {
         keyboardType: UIKeyboardType = .default
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textSecondary)
+            fieldLabel(title)
 
             TrackerTextField(placeholder, text: text)
                 .textFieldStyle(TrackerTextFieldStyle())
@@ -441,33 +498,9 @@ private struct WorkoutPreferencesSettingsView: View {
         text: Binding<String>
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textSecondary)
+            fieldLabel(title)
 
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .fill(AppTheme.fieldBackground)
-
-                if text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(placeholder)
-                        .font(.body)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                }
-
-                TextEditor(text: text)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 92)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .trackerTextEditorStyle()
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
+            TrackerTextEditor(placeholder, text: text)
         }
     }
 }
@@ -485,82 +518,65 @@ private struct WorkoutHistorySettingsView: View {
             AppBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("WORKOUT HISTORY")
-                        .microLabel()
+                VStack(alignment: .leading, spacing: 24) {
+                    SettingsScreenTitle(
+                        "Workout History",
+                        subtitle: workoutSessions.isEmpty ? nil : "\(workoutSessions.count) session\(workoutSessions.count == 1 ? "" : "s") logged"
+                    )
 
-                    Button {
-                        exportData()
-                    } label: {
-                        HStack {
-                            Text("Export My Data")
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.textPrimary)
-
-                            Spacer()
-
-                            Image(systemName: "square.and.arrow.up")
-                                .foregroundStyle(AppTheme.textSecondary)
+                    VStack(spacing: 0) {
+                        actionRow(
+                            title: "Export My Data",
+                            systemImage: "square.and.arrow.up",
+                            titleTint: AppTheme.textPrimary,
+                            iconTint: AppTheme.textSecondary
+                        ) {
+                            exportData()
                         }
-                        .padding(14)
-                        .background(AppTheme.mutedFill)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
 
-                    Button {
-                        pendingAction = .deleteAll
-                    } label: {
-                        HStack {
-                            Text("Delete All History")
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.danger)
+                        SettingsHairline(leadingInset: AppTheme.cardPadding)
 
-                            Spacer()
-
-                            Image(systemName: "trash")
-                                .foregroundStyle(AppTheme.danger)
+                        actionRow(
+                            title: "Delete All History",
+                            systemImage: "trash",
+                            titleTint: AppTheme.danger,
+                            iconTint: AppTheme.danger
+                        ) {
+                            pendingAction = .deleteAll
                         }
-                        .padding(14)
-                        .background(AppTheme.mutedFill)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .glassCard()
 
                     if !exerciseNames.isEmpty {
-                        Text("DELETE ONE EXERCISE")
-                            .microLabel()
-                            .padding(.top, 6)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("DELETE ONE EXERCISE")
+                                .microLabel(AppTheme.textSecondary)
 
-                        ForEach(exerciseNames, id: \.self) { exercise in
-                            Button {
-                                pendingAction = .deleteExercise(exercise)
-                            } label: {
-                                HStack {
-                                    Text(exercise)
-                                        .font(.headline)
-                                        .foregroundStyle(AppTheme.textPrimary)
+                            VStack(spacing: 0) {
+                                ForEach(Array(exerciseNames.enumerated()), id: \.element) { item in
+                                    if item.offset > 0 {
+                                        SettingsHairline(leadingInset: AppTheme.cardPadding)
+                                    }
 
-                                    Spacer()
-
-                                    Image(systemName: "minus.circle")
-                                        .foregroundStyle(AppTheme.secondary)
+                                    actionRow(
+                                        title: item.element,
+                                        systemImage: "minus.circle",
+                                        titleTint: AppTheme.textPrimary,
+                                        iconTint: AppTheme.secondary
+                                    ) {
+                                        pendingAction = .deleteExercise(item.element)
+                                    }
                                 }
-                                .padding(14)
-                                .background(AppTheme.mutedFill)
-                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
                             }
-                            .buttonStyle(.plain)
+                            .glassCard()
                         }
                     }
                 }
-                .padding(20)
-                .glassCard()
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle("Workout History")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             loadWorkoutSessions()
@@ -590,6 +606,34 @@ private struct WorkoutHistorySettingsView: View {
                 )
             }
         }
+    }
+
+    /// Hairline list row: 16pt title, quiet trailing glyph.
+    private func actionRow(
+        title: String,
+        systemImage: String,
+        titleTint: Color,
+        iconTint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(titleTint)
+                    .multilineTextAlignment(.leading)
+
+                Spacer()
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(iconTint)
+            }
+            .padding(.horizontal, AppTheme.cardPadding)
+            .padding(.vertical, 16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// Builds the full-data JSON export and hands it to the share sheet.
