@@ -107,3 +107,30 @@ enum LoggerFocusModel {
         nextField(after: .reps(exercise, setIndex), exercises: exercises, setCount: setCount)
     }
 }
+
+/// Auto-collapse rule for a logger card (two testers, build 4): once every
+/// set of an exercise is checked the set table folds away so the list scrolls
+/// short; the header chevron re-opens it, and un-checking any set reopens it
+/// on its own. Collapsed is DERIVED — `allSetsCompleted && !manuallyExpanded`
+/// — so the session-only manual flag never has to track the logs. Same
+/// `isCompleted` semantics as `completionTarget`: an unpadded set is open,
+/// and an exercise with no sets counts as one open set.
+enum LoggerCollapseModel {
+    static func completedCount(setCount: Int, isCompleted: (Int) -> Bool) -> Int {
+        (0..<max(1, setCount)).filter(isCompleted).count
+    }
+
+    static func allSetsCompleted(setCount: Int, isCompleted: (Int) -> Bool) -> Bool {
+        completedCount(setCount: setCount, isCompleted: isCompleted) == max(1, setCount)
+    }
+
+    static func isCollapsed(allSetsCompleted: Bool, manuallyExpanded: Bool) -> Bool {
+        allSetsCompleted && !manuallyExpanded
+    }
+
+    /// The collapsed header's count — "4 sets" / "1 set" (the view adds the
+    /// checkmark glyph).
+    static func summary(completedCount: Int) -> String {
+        "\(completedCount) \(completedCount == 1 ? "set" : "sets")"
+    }
+}

@@ -11,6 +11,10 @@ struct WorkoutLoggerView: View {
     @State private var logs: [String: [WorkoutSet]] = [:]
     @State private var completed = false
     @State private var expandedExercises: Set<String> = []
+    /// Cards the lifter re-opened after every set was checked (the header
+    /// chevron). Session-only like `expandedExercises`; any un-check drops
+    /// the exercise so `LoggerCollapseModel`'s derived rule reopens the card.
+    @State private var manuallyExpandedExercises: Set<String> = []
     @State private var preferredSetCounts: [String: Int] = [:]
     @State private var draggedExercise: String?
     @State private var workoutStartDate = Date()
@@ -288,6 +292,7 @@ struct WorkoutLoggerView: View {
             isHistoryExpanded: expandedExercises.contains(exercise),
             history: historyEntries(for: exercise),
             isLastExercise: activeRoutine.exercises.last == exercise,
+            isManuallyExpanded: manuallyExpandedExercises.contains(exercise),
             draggedExercise: $draggedExercise,
             addAction: ExerciseDetailPrimaryAddAction(title: "Add to This Workout") { detailExercise in
                 addExerciseToCurrentWorkout(detailExercise)
@@ -299,6 +304,7 @@ struct WorkoutLoggerView: View {
                 )
             },
             onToggleHistory: { toggleHistory(exercise) },
+            onToggleCollapse: { toggleManualExpansion(exercise) },
             onAddSet: { addSet(to: exercise) },
             onRemoveSet: { removeSet(from: exercise) },
             onSetCountChange: { applyPreferredSetCount(max(1, $0), for: exercise) },
@@ -432,6 +438,9 @@ struct WorkoutLoggerView: View {
         if sets[index].isCompleted {
             sets[index].completed = false
             logs[exercise] = sets
+            // Un-checking reopens the card: clear the manual flag so the
+            // derived rule (all checked && !manual) is what folds it next.
+            manuallyExpandedExercises.remove(exercise)
             return
         }
 
@@ -1092,6 +1101,15 @@ struct WorkoutLoggerView: View {
         }
     }
 
+    /// Header chevron on a fully checked card: re-open or fold its set table.
+    private func toggleManualExpansion(_ exercise: String) {
+        if manuallyExpandedExercises.contains(exercise) {
+            manuallyExpandedExercises.remove(exercise)
+        } else {
+            manuallyExpandedExercises.insert(exercise)
+        }
+    }
+
     private func update(
         _ sets: [WorkoutSet]?,
         exercise: String,
@@ -1234,6 +1252,10 @@ struct WorkoutLoggerView: View {
 
         if expandedExercises.remove(currentExerciseName) != nil {
             expandedExercises.insert(newExerciseName)
+        }
+
+        if manuallyExpandedExercises.remove(currentExerciseName) != nil {
+            manuallyExpandedExercises.insert(newExerciseName)
         }
 
         if activeRestExercise?.caseInsensitiveCompare(currentExerciseName) == .orderedSame {

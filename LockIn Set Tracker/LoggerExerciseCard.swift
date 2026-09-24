@@ -7,8 +7,14 @@ import SwiftUI
 ///
 /// Phase 3 look: name + TARGET chip, the recommended-sets chip and nudge note
 /// beneath, then the five-column set table on elevated row surfaces.
+///
+/// Auto-collapse (build 4): once every set is checked the table folds away
+/// (`LoggerCollapseModel` — derived from `sets`, never stored); the header
+/// then reads "4 sets ✓" beside a chevron that re-opens it. The fold is the
+/// only animated change, and Reduce Motion turns it off.
 struct LoggerExerciseCard: View, Equatable {
     @EnvironmentObject private var exerciseStore: ExerciseStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let exercise: String
     let sets: [WorkoutSet]
@@ -28,11 +34,15 @@ struct LoggerExerciseCard: View, Equatable {
     /// Recent completed set-lists, newest first — populated only when expanded.
     let history: [[WorkoutSet]]
     let isLastExercise: Bool
+    /// Session-only: the lifter re-opened the table after every set was
+    /// checked (header chevron). The logger clears it on any un-check.
+    let isManuallyExpanded: Bool
 
     @Binding var draggedExercise: String?
     let addAction: ExerciseDetailPrimaryAddAction
     let onSmartSwap: () -> Void
     let onToggleHistory: () -> Void
+    let onToggleCollapse: () -> Void
     let onAddSet: () -> Void
     let onRemoveSet: () -> Void
     let onSetCountChange: (Int) -> Void
@@ -55,66 +65,133 @@ struct LoggerExerciseCard: View, Equatable {
         lhs.nudgeNote == rhs.nudgeNote &&
         lhs.isHistoryExpanded == rhs.isHistoryExpanded &&
         lhs.history == rhs.history &&
-        lhs.isLastExercise == rhs.isLastExercise
+        lhs.isLastExercise == rhs.isLastExercise &&
+        lhs.isManuallyExpanded == rhs.isManuallyExpanded
+    }
+
+    // MARK: - Collapse (derived)
+
+    private var completedCount: Int {
+        LoggerCollapseModel.completedCount(setCount: setCount) { sets[safe: $0]?.isCompleted ?? false }
+    }
+
+    private var allSetsCompleted: Bool {
+        LoggerCollapseModel.allSetsCompleted(setCount: setCount) { sets[safe: $0]?.isCompleted ?? false }
+    }
+
+    private var isCollapsed: Bool {
+        LoggerCollapseModel.isCollapsed(allSetsCompleted: allSetsCompleted, manuallyExpanded: isManuallyExpanded)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
-                ExerciseTextNavigationLink(
-                    exerciseName: exercise,
-                    exercises: exerciseStore.exercises,
-                    primaryAddAction: addAction
-                ) {
-                    Text(exercise)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
+            header
 
-                Spacer(minLength: 6)
-
-                // The one suggestion surface: an applied check-in nudge wins,
-                // otherwise the fatigue model's estimate.
-                if let targetChip {
-                    targetChipView(targetChip)
-                }
-
-                ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
-            }
-
-            if recommendedSets != nil || nudgeNote != nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    if let recommendedSets {
-                        RecommendedSetsChip(
-                            recommended: recommendedSets,
-                            count: Binding(get: { setCount }, set: { onSetCountChange($0) }),
-                            font: .caption
-                        )
-                    }
-
-                    // One line of why behind an applied nudge target ("last one
-                    // felt easy") — cleared once the next check-in lands.
-                    if let nudgeNote {
-                        Text(nudgeNote)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            setTable
-
-            rowActions
-
-            if isHistoryExpanded {
-                historySection
+            if !isCollapsed {
+                collapsibleContent
             }
         }
         .padding(16)
         .glassCard()
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: isCollapsed)
+    }
+
+    // MARK: - Header
+
+    /// Name link, then — while every set is checked — the "4 sets ✓" summary
+    /// and chevron in place of the TARGET chip (nothing left to target), and
+    /// the drag handle. The header's idle area toggles the fold too; the
+    /// tap area underlies the real controls so the link and handle keep
+    /// their own hits.
+    private var header: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ExerciseTextNavigationLink(
+                exerciseName: exercise,
+                exercises: exerciseStore.exercises,
+                primaryAddAction: addAction
+            ) {
+                Text(exercise)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer(minLength: 6)
+
+            if allSetsCompleted {
+                collapseToggle
+            } else if let targetChip {
+                // The one suggestion surface: an applied check-in nudge wins,
+                // otherwise the fatigue model's estimate.
+                targetChipView(targetChip)
+            }
+
+            ExerciseDragHandle(exerciseName: exercise, draggedExercise: $draggedExercise)
+        }
+        .background {
+            if allSetsCompleted {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onToggleCollapse)
+            }
+        }
+    }
+
+    private var collapseToggle: some View {
+        Button(action: onToggleCollapse) {
+            HStack(spacing: 6) {
+                Text("\(LoggerCollapseModel.summary(completedCount: completedCount)) \(Image(systemName: "checkmark"))")
+                    .font(.system(.caption, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .rotationEffect(.degrees(isCollapsed ? 0 : 180))
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isCollapsed ? "Show sets" : "Hide sets")
+    }
+
+    // MARK: - Body below the header (hidden while collapsed)
+
+    @ViewBuilder
+    private var collapsibleContent: some View {
+        if recommendedSets != nil || nudgeNote != nil {
+            VStack(alignment: .leading, spacing: 6) {
+                if let recommendedSets {
+                    RecommendedSetsChip(
+                        recommended: recommendedSets,
+                        count: Binding(get: { setCount }, set: { onSetCountChange($0) }),
+                        font: .caption
+                    )
+                }
+
+                // One line of why behind an applied nudge target ("last one
+                // felt easy") — cleared once the next check-in lands.
+                if let nudgeNote {
+                    Text(nudgeNote)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+
+        setTable
+
+        rowActions
+
+        if isHistoryExpanded {
+            historySection
+        }
     }
 
     // MARK: - Header chip

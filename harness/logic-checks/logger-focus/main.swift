@@ -9,6 +9,10 @@
 //   incomplete set in exercise order (nil once all are checked) and
 //   fieldAfterCompleting walks focus on exactly as Next would from that
 //   set's reps cell — completing repeatedly visits every set once.
+// - Auto-collapse (build 4, LoggerCollapseModel): a card folds exactly when
+//   every set is checked and the lifter has not re-opened it; un-checking
+//   reopens it whatever the flag says; completing an exercise's last set
+//   folds it AND still hands focus/target to the next exercise.
 // Compiles against the REAL LoggerFocusModel.swift.
 import Foundation
 
@@ -160,7 +164,51 @@ check("COMPLETE SET walk: ends nil once everything is checked (pill → WRAP UP)
 check("COMPLETE SET walk: each focus handoff lands on the next target's weight cell",
       handoffsAgree)
 
+// MARK: - 6. Auto-collapse — LoggerCollapseModel, derived from the same logs
+
+func collapsed(_ exercise: String, manuallyExpanded: Bool = false) -> Bool {
+    LoggerCollapseModel.isCollapsed(
+        allSetsCompleted: LoggerCollapseModel.allSetsCompleted(
+            setCount: setCount(exercise),
+            isCompleted: { isDone(exercise, $0) }
+        ),
+        manuallyExpanded: manuallyExpanded
+    )
+}
+
+done = [key("Bench Press", 0), key("Bench Press", 1)]
+check("collapse: every set checked → the card folds (derived from the logs, no stored flag)",
+      collapsed("Bench Press") &&
+      LoggerCollapseModel.completedCount(setCount: 2, isCompleted: { isDone("Bench Press", $0) }) == 2)
+
+done = [key("Bench Press", 0)]
+check("collapse: one set still open → the card stays open (an unpadded set is open)",
+      !collapsed("Bench Press") && !collapsed("Incline Dumbbell Press") &&
+      LoggerCollapseModel.completedCount(setCount: 2, isCompleted: { isDone("Bench Press", $0) }) == 1)
+
+done = [key("Bench Press", 0), key("Bench Press", 1)]
+check("collapse: the header chevron (manual expand) overrides while every set stays checked",
+      !collapsed("Bench Press", manuallyExpanded: true) && collapsed("Bench Press", manuallyExpanded: false))
+
+done = [key("Bench Press", 1)]
+check("collapse: un-checking a set reopens the card whatever the manual flag says",
+      !collapsed("Bench Press", manuallyExpanded: false) && !collapsed("Bench Press", manuallyExpanded: true))
+
+done = [key("Bench Press", 0)]
+let lastBenchTarget = target()
+done.insert(key("Bench Press", 1))
+check("collapse: completing the LAST set folds the card AND focus/target still advance to the next exercise",
+      lastBenchTarget?.exercise == "Bench Press" && lastBenchTarget?.setIndex == 1 &&
+      collapsed("Bench Press") &&
+      after("Bench Press", 1) == .weight("Incline Dumbbell Press", 0) &&
+      target()?.exercise == "Incline Dumbbell Press" && target()?.setIndex == 0 &&
+      !collapsed("Incline Dumbbell Press"))
+
+check("collapse: header summary pluralizes (\"4 sets\" / \"1 set\")",
+      LoggerCollapseModel.summary(completedCount: 4) == "4 sets" &&
+      LoggerCollapseModel.summary(completedCount: 1) == "1 set")
+
 // MARK: - Verdict
 
-print(failures == 0 ? "ALL \(24) CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
+print(failures == 0 ? "ALL \(30) CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
 exit(failures == 0 ? 0 : 1)
