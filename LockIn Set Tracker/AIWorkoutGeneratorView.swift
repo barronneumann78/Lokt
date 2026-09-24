@@ -3,9 +3,10 @@ import SwiftUI
 /// Generate Workout. Look v2: a 26pt title, the prompt composer on the field
 /// fill with hairline quick-idea chips and the one gradient Generate pill;
 /// the review stage is the Coach draft card — WORKOUT DRAFT micro label, the
-/// editable title field, an exercises • sets meta line, numbered mono rows
-/// folded to four behind "+ N more" (tap a row to open its reasoning and the
-/// name / sets / reps / note fields with Smart Swap and Remove), then Save
+/// editable title field, an exercises • sets meta line, every exercise as a
+/// `DraftExerciseRow` (the name on its own line beside the 44pt info button,
+/// sets • reps beneath; tap a row to open its reasoning and the name / sets /
+/// reps / note fields with Smart Swap and Remove — no "+ N more" fold), then Save
 /// Routine as THE gradient pill beside a Revise ghost that focuses the coach
 /// composer below. Every binding, the revision service, the review-before-save
 /// flow and `AIWorkoutRoutineSaver` are untouched.
@@ -36,8 +37,6 @@ struct AIWorkoutGeneratorView: View {
     /// Exercise ids whose row is open (reasoning/tip plus the edit fields).
     /// Fresh drafts and revisions decode new ids, so rows start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
-    /// Whether the draft list shows every row or folds past four.
-    @State private var isDraftListExpanded = false
     @FocusState private var revisionFocused: Bool
 
     private let client = AIWorkoutGeneratorClient()
@@ -47,11 +46,6 @@ struct AIWorkoutGeneratorView: View {
         "Give me a pull day focused on back thickness and biceps",
         "Create a full body workout for a small apartment gym"
     ]
-
-    /// Rows past this count fold behind "+ N more" until tapped.
-    private static let foldedExerciseCount = 4
-    /// Width of the "1." column so names line up down the list.
-    private static let exerciseIndexWidth: CGFloat = 22
 
     var body: some View {
         ZStack {
@@ -318,112 +312,57 @@ struct AIWorkoutGeneratorView: View {
     // MARK: Draft exercise list
 
     private func draftExerciseList(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
-        let rows = Array(generatedRoutine.exercises.enumerated())
-        let hiddenCount = rows.count - Self.foldedExerciseCount
-        let isFolded = hiddenCount > 0 && !isDraftListExpanded
-        let visibleRows = isFolded ? Array(rows.prefix(Self.foldedExerciseCount)) : rows
-
-        return VStack(alignment: .leading, spacing: 12) {
-            ForEach(visibleRows, id: \.element.id) { item in
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(generatedRoutine.exercises.enumerated()), id: \.element.id) { item in
                 draftExerciseRow(item.element, index: item.offset)
-            }
-
-            if isFolded {
-                Button {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        isDraftListExpanded = true
-                    }
-                } label: {
-                    Text("+ \(hiddenCount) more")
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textTertiary)
-                        .padding(.leading, Self.exerciseIndexWidth + 10)
-                        .padding(.vertical, 2)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show \(hiddenCount) more exercises")
             }
         }
     }
 
-    /// One numbered row: index in mono, the name (tap the row or its chevron
-    /// to open it), "3 sets • 8–10" in mono, the ask and info buttons. The
-    /// Check Name chip flags an unmatched name; the Recommended sets chip
-    /// sits beneath while the count differs. Open, the row shows the coach's
-    /// reasoning/tip and the name / sets / reps / note fields with Smart Swap
-    /// and Remove — the same edits as before, one tap away.
+    /// One `DraftExerciseRow` (the shared name / info / sets • reps / chevron /
+    /// ask row). Beneath it, this surface's own pieces: the Check Name chip
+    /// for an unmatched name, the Recommended sets chip while the count
+    /// differs and the row is closed, and — open — the coach's reasoning/tip
+    /// with the name / sets / reps / note fields, Smart Swap and Remove: the
+    /// same edits as before, one tap away.
     private func draftExerciseRow(_ exercise: AIGeneratedExercise, index: Int) -> some View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
         let reasoning = nonEmptyText(exercise.reasoning)
         let tip = nonEmptyText(exercise.tip)
         let isExpanded = expandedDetailIDs.contains(exercise.id)
-        let trimmedName = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("\(index + 1).")
-                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textTertiary)
-                .frame(width: Self.exerciseIndexWidth, alignment: .leading)
+        return DraftExerciseRow(
+            index: index,
+            name: exercise.name,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            disclosureID: exercise.id,
+            expandedIDs: $expandedDetailIDs,
+            showsDisclosure: true,
+            infoExercise: matchedExercise,
+            askContext: ExerciseAskContext(draft: exercise),
+            askTarget: $askTarget,
+            askHinted: hints.showAskHint(sessionCount: workoutStore.sessions.count),
+            infoHinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
+        ) {
+            if matchedExercise == nil {
+                aiStatusChip(title: "Check Name", color: AppTheme.secondary)
+            }
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(trimmedName.isEmpty ? "Exercise name" : trimmedName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(trimmedName.isEmpty ? AppTheme.textTertiary : AppTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+            if !isExpanded,
+               let recommendedSets = exercise.recommendedSets,
+               recommendedSets != max(1, exercise.sets) {
+                RecommendedSetsChip(
+                    recommended: recommendedSets,
+                    count: setBinding(for: index),
+                    font: .caption
+                )
+            }
 
-                    ExerciseDetailDisclosureChevron(
-                        id: exercise.id,
-                        expandedIDs: $expandedDetailIDs,
-                        font: .caption
-                    )
-
-                    Spacer(minLength: 8)
-
-                    Text("\(max(1, exercise.sets)) sets • \(exercise.reps)")
-                        .font(.system(.caption, design: .monospaced))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .fixedSize()
-
-                    ExerciseAskButton(
-                        context: ExerciseAskContext(draft: exercise),
-                        askTarget: $askTarget,
-                        font: .footnote,
-                        hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
-                    )
-
-                    if let matchedExercise {
-                        ExerciseInfoButton(
-                            exercise: matchedExercise,
-                            hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
-                        )
-                    }
-                }
-
-                if matchedExercise == nil {
-                    aiStatusChip(title: "Check Name", color: AppTheme.secondary)
-                }
-
-                if !isExpanded,
-                   let recommendedSets = exercise.recommendedSets,
-                   recommendedSets != max(1, exercise.sets) {
-                    RecommendedSetsChip(
-                        recommended: recommendedSets,
-                        count: setBinding(for: index),
-                        font: .caption
-                    )
-                }
-
-                if isExpanded {
-                    expandedRowDetails(exercise, index: index, reasoning: reasoning, tip: tip)
-                }
+            if isExpanded {
+                expandedRowDetails(exercise, index: index, reasoning: reasoning, tip: tip)
             }
         }
-        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: true)
     }
 
     private func expandedRowDetails(
@@ -541,7 +480,6 @@ struct AIWorkoutGeneratorView: View {
                 revisionPrompt = ""
                 errorMessage = nil
                 expandedDetailIDs = []
-                isDraftListExpanded = false
                 stage = .prompt
             }
             .buttonStyle(GhostButtonStyle())

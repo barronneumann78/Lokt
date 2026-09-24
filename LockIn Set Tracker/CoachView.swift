@@ -103,11 +103,6 @@ struct CoachView: View {
     /// versions decode fresh ids, so rows naturally start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
 
-    /// Draft ids whose exercise list is fully open. The card shows the
-    /// first four rows behind a "+ N more" line; new draft versions decode
-    /// fresh ids, so they start folded again.
-    @State private var expandedDraftListIDs: Set<UUID> = []
-
     /// The draft card's Revise hands focus here — the existing revise path
     /// (the next message replaces only the focused draft).
     @FocusState private var composerFocused: Bool
@@ -617,117 +612,61 @@ struct CoachView: View {
 
     // MARK: Draft exercise list
 
-    /// Rows past this count fold behind "+ N more" until tapped.
-    private static let foldedExerciseCount = 4
-
-    /// Width of the "1." column so names line up down the list.
-    private static let exerciseIndexWidth: CGFloat = 22
-
+    /// Every exercise, no "+ N more" fold — the owner prefers the small space
+    /// cost to hidden rows.
     private func draftExerciseList(for draft: AIGeneratedRoutineDraft) -> some View {
-        let rows = Array(draft.exercises.enumerated())
-        let hiddenCount = rows.count - Self.foldedExerciseCount
-        let isFolded = hiddenCount > 0 && !expandedDraftListIDs.contains(draft.id)
-        let visibleRows = isFolded ? Array(rows.prefix(Self.foldedExerciseCount)) : rows
-
-        return VStack(alignment: .leading, spacing: 10) {
-            ForEach(visibleRows, id: \.element.id) { item in
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(draft.exercises.enumerated()), id: \.element.id) { item in
                 draftExerciseRow(item.element, index: item.offset)
-            }
-
-            if isFolded {
-                Button {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        _ = expandedDraftListIDs.insert(draft.id)
-                    }
-                } label: {
-                    Text("+ \(hiddenCount) more")
-                        .font(.caption.weight(.medium))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textTertiary)
-                        .padding(.leading, Self.exerciseIndexWidth + 10)
-                        .padding(.vertical, 2)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show \(hiddenCount) more exercises")
             }
         }
     }
 
-    /// One numbered line: index in mono, the name (a link into the exercise
-    /// detail, with the reasoning/tip chevron when the coach gave one), then
-    /// "3 sets • 8–10" in mono and the ask button on the right. The
-    /// "Recommended sets: N" chip sits beneath only while it differs — the
-    /// same one-tap restore as before.
+    /// One `DraftExerciseRow` (the shared name / info / sets • reps / chevron /
+    /// ask row — identical to the generator's). The chevron appears only when
+    /// the coach gave a reasoning or tip; beneath, the "Recommended sets: N"
+    /// chip sits only while it differs (the same one-tap restore as before)
+    /// and the open row shows the reasoning/tip lines.
     private func draftExerciseRow(_ exercise: AIGeneratedExercise, index: Int) -> some View {
         let reasoning = nonEmptyText(exercise.reasoning)
         let tip = nonEmptyText(exercise.tip)
         let isExpanded = expandedDetailIDs.contains(exercise.id)
 
-        return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("\(index + 1).")
-                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textTertiary)
-                .frame(width: Self.exerciseIndexWidth, alignment: .leading)
+        return DraftExerciseRow(
+            index: index,
+            name: exercise.name,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            disclosureID: exercise.id,
+            expandedIDs: $expandedDetailIDs,
+            showsDisclosure: reasoning != nil || tip != nil,
+            infoExercise: exerciseStore.exercises.resolvedExercise(named: exercise.name),
+            askContext: ExerciseAskContext(draft: exercise),
+            askTarget: $askTarget,
+            askHinted: hints.showAskHint(sessionCount: store.sessions.count),
+            infoHinted: hints.showInfoHint(sessionCount: store.sessions.count)
+        ) {
+            if let recommendedSets = exercise.recommendedSets,
+               recommendedSets != max(1, exercise.sets) {
+                RecommendedSetsChip(
+                    recommended: recommendedSets,
+                    count: draftSetBinding(for: index),
+                    font: .caption
+                )
+            }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    ExerciseTextNavigationLink(
-                        exerciseName: exercise.name,
-                        exercises: exerciseStore.exercises
-                    ) {
-                        Text(exercise.name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-                    }
+            if isExpanded, let reasoning {
+                Text(reasoning)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-                    if reasoning != nil || tip != nil {
-                        ExerciseDetailDisclosureChevron(
-                            id: exercise.id,
-                            expandedIDs: $expandedDetailIDs,
-                            font: .caption
-                        )
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Text("\(exercise.sets) sets • \(exercise.reps)")
-                        .font(.system(.caption, design: .monospaced))
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .fixedSize()
-
-                    ExerciseAskButton(
-                        context: ExerciseAskContext(draft: exercise),
-                        askTarget: $askTarget,
-                        font: .footnote,
-                        hinted: hints.showAskHint(sessionCount: store.sessions.count)
-                    )
-                }
-
-                if let recommendedSets = exercise.recommendedSets,
-                   recommendedSets != max(1, exercise.sets) {
-                    RecommendedSetsChip(
-                        recommended: recommendedSets,
-                        count: draftSetBinding(for: index),
-                        font: .caption
-                    )
-                }
-
-                if isExpanded, let reasoning {
-                    Text(reasoning)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if isExpanded, let tip {
-                    Text(tip)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            if isExpanded, let tip {
+                Text(tip)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

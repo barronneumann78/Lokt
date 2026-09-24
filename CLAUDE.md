@@ -207,4 +207,5 @@ Phase 9 (done, Onboarding): `OnboardingView` matches the "Onboarding — tap a t
   are junk; never commit them.
 - OpenAI calls cost real money: live-test AI endpoints with a small budget
   (≤2–3 calls) and say how many you used.
+- Draft rows (owner feedback, build 4): `DraftExerciseRow` (`DraftExerciseRow.swift`) is the ONE numbered exercise row for the generator and coach draft cards — full-width one-line name (16pt, shrinks to 85%, never wraps) beside a 44×44 `info.circle` that pushes `ExerciseDetailView`, then "3 sets • 8–10" mono with the chevron/ask; every exercise shows (no "+ N more" fold). Surface-specific chips/disclosure bodies go in its `content` closure; never fork the row.
 - Consistency pass (agent G, 2026-09-24): Settings, routine editing, exercise picking, AI generation, imports + small sheets restyled to the v2 vocabulary; tab bar already token-clean. Look v2 rollout complete.
