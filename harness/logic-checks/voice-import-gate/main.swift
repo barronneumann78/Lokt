@@ -89,6 +89,23 @@ check("confidence decodes 'high'",
 check("confidence decodes 'low'",
       (try? JSONDecoder().decode(VoiceParsedConfidence.self, from: Data("\"low\"".utf8))) == .low)
 
+// MARK: - VoiceTranscriptEditing (the editable transcript step, owner ask 2026-09-24)
+
+check("transcript cap: 20,001 chars truncate silently to the server's 20,000",
+      VoiceTranscriptEditing.capped(String(repeating: "a", count: 20_001)).count == 20_000)
+check("transcript cap: text under the cap is untouched",
+      VoiceTranscriptEditing.capped("bench press 3 by 8") == "bench press 3 by 8")
+check("initial transcript prefers the server transcript over the live preview",
+      VoiceTranscriptEditing.initialTranscript(server: " Bench press, three sets. ", live: "bench press three sets") == "Bench press, three sets.")
+check("initial transcript falls back to the live preview when the server heard nothing",
+      VoiceTranscriptEditing.initialTranscript(server: "  \n", live: " bench press ") == "bench press"
+      && VoiceTranscriptEditing.initialTranscript(server: nil, live: "").isEmpty)
+check("has edits: whitespace-only changes are not edits, word changes are",
+      !VoiceTranscriptEditing.hasEdits(current: " bench press\n", original: "bench press")
+      && VoiceTranscriptEditing.hasEdits(current: "bench press 4 sets", original: "bench press 3 sets"))
+check("can build: mirrors the server's 3-character floor after trimming",
+      !VoiceTranscriptEditing.canBuild("  ab ") && VoiceTranscriptEditing.canBuild(" abs "))
+
 if failures == 0 {
     print("VOICE-IMPORT-GATE CHECKS PASSED")
     exit(0)

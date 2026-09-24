@@ -192,14 +192,25 @@ struct VoiceWorkoutImportPipeline {
     private let parser = VoiceExercisePhraseParser()
     private let generatorClient = AIWorkoutGeneratorClient()
 
+    /// Step 1 of the voice flow: the recording → the server transcript,
+    /// trimmed. The view chooses between it and the on-device live preview
+    /// (`VoiceTranscriptEditing.initialTranscript`) and shows the result in
+    /// an editable field — the audio is never sent again after this.
+    func transcribe(recordingAt audioFileURL: URL) async throws -> String {
+        let transcription = try await transcriber.transcribeAudio(at: audioFileURL)
+        return transcription.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Step 2: the reviewed (possibly edited) transcript → routine draft.
+    /// Exactly the field's text goes to /parse, capped like the server caps it.
     func importWorkout(
-        from audioFileURL: URL,
+        fromTranscript rawTranscript: String,
         exercises: [Exercise],
         progress: @escaping @MainActor (String) -> Void = { _ in }
     ) async throws -> ImportedWorkoutDraft {
-        await progress("Uploading your recording...")
-        let transcription = try await transcriber.transcribeAudio(at: audioFileURL)
-        let transcript = transcription.transcript.nonEmptyOrFallback("")
+        let transcript = VoiceTranscriptEditing.capped(
+            rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
 
         guard !transcript.isEmpty else {
             throw VoiceWorkoutImportError.emptyTranscript

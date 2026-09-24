@@ -23,6 +23,15 @@ struct VoiceWorkoutImportView: View {
     @State private var expandedDetailIDs: Set<UUID> = []
     @FocusState private var revisionFocused: Bool
     @State private var showFilteredPhrases = false
+    /// The reviewed transcript: seeded from the server (else the live
+    /// preview) when recording stops, editable until BUILD WORKOUT, capped at
+    /// the server's 20,000 characters silently (`VoiceTranscriptEditing`).
+    @State private var transcriptDraft = ""
+    /// The text as it landed — re-recording confirms only when it changed.
+    @State private var transcriptBaseline = ""
+    @State private var transcriptReady = false
+    @State private var isTranscribing = false
+    @State private var showReplaceTranscriptConfirm = false
 
     private let reviewSecondaryText = AppTheme.textSecondary
     private let reviewMutedText = AppTheme.textSecondary
@@ -54,6 +63,14 @@ struct VoiceWorkoutImportView: View {
         .keyboardDoneBar()
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Replace the transcript?", isPresented: $showReplaceTranscriptConfirm) {
+            Button("Record Again", role: .destructive) {
+                startRecording()
+            }
+            Button("Keep Editing", role: .cancel) { }
+        } message: {
+            Text("Your edits will be replaced by the new recording.")
+        }
         .sheet(item: $editorTarget) { target in
             if let draft = draftForEditor(target) {
                 VoiceExerciseEditorSheet(
@@ -109,7 +126,9 @@ struct VoiceWorkoutImportView: View {
             VStack(spacing: 16) {
                 // The mic circle is the input stage's one gradient (its
                 // primary action); recording swaps it for the logger's red
-                // dot under `.recordingGlow()`.
+                // dot under `.recordingGlow()`. Once a transcript is on
+                // screen BUILD WORKOUT is the primary, so the mic drops to a
+                // hairline circle ("Record Again").
                 Button {
                     toggleRecording()
                 } label: {
@@ -120,6 +139,14 @@ struct VoiceWorkoutImportView: View {
                                     .fill(AppTheme.danger)
                                     .frame(width: 84, height: 84)
                                     .recordingGlow()
+                            } else if transcriptReady {
+                                Circle()
+                                    .fill(AppTheme.surfaceElevated)
+                                    .frame(width: 84, height: 84)
+                                    .overlay {
+                                        Circle()
+                                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                                    }
                             } else {
                                 Circle()
                                     .fill(AppTheme.primaryGradient)
@@ -128,10 +155,14 @@ struct VoiceWorkoutImportView: View {
 
                             Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
                                 .font(.system(size: 34, weight: .bold))
-                                .foregroundStyle(AppTheme.backgroundTop)
+                                .foregroundStyle(
+                                    transcriptReady && !recorder.isRecording
+                                        ? AppTheme.textPrimary
+                                        : AppTheme.backgroundTop
+                                )
                         }
 
-                        Text(recorder.isRecording ? "Stop Recording" : "Start Recording")
+                        Text(micTitle)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.textPrimary)
                     }
@@ -141,38 +172,114 @@ struct VoiceWorkoutImportView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(recorder.isRecording ? "Stop Recording" : "Start Recording")
+                .disabled(isTranscribing)
+                .opacity(isTranscribing ? 0.6 : 1)
+                .accessibilityLabel(micTitle)
 
-                if recorder.isRecording {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(AppTheme.danger)
-                                .frame(width: 7, height: 7)
-                                .recordingGlow()
-
-                            Text("LIVE TRANSCRIPT")
-                                .microLabel()
-                        }
-
-                        Text(
-                            recorder.liveTranscript.isEmpty
-                                ? (recorder.isLivePreviewAvailable
-                                    ? "Listening..."
-                                    : "Live preview is unavailable, but the final transcript will still be created after you stop recording.")
-                                : recorder.liveTranscript
-                        )
-                        .font(.body)
-                        .foregroundStyle(recorder.liveTranscript.isEmpty ? AppTheme.textSecondary : AppTheme.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-                    }
+                if showsTranscriptField {
+                    transcriptField
                 }
             }
         }
         .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    private var micTitle: String {
+        if recorder.isRecording { return "Stop Recording" }
+        return transcriptReady ? "Record Again" : "Start Recording"
+    }
+
+    private var showsTranscriptField: Bool {
+        recorder.isRecording || isTranscribing || transcriptReady
+    }
+
+    private var isTranscriptEditable: Bool {
+        transcriptReady && !recorder.isRecording && !isTranscribing
+    }
+
+    private var canBuildWorkout: Bool {
+        isTranscriptEditable && VoiceTranscriptEditing.canBuild(transcriptDraft)
+    }
+
+    private var transcriptFieldBinding: Binding<String> {
+        Binding(
+            get: { transcriptDraft },
+            set: { transcriptDraft = VoiceTranscriptEditing.capped($0) }
+        )
+    }
+
+    private var transcriptPlaceholder: String {
+        if recorder.isRecording {
+            return recorder.isLivePreviewAvailable
+                ? "Listening..."
+                : "Live preview is unavailable, but the final transcript will still be created after you stop recording."
+        }
+        if isTranscribing { return "Uploading your recording..." }
+        return "Type the workout you want."
+    }
+
+    /// One field for the transcript's whole life: the live preview while the
+    /// mic is on (read-only), still read-only while the server transcribes,
+    /// then the editable text BUILD WORKOUT sends to /parse. Same
+    /// fieldBackground / hairline / controlCornerRadius surface throughout.
+    private var transcriptField: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                if recorder.isRecording {
+                    Circle()
+                        .fill(AppTheme.danger)
+                        .frame(width: 7, height: 7)
+                        .recordingGlow()
+
+                    Text("LIVE TRANSCRIPT")
+                        .microLabel()
+                } else {
+                    Text("TRANSCRIPT")
+                        .microLabel()
+                }
+
+                Spacer()
+
+                if isTranscribing {
+                    ProgressView()
+                        .tint(AppTheme.textSecondary)
+                } else if isTranscriptEditable, !transcriptDraft.isEmpty {
+                    Button("Clear") {
+                        transcriptDraft = ""
+                    }
+                    .buttonStyle(GhostButtonStyle(isCompact: true))
+                }
+            }
+
+            if isTranscriptEditable {
+                TrackerTextEditor(transcriptPlaceholder, text: transcriptFieldBinding, minHeight: 160)
+            } else {
+                // Read-only twin of `TrackerTextEditor`: grows with the live
+                // text instead of scrolling inside a box the user cannot touch.
+                Text(recorder.liveTranscript.isEmpty ? transcriptPlaceholder : recorder.liveTranscript)
+                    .font(.body)
+                    .foregroundStyle(recorder.liveTranscript.isEmpty ? AppTheme.textSecondary : AppTheme.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.fieldBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+            }
+
+            if isTranscriptEditable {
+                Button("Build Workout") {
+                    buildWorkout()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!canBuildWorkout)
+                .opacity(canBuildWorkout ? 1 : 0.6)
+            }
+        }
     }
 
     private var processingContent: some View {
@@ -541,29 +648,82 @@ struct VoiceWorkoutImportView: View {
 
     private func toggleRecording() {
         if recorder.isRecording {
-            stopAndProcessRecording()
+            stopAndTranscribeRecording()
+        } else if transcriptReady,
+                  VoiceTranscriptEditing.hasEdits(current: transcriptDraft, original: transcriptBaseline) {
+            showReplaceTranscriptConfirm = true
         } else {
-            Task {
-                do {
-                    errorMessage = nil
-                    try await recorder.startRecording()
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
+            startRecording()
+        }
+    }
+
+    private func startRecording() {
+        KeyboardDismiss.dismiss()
+        Task {
+            do {
+                errorMessage = nil
+                try await recorder.startRecording()
+                // Only a recording that actually started replaces the field.
+                transcriptDraft = ""
+                transcriptBaseline = ""
+                transcriptReady = false
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }
 
-    private func stopAndProcessRecording() {
+    private func stopAndTranscribeRecording() {
         do {
             let recordingURL = try recorder.stopRecording()
-            processRecording(at: recordingURL)
+            transcribeRecording(at: recordingURL)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func processRecording(at recordingURL: URL) {
+    /// Stop → server transcript (else the live preview) → the editable
+    /// field. Nothing is parsed until the user taps BUILD WORKOUT.
+    private func transcribeRecording(at recordingURL: URL) {
+        errorMessage = nil
+        isTranscribing = true
+
+        Task {
+            defer {
+                try? FileManager.default.removeItem(at: recordingURL)
+            }
+
+            var serverTranscript: String?
+            var transcriptionError: Error?
+            do {
+                serverTranscript = try await pipeline.transcribe(recordingAt: recordingURL)
+            } catch {
+                transcriptionError = error
+            }
+
+            let transcript = VoiceTranscriptEditing.initialTranscript(
+                server: serverTranscript,
+                live: recorder.liveTranscript
+            )
+            isTranscribing = false
+
+            guard !transcript.isEmpty else {
+                errorMessage = (transcriptionError ?? VoiceWorkoutImportError.emptyTranscript).localizedDescription
+                return
+            }
+
+            transcriptDraft = transcript
+            transcriptBaseline = transcript
+            transcriptReady = true
+        }
+    }
+
+    /// The edited text — never the audio again — goes to /parse.
+    private func buildWorkout() {
+        let transcript = transcriptDraft
+        guard VoiceTranscriptEditing.canBuild(transcript) else { return }
+        KeyboardDismiss.dismiss()
+
         if exerciseStore.exercises.isEmpty {
             exerciseStore.loadExercises()
         }
@@ -572,16 +732,12 @@ struct VoiceWorkoutImportView: View {
         conversationMessages = []
         showFilteredPhrases = false
         stage = .processing
-        processingMessage = "Uploading your recording..."
+        processingMessage = "Understanding your workout request..."
 
         Task {
-            defer {
-                try? FileManager.default.removeItem(at: recordingURL)
-            }
-
             do {
                 let importedWorkout = try await pipeline.importWorkout(
-                    from: recordingURL,
+                    fromTranscript: transcript,
                     exercises: exerciseStore.exercises
                 ) { message in
                     processingMessage = message
@@ -592,6 +748,7 @@ struct VoiceWorkoutImportView: View {
                 conversationMessages = initialConversation(for: importedWorkout)
                 stage = .review
             } catch {
+                // The transcript stays in the field so the user can fix it and retry.
                 errorMessage = error.localizedDescription
                 stage = .input
             }
@@ -690,6 +847,11 @@ struct VoiceWorkoutImportView: View {
         isApplyingRevision = false
         expandedDetailIDs = []
         showFilteredPhrases = false
+        transcriptDraft = ""
+        transcriptBaseline = ""
+        transcriptReady = false
+        isTranscribing = false
+        showReplaceTranscriptConfirm = false
         stage = .input
     }
 
