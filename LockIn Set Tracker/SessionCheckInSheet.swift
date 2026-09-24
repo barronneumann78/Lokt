@@ -363,7 +363,7 @@ struct SessionCheckInSheet: View {
     private func nudgeCard(_ nudge: WorkoutNudge) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("NEXT SESSION")
-                .microLabel(AppTheme.accent)
+                .microLabel(AppTheme.textSecondary)
 
             VStack(spacing: 0) {
                 ForEach(Array(nudge.changedItems.enumerated()), id: \.element.name) { index, item in
@@ -384,22 +384,7 @@ struct SessionCheckInSheet: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(alignment: .topTrailing) {
-            nudgeCardGlow
-        }
         .surfaceCard(cornerRadius: nudgeCardCornerRadius)
-    }
-
-    /// The board's faint accent glow in the card's top-right corner: the
-    /// `.heroGlow()` token drawn behind an empty 120pt box pinned top-trailing
-    /// and nudged into the corner; the card's clip trims the overflow. The
-    /// radial itself lives in Theme.swift.
-    private var nudgeCardGlow: some View {
-        Color.clear
-            .frame(width: 120, height: 120)
-            .heroGlow()
-            .offset(x: 28, y: -28)
-            .allowsHitTesting(false)
     }
 
     private func nudgeRow(_ item: WorkoutNudgeItem) -> some View {

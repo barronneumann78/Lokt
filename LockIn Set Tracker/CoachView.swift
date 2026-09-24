@@ -555,9 +555,8 @@ struct CoachView: View {
 
     /// The card: WORKOUT DRAFT micro label with the pager chip and dots on
     /// the right (multi replies only), 18pt title, an exercise/set meta line,
-    /// a hairline, the numbered exercise list, and the action row. The
-    /// accent hairline over `glassCard()` makes it the one accent-bordered
-    /// card on the screen.
+    /// a hairline, the numbered exercise list, and the action row, on a
+    /// standard-hairline `glassCard()` (the `.ai` Save pill is its accent).
     private func draftCardContent(for draft: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 10) {
@@ -603,10 +602,6 @@ struct CoachView: View {
         }
         .padding(18)
         .glassCard()
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
-                .stroke(AppTheme.accentHairline, lineWidth: 1)
-        }
         .gesture(pagerSwipe)
     }
 
@@ -690,7 +685,7 @@ struct CoachView: View {
                     Button(hasSavedLineage(draft) ? "Update Workout" : "Save Workout") {
                         saveDraft(draft)
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle(prominence: .ai))
                 }
 
                 Button("Revise") {

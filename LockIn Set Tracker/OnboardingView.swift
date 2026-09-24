@@ -2,9 +2,9 @@ import SwiftUI
 import UIKit
 
 /// The onboarding quiz — "tap a tile, it slides on" (look v2). One question
-/// per `OnboardingStep`: an accent micro label, a 30pt question, big tiles.
+/// per `OnboardingStep`: a `textSecondary` micro label, a 30pt question, big tiles.
 /// Single-choice steps advance on tap (the check lands, ~250ms, then the
-/// slide); age / areas / the note pin the screen's one gradient pill.
+/// slide); age / areas / the note pin the flat Continue / Finish Setup pill.
 /// Stored keys and values are untouched — `savePreferences` writes the same
 /// `AIUserPreferences` as before, and `onComplete` still flips the
 /// `hasCompletedOnboarding` flag at the app root (Settings → Retake Quiz
@@ -274,7 +274,7 @@ struct OnboardingView: View {
     private var stepHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(step.label)
-                .microLabel(AppTheme.accent)
+                .microLabel(AppTheme.textSecondary)
 
             Text(step.question)
                 .font(.system(size: 30, weight: .bold))
@@ -385,7 +385,7 @@ struct OnboardingView: View {
         .padding(.bottom, 12)
     }
 
-    /// The screen's one gradient pill, pinned under the Continue steps.
+    /// The flat primary pill (`.standard`), pinned under the Continue steps.
     private func continueFooter(enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(step.continueTitle, action: action)
             .buttonStyle(PrimaryButtonStyle())
