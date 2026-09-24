@@ -1679,8 +1679,9 @@ private struct MuscleDonutCard: View {
 
 /// The one switch for the advanced layer. Off by default — exercise-order
 /// analytics are for people who want them. The same flag shows the position
-/// tag on PR rows in the day sheet.
-private enum AnalyticsAdvanced {
+/// tag on PR rows in the day sheet and on the exercise page's HISTORY rows
+/// (`ExerciseDetailView`), which is why it is not file-private.
+enum AnalyticsAdvanced {
     static let storageKey = "analyticsAdvancedV1"
 }
 
