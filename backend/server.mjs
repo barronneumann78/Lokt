@@ -1143,6 +1143,9 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       ok: true,
       configured: Boolean(apiKey),
+      // Railway injects the deployed commit; local dev reports "dev". Lets a
+      // deploy be verified with a free GET instead of a paid model call.
+      version: (process.env.RAILWAY_GIT_COMMIT_SHA ?? "dev").slice(0, 7),
       models: {
         workoutGenerator: workoutGeneratorModel,
         photoImport: photoImportModel,
