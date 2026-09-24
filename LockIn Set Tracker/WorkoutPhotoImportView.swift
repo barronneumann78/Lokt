@@ -153,7 +153,7 @@ struct WorkoutPhotoImportView: View {
                 Button("Take Photo") {
                     showCamera = true
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(PrimaryButtonStyle(prominence: .ai))
 
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Text("Upload Image")

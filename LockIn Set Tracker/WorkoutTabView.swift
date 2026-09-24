@@ -3,9 +3,10 @@ import SwiftUI
 // The action hub: create and start workouts. Owns the routine library and every
 // create-flow entry; the logger is pushed from here. Routines render in stored
 // order — group sections first (creation order), the ungrouped after — nothing
-// is reshuffled. The one promotion is the gradient START on each group's next
-// member (and on the overall next when it sits outside every group): the same
-// rotation rule Home's "Up next" reads, via `WorkoutTabInsights`.
+// is reshuffled. The one promotion is an accent hairline on each group's next
+// member's card (and on the overall next when it sits outside every group):
+// the same rotation rule Home's "Up next" reads, via `WorkoutTabInsights`.
+// Every card's START is the same ghost capsule.
 struct WorkoutTabView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var coachRouter: CoachRouter
@@ -171,7 +172,7 @@ struct WorkoutTabView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("WORKOUTS")
-                    .microLabel(AppTheme.primary)
+                    .microLabel(AppTheme.textSecondary)
 
                 Text(WorkoutTabInsights.countLine(routineCount: routines.count, groupCount: routineGroups.count))
                     .font(.caption.weight(.semibold))
@@ -222,14 +223,14 @@ struct WorkoutTabView: View {
     }
 
     // MARK: - Pinned generate
-    // The screen's primary gradient pill → the create flow's AI path. Only
-    // the next-up cards' small START pills share the gradient.
+    // The screen's one `.ai` gradient pill → the create flow's AI path. The
+    // cards' START pills are all ghost (restraint pass, build 4).
 
     private var pinnedGenerate: some View {
         Button("GENERATE WORKOUT") {
             navigateToCreate = true
         }
-        .buttonStyle(PrimaryButtonStyle())
+        .buttonStyle(PrimaryButtonStyle(prominence: .ai))
         .padding(.horizontal, AppTheme.screenPadding)
         .padding(.top, 10)
         .padding(.bottom, 12)
@@ -447,7 +448,7 @@ struct WorkoutTabView: View {
 
                 Spacer(minLength: 0)
 
-                startButton(for: routine, isNext: isNext)
+                startButton(for: routine)
             }
 
             if !preview.isEmpty {
@@ -470,30 +471,28 @@ struct WorkoutTabView: View {
         }
         .padding(AppTheme.rowPadding)
         .glassCard()
+        .overlay {
+            // The next-up card (the group's next member, or the overall next
+            // among the ungrouped) is marked by a thin accent hairline — the
+            // group chip says it in words, this says it on the card. No
+            // gradient on cards.
+            if isNext {
+                RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                    .stroke(AppTheme.accentHairline, lineWidth: 1)
+            }
+        }
     }
 
-    /// The gradient START marks the next-up card (the group's next member, or
-    /// the overall next among the ungrouped); every other card gets a ghost
-    /// capsule. Both run the same replace-in-progress guard.
-    @ViewBuilder
-    private func startButton(for routine: Routine, isNext: Bool) -> some View {
-        if isNext {
-            Button {
-                requestStartWorkout(routine)
-            } label: {
-                Text("START")
-                    .tracking(1)
-            }
-            .buttonStyle(PrimaryButtonStyle(isCompact: true))
-        } else {
-            Button {
-                requestStartWorkout(routine)
-            } label: {
-                Text("START")
-                    .tracking(1)
-            }
-            .buttonStyle(GhostButtonStyle(isCompact: true))
+    /// Every card's START is the same compact ghost capsule; all run the
+    /// replace-in-progress guard.
+    private func startButton(for routine: Routine) -> some View {
+        Button {
+            requestStartWorkout(routine)
+        } label: {
+            Text("START")
+                .tracking(1)
         }
+        .buttonStyle(GhostButtonStyle(isCompact: true))
     }
 
     private func chip(_ text: String) -> some View {

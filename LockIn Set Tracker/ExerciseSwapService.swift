@@ -360,7 +360,7 @@ struct ExerciseSwapSheet: View {
             Button(isLoading ? "Finding Swaps..." : "Find Swaps") {
                 requestSuggestions()
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle(prominence: .ai))
             .disabled(isLoading || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 4)
             .opacity(isLoading || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 4 ? 0.6 : 1)
         }

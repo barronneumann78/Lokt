@@ -275,7 +275,7 @@ struct VoiceWorkoutImportView: View {
                 Button("Build Workout") {
                     buildWorkout()
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(PrimaryButtonStyle(prominence: .ai))
                 .disabled(!canBuildWorkout)
                 .opacity(canBuildWorkout ? 1 : 0.6)
             }

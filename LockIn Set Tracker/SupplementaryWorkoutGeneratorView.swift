@@ -162,7 +162,7 @@ struct SupplementaryWorkoutGeneratorView: View {
             Button("Generate Add-On") {
                 generateBlock()
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle(prominence: .ai))
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
             .opacity(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
         }

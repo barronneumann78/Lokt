@@ -86,7 +86,7 @@ struct CreateWorkoutOptionsView: View {
             NavigationLink(destination: AIWorkoutGeneratorView(onSave: handleChildSave)) {
                 Text("Generate with AI")
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle(prominence: .ai))
             .padding(.bottom, 4)
 
             NavigationLink(destination: SupplementaryWorkoutGeneratorView(onSave: handleChildSave)) {
