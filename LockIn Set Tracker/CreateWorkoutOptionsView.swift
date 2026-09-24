@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The create-flow hub. Look v2: a 26pt title, micro-label sections, one
-/// gradient pill for the AI path (Generate with AI) and every other entry as
-/// a hairline option card.
+/// The create-flow hub. Look v2: a 26pt title, micro-label sections, three
+/// equal gradient-marked AI tiles (describe / voice / photo) and every other
+/// entry as a hairline option card.
 struct CreateWorkoutOptionsView: View {
     enum EntryMode {
         case allOptions
@@ -77,16 +77,30 @@ struct CreateWorkoutOptionsView: View {
         .buttonStyle(.plain)
     }
 
+    /// Three equal AI entry tiles — text, voice and photo are the same kind of
+    /// action, so none of them gets to be "the" AI button. Add-On Block appends
+    /// to an existing routine and stays a row beneath.
     private var smartToolsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(entryMode == .aiTools ? "ASK LOKT" : "SMART TOOLS")
                 .microLabel(AppTheme.textSecondary)
 
-            // THE gradient pill of the screen: the AI path.
-            NavigationLink(destination: AIWorkoutGeneratorView(onSave: handleChildSave)) {
-                Text("Generate with AI")
+            HStack(spacing: 10) {
+                NavigationLink(destination: AIWorkoutGeneratorView(onSave: handleChildSave)) {
+                    aiTile(title: "Describe", icon: "text.bubble.fill")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink(destination: VoiceWorkoutImportView(onSave: handleChildSave)) {
+                    aiTile(title: "Voice", icon: "waveform")
+                }
+                .buttonStyle(.plain)
+
+                NavigationLink(destination: WorkoutPhotoImportView(onSave: handleChildSave)) {
+                    aiTile(title: "Photo", icon: "camera.fill")
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(PrimaryButtonStyle(prominence: .ai))
             .padding(.bottom, 4)
 
             NavigationLink(destination: SupplementaryWorkoutGeneratorView(onSave: handleChildSave)) {
@@ -96,23 +110,31 @@ struct CreateWorkoutOptionsView: View {
                 )
             }
             .buttonStyle(.plain)
-
-            NavigationLink(destination: VoiceWorkoutImportView(onSave: handleChildSave)) {
-                optionCard(
-                    title: "Import by Voice",
-                    icon: "waveform.badge.mic"
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink(destination: WorkoutPhotoImportView(onSave: handleChildSave)) {
-                optionCard(
-                    title: "Import from Photo",
-                    icon: "sparkles.rectangle.stack.fill"
-                )
-            }
-            .buttonStyle(.plain)
         }
+    }
+
+    /// Equal-weight AI tile: a 44pt gradient glyph circle over a 15pt title.
+    /// The gradient marks "this talks to Lokt"; all three share it equally.
+    private func aiTile(title: String, icon: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(AppTheme.backgroundTop)
+                .frame(width: 44, height: 44)
+                .background(AppTheme.primaryGradient)
+                .clipShape(Circle())
+                .primaryGlow()
+
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .contentShape(Rectangle())
+        .glassCard(cornerRadius: 18)
     }
 
     private var optionalManualFooter: some View {
@@ -133,7 +155,7 @@ struct CreateWorkoutOptionsView: View {
     }
 
     /// Hairline option card: a 40pt hairline glyph circle, 16pt title, quiet
-    /// chevron. Neutral — the accent belongs to the gradient pill above.
+    /// chevron. Neutral — the gradient belongs to the AI tiles above.
     private func optionCard(title: String, icon: String) -> some View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
