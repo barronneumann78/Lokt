@@ -401,14 +401,14 @@ extension View {
     }
 
     /// The primary pill's glow (`AppTheme.primaryGlow`). `PrimaryButtonStyle`
-    /// applies it for accent fills; views never call `.shadow(` themselves.
+    /// applies it for `.ai` accent fills; views never call `.shadow(` themselves.
     func primaryGlow() -> some View {
         modifier(PrimaryGlowModifier())
     }
 
-    /// Radial accent glow behind THE hero number of a screen. Phase 1 wears it
-    /// in exactly two places: Home's week volume and the Analytics headline
-    /// strip.
+    /// Radial accent glow behind THE hero number. Since the build-4 restraint
+    /// pass it sits in exactly one place: Home's week-volume number. Tiles,
+    /// cards and micro labels never glow.
     func heroGlow() -> some View {
         modifier(HeroGlowModifier())
     }
@@ -440,14 +440,28 @@ extension View {
     }
 }
 
-// Full-width pill. The accent fill (the default — THE primary action of a
-// screen) renders `AppTheme.primaryGradient` under `.primaryGlow()`; every
-// other fill (dark surfaces, `success`) stays flat in the same capsule.
+// Full-width pill. The accent fill renders at one of two prominences:
+// `.standard` (the default) is a FLAT `AppTheme.primary` capsule — near-black
+// label, no gradient, no glow — for every ordinary primary action (Save,
+// Continue, COMPLETE SET, START…). `.ai` is the `AppTheme.primaryGradient`
+// pill under `.primaryGlow()`, reserved for AI entry points (Generate, Build
+// Workout, Take Photo, Find Swaps, the coach draft's Save). The allow-list of
+// `.ai` views lives in CLAUDE.md → Design system and is enforced by
+// `harness/checks.sh` (owner feedback build 4: the neon should help, not take
+// over). Non-accent fills (dark surfaces, `success`) stay flat regardless.
 struct PrimaryButtonStyle: ButtonStyle {
+    enum Prominence {
+        /// Gradient + glow. AI entry points only.
+        case ai
+        /// Flat accent capsule. Everything else.
+        case standard
+    }
+
     var fill: Color = AppTheme.primary
+    var prominence: Prominence = .standard
     /// Chip sizing — the Workout tab's START on a next-up card: 12pt bold
     /// label, 9pt vertical padding, hugging its content instead of filling
-    /// the row. Gradient and glow are unchanged; only the size shrinks.
+    /// the row. Prominence is unchanged; only the size shrinks.
     var isCompact: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -459,7 +473,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, isCompact ? 16 : 0)
             .background {
                 Group {
-                    if isAccentFill {
+                    if isAIGradient {
                         AppTheme.primaryGradient
                     } else {
                         fill
@@ -474,13 +488,16 @@ struct PrimaryButtonStyle: ButtonStyle {
                         .stroke(AppTheme.cardBorder, lineWidth: 1)
                 }
             }
-            .modifier(ConditionalPrimaryGlow(isOn: isAccentFill))
+            .modifier(ConditionalPrimaryGlow(isOn: isAIGradient))
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
             .animation(.easeOut(duration: 0.18), value: configuration.isPressed)
     }
 
-    private var isAccentFill: Bool {
-        fill == AppTheme.primary
+    /// Gradient + glow only when the fill is the accent AND the caller asked
+    /// for `.ai`; a `.standard` accent fill is the same flat capsule as any
+    /// other fill.
+    private var isAIGradient: Bool {
+        fill == AppTheme.primary && prominence == .ai
     }
 
     // Vivid fills (volt / green / amber) demand a near-black label; dark surface
@@ -528,14 +545,15 @@ struct SecondaryButtonStyle: ButtonStyle {
 }
 
 /// Full-width ghost pill: no fill, hairline capsule, secondary label — the
-/// quiet companion beneath a screen's one gradient pill (the logger's Wrap Up).
+/// quiet companion beneath a screen's primary pill (the logger's Wrap Up).
 /// `verticalPadding` 17 matches `PrimaryButtonStyle`'s height for a ghost that
-/// sits BESIDE the gradient pill (the coach draft's Revise).
+/// sits BESIDE the primary pill (the coach draft's Revise).
 struct GhostButtonStyle: ButtonStyle {
     var verticalPadding: CGFloat = 12
-    /// Chip sizing to pair with `PrimaryButtonStyle(isCompact: true)`: the
-    /// same 12pt bold label and 9pt vertical padding, content-hugging — the
-    /// Workout tab's START on every card that is not up next.
+    /// Chip sizing (mirrors `PrimaryButtonStyle(isCompact: true)`): 12pt bold
+    /// label, 9pt vertical padding, content-hugging — the Workout tab's START
+    /// on every routine card (the next-up card is marked by its hairline, not
+    /// its button).
     var isCompact: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {

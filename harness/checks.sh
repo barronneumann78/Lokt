@@ -110,6 +110,22 @@ STAGING=$(grep -rn 'LOKT_STAGE' --include="*.swift" "$SRC")
 if [ -n "$STAGING" ]; then fail "temporary screenshot staging found:"; echo "$STAGING" | head -5
 else pass "no temporary screenshot staging"; fi
 
+# 10. `PrimaryButtonStyle(prominence: .ai)` — the gradient + glow pill — is
+#     reserved for AI entry points (owner feedback build 4: "you tried too
+#     hard adding the colors"; the neon should help, not take over). Every
+#     other primary action is the flat `.standard` capsule. The allow-list
+#     mirrors CLAUDE.md → Design system → "Button prominence"; add a file
+#     there AND here when a new AI entry point ships.
+AI_ALLOWED=" AIWorkoutGeneratorView.swift CoachView.swift CreateWorkoutOptionsView.swift ExerciseSwapService.swift SupplementaryWorkoutGeneratorView.swift VoiceWorkoutImportView.swift WorkoutPhotoImportView.swift WorkoutTabView.swift "
+AI_STRAY=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  b=$(basename "$f")
+  case "$AI_ALLOWED" in *" $b "*) ;; *) AI_STRAY="$AI_STRAY $b";; esac
+done <<< "$(grep -rlE 'prominence: *\.ai' --include="*.swift" "$SRC")"
+if [ -n "$AI_STRAY" ]; then fail "prominence: .ai outside the AI entry-point views (see CLAUDE.md allow-list):$AI_STRAY"
+else pass "prominence: .ai only on AI entry-point views"; fi
+
 echo "=========================="
 if [ $FAIL -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "CHECKS FAILED"; fi
 

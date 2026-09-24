@@ -115,21 +115,51 @@ schemes exist; volt is default). **Banned** (checks.sh enforces): blue/purple,
 `AngularGradient`, glassmorphism, `Color(red:...)` literals outside Theme.swift,
 and — in every file EXCEPT Theme.swift — `LinearGradient`/`RadialGradient`/
 `.shadow(`. Depth is a token-layer concern: `AppTheme.primaryGradient` +
-`.primaryGlow()` (the one primary pill per screen; `PrimaryButtonStyle` renders
-them for accent fills), `AppTheme.cardHighlight` (1px inner top highlight inside
-`glassCard()`), `.heroGlow()` (radial accent glow behind the hero number). Views
-use those tokens and never write gradients or shadows themselves. Rules: volt
-≤1–2×/screen (chrome; data encoding exempt), near-black labels on accent fills,
-`.monospacedDigit()` on every numeral, one hero number per screen, no gray
-explainer captions — labels carry the meaning.
+`.primaryGlow()` (rendered ONLY by `PrimaryButtonStyle(prominence: .ai)` — see
+"Button prominence" below), `AppTheme.cardHighlight` (1px inner top highlight
+inside `glassCard()`), `.heroGlow()` (radial accent glow behind Home's
+week-volume number — the app's one glowing number; tiles never glow). Views
+use those tokens and never write gradients or shadows themselves. Rules:
+near-black labels on accent fills, `.monospacedDigit()` on every numeral, one
+hero number per screen, no gray explainer captions — labels carry the meaning.
+
+**Button prominence (restraint pass, owner feedback build 4: "the neon green
+should help — but it shouldn't take over").** `PrimaryButtonStyle` takes
+`prominence: .ai | .standard` (default `.standard`). `.standard` = flat
+`AppTheme.primary` capsule, near-black label, NO gradient, NO glow — every
+ordinary primary action (Save, Continue, COMPLETE SET / WRAP UP, APPLY TO
+ROUTINE, Save Preferences, Finish Setup, NEW ROUTINE…). `.ai` = the gradient +
+glow pill, used ONLY on AI entry points. The allow-list (mirrored by the
+`prominence: .ai` sensor in `harness/checks.sh` — update both together):
+Generate Workout (`AIWorkoutGeneratorView`), Generate with AI
+(`CreateWorkoutOptionsView`), the Workout tab's pinned GENERATE WORKOUT
+(`WorkoutTabView`), Build Workout (`VoiceWorkoutImportView`), Take Photo
+(`WorkoutPhotoImportView`), Generate Add-On
+(`SupplementaryWorkoutGeneratorView`), Find Swaps (`ExerciseSwapService`) and
+the coach draft's Save / Update Workout (`CoachView` — the AI result's
+primary). The Coach and Ask Lokt send circles keep `primaryGradient` directly
+(AI sends, not `PrimaryButtonStyle`). Card-level START pills on the Workout
+tab are ALL `GhostButtonStyle(isCompact: true)`; the next-up card is signalled
+by the group's "is next" chip plus an `accentHairline` border on that card
+only — no gradient on cards.
+**Accent budget per screen** = the selected state (chips/tiles on
+`accentChipFill` + `accentHairline`) + ONE key number or label. Kept: the
+logger's active-row tint and TARGET chip, the progression chart line/fill and
+its latest value, today's bar on Home's week strip, the tab bar's selected
+tint, the recording red dot, Home's "View Analytics ›" link, the onboarding
+progress segments. Removed in the restraint pass: exercise-page cue numbers
+and muscle chips (all neutral), every tile glow except Home's hero, the
+Analytics and Home PR tile numbers, the coach draft-card accent border, the
+check-in NEXT SESSION label and corner glow, the onboarding step label, the
+Workout tab's WORKOUTS header.
 
 **Concept → code (the "v2 dream app" look).** Palette untouched; depth comes
 from glow and highlight only, never new colors or full-screen washes.
 Phase 1 (done, global): the tokens above; `Primary/Secondary/TertiaryButtonStyle`
-are all capsules and the accent-filled primary is a lime→olive (per-scheme
-`AccentScheme.gradientStops` + `glowOpacity`, ice kept subtle) gradient pill
-with glow; every `glassCard()` carries the highlight; `.heroGlow()` sits on
-Home's week volume and the Analytics headline strip only.
+are all capsules; the accent-filled primary is flat by default and becomes a
+lime→olive (per-scheme `AccentScheme.gradientStops` + `glowOpacity`, ice kept
+subtle) gradient pill with glow only at `prominence: .ai`; every `glassCard()`
+carries the highlight; `.heroGlow()` sits on Home's week volume only.
 Phase 2 (done, Home): `HomeView` is hero card (week volume + "+8% vs last"
 chip + Mon–Sun strip, today's bar = `primaryGradient` under `.barGlow()`, the
 one small-mark glow token) → SESSIONS·7D / PRs·30D / STREAK row → RECENT with
@@ -149,17 +179,17 @@ prompt included) — the Workout tab stays the sole owner of the logger.
 Phase 3 (done, Logger, commit `5a5eef2`): recording header (red dot under
 `.recordingGlow()`, REST accent chip), 20pt exercise name + TARGET chip,
 SET · PREV · LBS · REPS · check set table on elevated rows with the active
-row on `activeRowTint`, pinned `COMPLETE SET` / `WRAP UP` gradient pill with
+row on `activeRowTint`, pinned `COMPLETE SET` / `WRAP UP` flat accent pill with
 Wrap Up as a `GhostButtonStyle` beneath. Latency architecture untouched.
 Phase 4 (done, Coach): `CoachView` header is "Lokt Coach" (22pt) with the
 policy caption on the same row; sent messages are hairline bubbles on
 `surfaceElevated` (18pt corners, 4pt tail), coach prose is plain 14pt text
-with no bubble; the draft card is `glassCard()` under an `accentHairline`
-border — WORKOUT DRAFT micro label + the `accentChipFill` "1 OF 2" chip and
+with no bubble; the draft card is `glassCard()` on the standard hairline —
+WORKOUT DRAFT micro label + the `accentChipFill` "1 OF 2" chip and
 accent/hairline dots, 18pt title, exercises • sets meta line (no minutes:
 the payload has no time estimate), hairline, numbered mono rows folded to
 four behind "+ N more", then the row `Save Workout` / `Update Workout`
-gradient pill (swapped for the Saved capsule) beside a fixed-width Revise
+`.ai` gradient pill (swapped for the Saved capsule) beside a fixed-width Revise
 ghost (`GhostButtonStyle(verticalPadding: 17)`, focuses the composer) and,
 for multi replies, `Save both` / `Save all` as a ghost pill beneath; the
 composer is a 50pt card-fill capsule with a 38pt `primaryGradient` send
@@ -167,10 +197,10 @@ circle. The multi-draft seams (`drafts`/`focusedDraftIndex`, lineage,
 `persistDraft`) are unchanged. The v2 look is complete; further work is
 polish, not phases.
 Phase 5 (done, Analytics): `AnalyticsView` matches the "Progress — charts with volt depth" board — VOLUME·7D / SETS·30D / PRs·e1RM tiles (16pt `glassCard(cornerRadius:)`), the progression line over `AppTheme.chartFill` with in-card exercise / metric (e1RM · Top set · Volume) / window (7d · 30d · 90d · All) controls, a PRs·e1RM board (tap a row to drill the chart down to that lift), the muscle-split donut and distribution radar each with a 30d · 90d · All switch; every control persists through the `AnalyticsControls` `@AppStorage` keys, the math stays in `AnalyticsSnapshot` parameterized by `AnalyticsWindow`/`ProgressionMetric` (completed sets only), logic-checked in `harness/logic-checks/analytics-controls`.
-Phase 6 (done, Workout tab): `WorkoutTabView` matches the "Workouts — rotation groups" board — WORKOUTS accent micro label over "5 ROUTINES · 2 GROUPS" with a 40pt hairline "+" (the manual create-routine entry), group sections (name + hairline, `accentChipFill` "<name> is next" chip, "…" rename/delete menu), routine cards (18pt name, three-exercise preview, "N exercises" + last-done chips, folder menu + "…" edit/delete at the bottom-right) where each group's next member — and the overall next when it is ungrouped — wears the compact gradient START (`PrimaryButtonStyle(isCompact:)`) and every other card a compact `GhostButtonStyle`, a quiet UNGROUPED label only once a group exists, and the pinned GENERATE WORKOUT pill (the create flow's AI path; the preset-plan entry moved into `CreateWorkoutOptionsView`). The rotation math is `WorkoutTabInsights` running `HomeInsights.nextRoutine` over one group's members (never forked), logic-checked in `harness/logic-checks/workout-rotation`.
-Phase 7 (done, Exercise page): `ExerciseDetailView` matches the "Exercise — cues in drop-downs" board — quiet title bar (system back), 24pt name over muscle chips (primaries on `accentChipFill`/`accentHairline`, secondaries plain hairline, data from `ExerciseMuscleRoles`), a BEST / e1RM / LAST tile row (16pt `glassCard`, e1RM accent under `.heroGlow()`; hidden until the exercise has a completed set), then drop-down sections on 18pt cards (FORM CUES open by default with 22pt accent-outlined circle numbers, HOW TO · N, IN PLAIN WORDS with the Explain It Simply ghost inside, VARIATIONS · N, HISTORY · N sessions with per-session best sets and the "3rd in session" tag only under `analyticsAdvancedV1`) whose open state persists per app via `ExerciseDetailSection` `@AppStorage` keys, a ghost Add to Routine, and the pinned ASK LOKT composer (50pt card capsule, 38pt `primaryGradient` send circle — the screen's one gradient; Return sends). Math is `ExerciseDetailInsights` (Foundation-only, completed sets via `AnalyticsMath`, positions via `ExercisePositionLogic`), logic-checked in `harness/logic-checks/exercise-detail-stats`. The add-to-routine sheet keeps its `RoutineLibrary` paths under the same vocabulary (card rows, one gradient pill for NEW ROUTINE).
-Phase 8 (done, Check-in sheet): `SessionCheckInSheet` matches the "Check-in — two taps, then a nudge" board — a `card`-colored sheet (28pt `presentationCornerRadius`, hairline `presentationBackground`, 40×4 handle, SESSION CHECK-IN micro label over the phase title, the X skip kept) with 64pt effort tiles (`Too easy` / `About right` / `Too hard` — the `CheckInOutcome.label` strings the coach note also reads, so they stay) and 52pt ANYTHING HURT? tiles (`No` / `Yes, something`; selected = `accentChipFill` + `accentHairline` + accent label, the app's chip vocabulary), the loading line in the card's footprint, then the NEXT SESSION card (`surfaceCard(cornerRadius: 18)`, `.heroGlow()` pinned top-trailing behind an empty box — no new token) whose rows print the payload verbatim — `140 → 145 lb × 6-8` from `lastWeight`/`suggestedWeightText`/`repText`, `3 → 4 sets` from `preferredSetCount`/`setCount`, never recomputed — over `overallNote` ("Sized from today's completed sets" only when the payload has none), the APPLY TO ROUTINE gradient pill and a ghost Not now; the safety branch keeps its Talk It Through with Coach pill; settled/failed wear a Saved-style capsule and a ghost Done. `recordCheckIn` → `/api/ai/workout-nudge` → explicit Apply upsert → `ExerciseProgressionState` → TARGET chip, the 422/pain routing and `adaptationMetricsV1` are untouched (`harness/logic-checks/adaptation-loop`).
-Phase 9 (done, Onboarding): `OnboardingView` matches the "Onboarding — tap a tile, it slides on" board — a quiet top row (system `‹` back, one 4pt `primaryGradient` segment per step with hairline for the rest, a mono "2 / 7" counter in `textTertiary`), an accent micro label (YOUR STARTING POINT · YOUR FOCUS · WHERE YOU TRAIN · USUAL SESSION · AGE · AREAS TO WORK AROUND · ANYTHING ELSE TO AVOID) over a 30pt two-line question, and big tiles (`glassCard(cornerRadius: 20)`, 18pt padding, 17pt bold title + 13pt factual subtitle, a 26pt mark that is hairline at rest and the gradient with a near-black check when selected; selected tile = `accentChipFill` + `accentHairline`). The four single-choice steps select and slide on after 250ms over a "Tap one — it slides on" / Skip row (Skip is the existing leave-the-quiz action, never on AGE); AGE (auto-focused number pad, the requirement/range hint as one `textSecondary` line), AREAS TO WORK AROUND (multi-select, "None right now" = the empty set) and the note pin the screen's one gradient Continue / Finish Setup pill. Step order, counter, tap-vs-Continue split and the age gate are `OnboardingStep`/`OnboardingFlow` (`OnboardingFlow.swift`, Foundation-only), logic-checked in `harness/logic-checks/onboarding-flow`; `savePreferences` writes the same `aiUserPreferences` keys and values, `hasCompletedOnboarding` still gates `MainTabView`, and Settings → Retake Quiz still restarts here.
+Phase 6 (done, Workout tab): `WorkoutTabView` matches the "Workouts — rotation groups" board — WORKOUTS `textSecondary` micro label over "5 ROUTINES · 2 GROUPS" with a 40pt hairline "+" (the manual create-routine entry), group sections (name + hairline, `accentChipFill` "<name> is next" chip, "…" rename/delete menu), routine cards (18pt name, three-exercise preview, "N exercises" + last-done chips, folder menu + "…" edit/delete at the bottom-right) where every card wears a compact `GhostButtonStyle` START and each group's next member — and the overall next when it is ungrouped — carries an `accentHairline` card border, a quiet UNGROUPED label only once a group exists, and the pinned GENERATE WORKOUT `.ai` pill (the create flow's AI path; the preset-plan entry moved into `CreateWorkoutOptionsView`). The rotation math is `WorkoutTabInsights` running `HomeInsights.nextRoutine` over one group's members (never forked), logic-checked in `harness/logic-checks/workout-rotation`.
+Phase 7 (done, Exercise page): `ExerciseDetailView` matches the "Exercise — cues in drop-downs" board — quiet title bar (system back), 24pt name over muscle chips (all plain hairline, primaries first, data from `ExerciseMuscleRoles`), a BEST / e1RM / LAST tile row (16pt `glassCard`, all `textPrimary`, no glow; hidden until the exercise has a completed set), then drop-down sections on 18pt cards (FORM CUES open by default with 22pt hairline circle numbers in `textSecondary`, HOW TO · N, IN PLAIN WORDS with the Explain It Simply ghost inside, VARIATIONS · N, HISTORY · N sessions with per-session best sets and the "3rd in session" tag only under `analyticsAdvancedV1`) whose open state persists per app via `ExerciseDetailSection` `@AppStorage` keys, a ghost Add to Routine, and the pinned ASK LOKT composer (50pt card capsule, 38pt `primaryGradient` send circle — the screen's one gradient; Return sends). Math is `ExerciseDetailInsights` (Foundation-only, completed sets via `AnalyticsMath`, positions via `ExercisePositionLogic`), logic-checked in `harness/logic-checks/exercise-detail-stats`. The add-to-routine sheet keeps its `RoutineLibrary` paths under the same vocabulary (card rows, one flat primary pill for NEW ROUTINE).
+Phase 8 (done, Check-in sheet): `SessionCheckInSheet` matches the "Check-in — two taps, then a nudge" board — a `card`-colored sheet (28pt `presentationCornerRadius`, hairline `presentationBackground`, 40×4 handle, SESSION CHECK-IN micro label over the phase title, the X skip kept) with 64pt effort tiles (`Too easy` / `About right` / `Too hard` — the `CheckInOutcome.label` strings the coach note also reads, so they stay) and 52pt ANYTHING HURT? tiles (`No` / `Yes, something`; selected = `accentChipFill` + `accentHairline` + accent label, the app's chip vocabulary), the loading line in the card's footprint, then the NEXT SESSION card (`surfaceCard(cornerRadius: 18)`, `textSecondary` micro label, no glow) whose rows print the payload verbatim — `140 → 145 lb × 6-8` from `lastWeight`/`suggestedWeightText`/`repText`, `3 → 4 sets` from `preferredSetCount`/`setCount`, never recomputed — over `overallNote` ("Sized from today's completed sets" only when the payload has none), the APPLY TO ROUTINE flat pill and a ghost Not now; the safety branch keeps its Talk It Through with Coach pill; settled/failed wear a Saved-style capsule and a ghost Done. `recordCheckIn` → `/api/ai/workout-nudge` → explicit Apply upsert → `ExerciseProgressionState` → TARGET chip, the 422/pain routing and `adaptationMetricsV1` are untouched (`harness/logic-checks/adaptation-loop`).
+Phase 9 (done, Onboarding): `OnboardingView` matches the "Onboarding — tap a tile, it slides on" board — a quiet top row (system `‹` back, one 4pt `primaryGradient` segment per step with hairline for the rest, a mono "2 / 7" counter in `textTertiary`), a `textSecondary` micro label (YOUR STARTING POINT · YOUR FOCUS · WHERE YOU TRAIN · USUAL SESSION · AGE · AREAS TO WORK AROUND · ANYTHING ELSE TO AVOID) over a 30pt two-line question, and big tiles (`glassCard(cornerRadius: 20)`, 18pt padding, 17pt bold title + 13pt factual subtitle, a 26pt mark that is hairline at rest and the gradient with a near-black check when selected; selected tile = `accentChipFill` + `accentHairline`). The four single-choice steps select and slide on after 250ms over a "Tap one — it slides on" / Skip row (Skip is the existing leave-the-quiz action, never on AGE); AGE (auto-focused number pad, the requirement/range hint as one `textSecondary` line), AREAS TO WORK AROUND (multi-select, "None right now" = the empty set) and the note pin the flat Continue / Finish Setup pill. Step order, counter, tap-vs-Continue split and the age gate are `OnboardingStep`/`OnboardingFlow` (`OnboardingFlow.swift`, Foundation-only), logic-checked in `harness/logic-checks/onboarding-flow`; `savePreferences` writes the same `aiUserPreferences` keys and values, `hasCompletedOnboarding` still gates `MainTabView`, and Settings → Retake Quiz still restarts here.
 
 ## Conventions & guardrails
 
