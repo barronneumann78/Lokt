@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Preset splits. Look v2: 26pt title, the recommended split as a card with
+/// a ghost Start, split choices as selection tiles (accent chip fill +
+/// accent hairline + gradient check when chosen), template and equipment
+/// chips in the chip vocabulary, Create N-Day Split as THE gradient pill,
+/// Preview / Save This Day / Adjust Equipment as ghosts, and the day preview
+/// as hairline rows. Generation and save paths are untouched.
 struct PresetWorkoutGeneratorView: View {
     var onSave: () -> Void
 
@@ -15,9 +21,11 @@ struct PresetWorkoutGeneratorView: View {
     @State private var askTarget: ExerciseAskContext?
 
     private let gridColumns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
     ]
+
+    private static let tileCornerRadius: CGFloat = 18
 
     private var recommendedSplitKind: WorkoutPresetSplitKind {
         .fullBodyBeginner
@@ -65,11 +73,11 @@ struct PresetWorkoutGeneratorView: View {
                         previewSection(preview)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
         }
-        .navigationTitle("Preset Splits")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: configureInitialSelection)
         .onChange(of: selectedSplitKind) { _, _ in
@@ -83,121 +91,149 @@ struct PresetWorkoutGeneratorView: View {
 
     private var headerSection: some View {
         Text("Start with a split and keep it easy.")
-            .font(.system(size: 30, weight: .bold))
-            .tracking(-0.5)
+            .font(.system(size: 26, weight: .bold))
+            .tracking(-0.3)
             .foregroundStyle(AppTheme.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 2)
     }
 
     private func recommendedSection(_ split: WorkoutPresetSplit) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("RECOMMENDED")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            Text(split.title)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(split.title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
-            Text(split.subtitle)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
+                Text(split.subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Button("Start with \(split.title)") {
                 selectedSplitKind = split.kind
                 saveSelectedSplit(split)
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(GhostButtonStyle())
             .disabled(exerciseStore.exercises.isEmpty)
             .opacity(exerciseStore.exercises.isEmpty ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private var splitSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("CHOOSE ANOTHER SPLIT")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             ForEach(WorkoutPresetSplitKind.allCases) { kind in
                 if let split = PresetWorkoutLibrary.split(for: kind) {
-                    Button {
+                    splitTile(split, isSelected: selectedSplitKind == kind) {
                         selectedSplitKind = kind
-                    } label: {
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(split.title)
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(AppTheme.textPrimary)
-
-                                Text("\(split.templates.count) day\(split.templates.count == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: selectedSplitKind == kind ? "checkmark.circle.fill" : "circle")
-                                .font(.title3)
-                                .foregroundStyle(selectedSplitKind == kind ? AppTheme.textPrimary : AppTheme.textTertiary)
-                        }
-                        .padding(16)
-                        .background(selectedSplitKind == kind ? AppTheme.surfaceElevated : AppTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(selectedSplitKind == kind ? AppTheme.textTertiary : AppTheme.cardBorder, lineWidth: 1)
-                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
-        .padding(20)
-        .glassCard()
+    }
+
+    /// Selection tile in the Onboarding vocabulary: 17pt title over the day
+    /// count; accent chip fill + accent hairline and a gradient check when
+    /// selected, a hairline circle otherwise.
+    private func splitTile(_ split: WorkoutPresetSplit, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous)
+
+        return Button(action: action) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(split.title)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .multilineTextAlignment(.leading)
+
+                    Text("\(split.templates.count) day\(split.templates.count == 1 ? "" : "s")")
+                        .font(.system(size: 13))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+
+                Spacer(minLength: 12)
+
+                ZStack {
+                    if isSelected {
+                        Circle()
+                            .fill(AppTheme.primaryGradient)
+
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundStyle(AppTheme.backgroundTop)
+                    } else {
+                        Circle()
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+                }
+                .frame(width: 26, height: 26)
+            }
+            .padding(AppTheme.rowPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isSelected {
+                    shape.fill(AppTheme.accentChipFill)
+                }
+            }
+            .glassCard(cornerRadius: Self.tileCornerRadius)
+            .overlay {
+                if isSelected {
+                    shape.stroke(AppTheme.accentHairline, lineWidth: 1)
+                }
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSelected ? "\(split.title), selected" : split.title)
     }
 
     private func selectedSplitSection(_ split: WorkoutPresetSplit) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("SELECTED SPLIT")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            Text(split.title)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(split.title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
-            Text(split.scheduleHint)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
+                Text(split.scheduleHint)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Text("INCLUDED ROUTINES")
-                .microLabel()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("INCLUDED ROUTINES")
+                    .microLabel()
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(split.templates) { template in
-                        Button {
-                            selectedTemplateID = template.id
-                            preview = nil
-                        } label: {
-                            Text(template.routineName)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(selectedTemplateID == template.id ? AppTheme.backgroundTop : AppTheme.textSecondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(selectedTemplateID == template.id ? AppTheme.textPrimary : AppTheme.mutedFill)
-                                .clipShape(Capsule())
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(split.templates) { template in
+                            Button {
+                                selectedTemplateID = template.id
+                                preview = nil
+                            } label: {
+                                TagChip(title: template.routineName, isActive: selectedTemplateID == template.id)
+                                    .contentShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
 
-            Button(showEquipmentOptions ? "Hide Equipment Options" : "Adjust Equipment (Optional)") {
-                showEquipmentOptions.toggle()
-            }
-            .buttonStyle(SecondaryButtonStyle())
-
+            // THE gradient pill of the screen.
             Button("Create \(split.templates.count)-Day Split") {
                 saveSelectedSplit(split)
             }
@@ -205,103 +241,126 @@ struct PresetWorkoutGeneratorView: View {
             .disabled(exerciseStore.exercises.isEmpty)
             .opacity(exerciseStore.exercises.isEmpty ? 0.6 : 1)
 
-            Button("Preview Selected Day") {
-                generatePreview()
+            HStack(spacing: 10) {
+                Button("Preview Selected Day") {
+                    generatePreview()
+                }
+                .buttonStyle(GhostButtonStyle())
+                .disabled(selectedTemplate == nil)
+                .opacity(selectedTemplate == nil ? 0.6 : 1)
+
+                Button(showEquipmentOptions ? "Hide Equipment Options" : "Adjust Equipment (Optional)") {
+                    showEquipmentOptions.toggle()
+                }
+                .buttonStyle(GhostButtonStyle())
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
-            .disabled(selectedTemplate == nil)
-            .opacity(selectedTemplate == nil ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private var equipmentSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("EQUIPMENT")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            LazyVGrid(columns: gridColumns, spacing: 12) {
+            LazyVGrid(columns: gridColumns, spacing: 10) {
                 ForEach(EquipmentType.selectionOptions, id: \.self) { equipment in
-                    Button {
+                    equipmentTile(equipment, isSelected: selectedEquipment.contains(equipment)) {
                         toggleEquipment(equipment)
-                    } label: {
-                        Text(equipment.rawValue)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(selectedEquipment.contains(equipment) ? AppTheme.backgroundTop : AppTheme.textSecondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(selectedEquipment.contains(equipment) ? AppTheme.textPrimary : AppTheme.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(AppTheme.cardBorder, lineWidth: selectedEquipment.contains(equipment) ? 0 : 1)
-                            }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    /// Multi-select tile in the chip vocabulary (the Settings injury tiles).
+    private func equipmentTile(_ equipment: EquipmentType, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        let shape = RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
+
+        return Button(action: action) {
+            HStack(spacing: 8) {
+                Text(equipment.rawValue)
+                    .font(.system(size: 13, weight: .semibold))
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                }
+            }
+            .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textPrimary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? AppTheme.accentChipFill : AppTheme.fieldBackground)
+            .clipShape(shape)
+            .overlay {
+                shape.stroke(isSelected ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
     }
 
     private func previewSection(_ preview: GeneratedPresetWorkout) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("DAY PREVIEW")
-                        .microLabel()
+                        .microLabel(AppTheme.textSecondary)
 
                     Text(preview.template.routineName)
-                        .font(.title3.weight(.bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                 }
 
                 Spacer()
 
-                Text("\(preview.matches.count) exercises")
-                    .font(.caption.weight(.bold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(Capsule())
+                TagChip(title: "\(preview.matches.count) exercises")
             }
 
-            ForEach(preview.matches) { match in
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(spacing: 0) {
+                ForEach(Array(preview.matches.enumerated()), id: \.element.id) { item in
+                    if item.offset > 0 {
+                        Rectangle()
+                            .fill(AppTheme.cardBorder)
+                            .frame(height: 1)
+                    }
+
                     HStack(spacing: 10) {
-                        ExerciseTextNavigationLink(exerciseName: match.exercise.name, exercises: exerciseStore.exercises) {
-                            Text(match.exercise.name)
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.textPrimary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            ExerciseTextNavigationLink(exerciseName: item.element.exercise.name, exercises: exerciseStore.exercises) {
+                                Text(item.element.exercise.name)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                    .multilineTextAlignment(.leading)
+                            }
+
+                            TagChip(title: item.element.role.title)
                         }
 
                         Spacer(minLength: 8)
 
                         ExerciseAskButton(
-                            context: ExerciseAskContext(name: match.exercise.name),
+                            context: ExerciseAskContext(name: item.element.exercise.name),
                             askTarget: $askTarget,
                             font: .subheadline,
                             hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
                         )
                     }
-
-                    Text(match.role.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.vertical, 12)
                 }
-                .padding(14)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
             if !preview.missingRoles.isEmpty {
                 Text("Some optional slots could not be filled with the current equipment settings.")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(AppTheme.textTertiary)
             }
 
             Button("Save This Day as Routine") {
@@ -309,11 +368,11 @@ struct PresetWorkoutGeneratorView: View {
                 onSave()
                 dismiss()
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(GhostButtonStyle())
             .disabled(preview.matches.isEmpty)
             .opacity(preview.matches.isEmpty ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 

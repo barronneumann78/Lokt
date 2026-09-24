@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Generate Workout. Look v2: a 26pt title, the prompt composer on the field
+/// fill with hairline quick-idea chips and the one gradient Generate pill;
+/// the review stage is the Coach draft card — WORKOUT DRAFT micro label, the
+/// editable title field, an exercises • sets meta line, numbered mono rows
+/// folded to four behind "+ N more" (tap a row to open its reasoning and the
+/// name / sets / reps / note fields with Smart Swap and Remove), then Save
+/// Routine as THE gradient pill beside a Revise ghost that focuses the coach
+/// composer below. Every binding, the revision service, the review-before-save
+/// flow and `AIWorkoutRoutineSaver` are untouched.
 struct AIWorkoutGeneratorView: View {
     private struct SmartSwapIndex: Identifiable {
         let index: Int
@@ -24,9 +33,12 @@ struct AIWorkoutGeneratorView: View {
     @State private var smartSwapIndex: SmartSwapIndex?
     @State private var askTarget: ExerciseAskContext?
     @State private var isApplyingRevision = false
-    /// Exercise ids whose reasoning/tip block is open. Fresh drafts and
-    /// revisions decode new ids, so cards naturally start collapsed.
+    /// Exercise ids whose row is open (reasoning/tip plus the edit fields).
+    /// Fresh drafts and revisions decode new ids, so rows start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
+    /// Whether the draft list shows every row or folds past four.
+    @State private var isDraftListExpanded = false
+    @FocusState private var revisionFocused: Bool
 
     private let client = AIWorkoutGeneratorClient()
     private let promptSuggestions = [
@@ -35,6 +47,11 @@ struct AIWorkoutGeneratorView: View {
         "Give me a pull day focused on back thickness and biceps",
         "Create a full body workout for a small apartment gym"
     ]
+
+    /// Rows past this count fold behind "+ N more" until tapped.
+    private static let foldedExerciseCount = 4
+    /// Width of the "1." column so names line up down the list.
+    private static let exerciseIndexWidth: CGFloat = 22
 
     var body: some View {
         ZStack {
@@ -51,14 +68,14 @@ struct AIWorkoutGeneratorView: View {
                         reviewContent
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .keyboardDoneBar()
-        .navigationTitle("Generate with AI")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $smartSwapIndex) { target in
             if let exercise = generatedRoutine?.exercises[safe: target.index] {
@@ -78,9 +95,11 @@ struct AIWorkoutGeneratorView: View {
         }
     }
 
+    // MARK: - Prompt stage
+
     private var promptContent: some View {
         Group {
-            headerSection
+            screenTitle("Describe the workout you want.")
             promptSection
 
             if let errorMessage {
@@ -89,11 +108,22 @@ struct AIWorkoutGeneratorView: View {
         }
     }
 
-    private var headerSection: some View {
-        Text("Describe the workout you want.")
-            .font(.system(size: 30, weight: .bold))
-            .tracking(-0.5)
-            .foregroundStyle(AppTheme.textPrimary)
+    private func screenTitle(_ title: String, subtitle: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .padding(.bottom, 2)
     }
 
     private var promptSection: some View {
@@ -101,40 +131,23 @@ struct AIWorkoutGeneratorView: View {
             Text("YOUR PROMPT")
                 .microLabel()
 
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(AppTheme.fieldBackground)
-
-                if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Make me a 45-minute push day with dumbbells only")
-                        .font(.body)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 16)
-                }
-
-                TextEditor(text: $prompt)
-                    .scrollContentBackground(.hidden)
-                    .padding(12)
-                    .frame(minHeight: 170)
-                    .trackerTextEditorStyle()
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
+            TrackerTextEditor(
+                "Make me a 45-minute push day with dumbbells only",
+                text: $prompt,
+                minHeight: 170,
+                cornerRadius: 18
+            )
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("QUICK IDEAS")
                     .microLabel()
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         ForEach(promptSuggestions, id: \.self) { suggestion in
-                            Button(suggestion) {
+                            promptChip(suggestion) {
                                 prompt = suggestion
                             }
-                            .buttonStyle(SecondaryButtonStyle())
                         }
                     }
                     .padding(.vertical, 2)
@@ -144,19 +157,38 @@ struct AIWorkoutGeneratorView: View {
             Button("Generate Workout") {
                 generateWorkout()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.primary))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
             .opacity(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    /// Prompt chip in the Coach tab's vocabulary: hairline capsule on the
+    /// elevated surface; tapping drops the text into the composer.
+    private func promptChip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(AppTheme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(AppTheme.surfaceElevated)
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
+    }
+
+    // MARK: - Generating stage
 
     private var generatingContent: some View {
         VStack(spacing: 18) {
             Text("Building your routine...")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
 
@@ -166,8 +198,8 @@ struct AIWorkoutGeneratorView: View {
                 .scaleEffect(1.2)
 
             Text(prompt)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(24)
@@ -175,35 +207,45 @@ struct AIWorkoutGeneratorView: View {
         .glassCard()
     }
 
+    // MARK: - Review stage
+
     private var reviewContent: some View {
         Group {
             if let generatedRoutine {
                 VStack(alignment: .leading, spacing: 20) {
+                    screenTitle(
+                        "Review your workout",
+                        subtitle: "\(generatedRoutine.exercises.count) exercises • \(generatedRoutine.totalSets) sets"
+                    )
+
                     if let errorMessage {
                         messageCard(title: "Couldn’t Update the Workout Yet", text: errorMessage, tint: AppTheme.secondary)
                     }
 
-                    reviewHeader(for: generatedRoutine)
+                    draftCard(for: generatedRoutine)
                     revisionSection(for: generatedRoutine)
-                    exerciseSection(for: generatedRoutine)
-                    reviewActions(for: generatedRoutine)
                 }
             }
         }
     }
 
-    private func reviewHeader(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
+    /// The Coach draft card: WORKOUT DRAFT micro label with the readiness
+    /// line, the editable title field, an exercises • sets • known meta line,
+    /// the plain-words explanation, a hairline, the numbered rows, then the
+    /// action row. The accent hairline over `glassCard()` makes it the one
+    /// accent-bordered card on the screen.
+    private func draftCard(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Review your workout")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
+            HStack(alignment: .center, spacing: 10) {
+                Text("WORKOUT DRAFT")
+                    .microLabel(AppTheme.accent)
 
-            reviewSummaryBanner(for: generatedRoutine)
+                Spacer(minLength: 8)
 
-            RoutinePlainExplanationSection(draft: generatedRoutine)
+                readinessLine(for: generatedRoutine)
+            }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("ROUTINE TITLE")
                     .microLabel()
 
@@ -211,67 +253,14 @@ struct AIWorkoutGeneratorView: View {
                     .textFieldStyle(TrackerTextFieldStyle())
             }
 
-            HStack(spacing: 10) {
-                statPill(title: "\(generatedRoutine.exercises.count)", subtitle: "Exercises")
-                statPill(title: "\(generatedRoutine.totalSets)", subtitle: "Sets")
-                statPill(title: "\(matchedLibraryExerciseCount(for: generatedRoutine))", subtitle: "Known")
-            }
-        }
-        .padding(20)
-        .glassCard()
-    }
+            Text("\(generatedRoutine.exercises.count) exercises • \(generatedRoutine.totalSets) sets • \(matchedLibraryExerciseCount(for: generatedRoutine)) known")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textSecondary)
 
-    private func revisionSection(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("COACH CHAT")
-                    .microLabel()
+            RoutinePlainExplanationSection(draft: generatedRoutine)
 
-                Spacer()
-
-                if isApplyingRevision {
-                    ProgressView()
-                        .tint(AppTheme.textSecondary)
-                }
-            }
-
-            if !conversationMessages.isEmpty {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(conversationMessages) { message in
-                            conversationBubble(for: message)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 240)
-                .padding(4)
-                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-            }
-
-            if let latestCoachChangeSummary = nonEmptyText(latestCoachChangeSummary) {
-                coachChangeCard(summary: latestCoachChangeSummary)
-            }
-
-            TrackerTextField("Try: swap barbell squat for something easier on my knees", text: $revisionPrompt, axis: .vertical)
-                .textFieldStyle(TrackerTextFieldStyle())
-                .lineLimit(2...4)
-
-            Button(isApplyingRevision ? "Talking to Coach..." : "Send to Coach") {
-                applyRevision(to: generatedRoutine)
-            }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
-            .disabled(isApplyingRevision || revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
-            .opacity(isApplyingRevision || revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
-        }
-        .padding(20)
-        .glassCard()
-    }
-
-    private func exerciseSection(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("ROUTINE PREVIEW")
-                .microLabel()
+            hairline
 
             if isDiscoveryNudgeVisible {
                 DiscoveryNudgeLine {
@@ -281,9 +270,15 @@ struct AIWorkoutGeneratorView: View {
                 }
             }
 
-            ForEach(Array(generatedRoutine.exercises.enumerated()), id: \.element.id) { item in
-                exerciseCard(index: item.offset, exercise: item.element)
-            }
+            draftExerciseList(for: generatedRoutine)
+
+            draftActions(for: generatedRoutine)
+        }
+        .padding(18)
+        .glassCard()
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                .stroke(AppTheme.accentHairline, lineWidth: 1)
         }
         .onAppear {
             guard hints.shouldOfferNudge(sessionCount: workoutStore.sessions.count) else { return }
@@ -297,53 +292,155 @@ struct AIWorkoutGeneratorView: View {
         }
     }
 
-    private func exerciseCard(index: Int, exercise: AIGeneratedExercise) -> some View {
+    /// The old readiness banner as one quiet line: a success check or an
+    /// amber triangle beside the same words.
+    private func readinessLine(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
+        let ready = canSave(generatedRoutine)
+
+        return HStack(spacing: 5) {
+            Image(systemName: ready ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(ready ? AppTheme.success : AppTheme.secondary)
+
+            Text(ready ? "Draft looks ready to save" : "A few details still need review")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineLimit(1)
+        }
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(height: 1)
+    }
+
+    // MARK: Draft exercise list
+
+    private func draftExerciseList(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
+        let rows = Array(generatedRoutine.exercises.enumerated())
+        let hiddenCount = rows.count - Self.foldedExerciseCount
+        let isFolded = hiddenCount > 0 && !isDraftListExpanded
+        let visibleRows = isFolded ? Array(rows.prefix(Self.foldedExerciseCount)) : rows
+
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(visibleRows, id: \.element.id) { item in
+                draftExerciseRow(item.element, index: item.offset)
+            }
+
+            if isFolded {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        isDraftListExpanded = true
+                    }
+                } label: {
+                    Text("+ \(hiddenCount) more")
+                        .font(.caption.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .padding(.leading, Self.exerciseIndexWidth + 10)
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(hiddenCount) more exercises")
+            }
+        }
+    }
+
+    /// One numbered row: index in mono, the name (tap the row or its chevron
+    /// to open it), "3 sets • 8–10" in mono, the ask and info buttons. The
+    /// Check Name chip flags an unmatched name; the Recommended sets chip
+    /// sits beneath while the count differs. Open, the row shows the coach's
+    /// reasoning/tip and the name / sets / reps / note fields with Smart Swap
+    /// and Remove — the same edits as before, one tap away.
+    private func draftExerciseRow(_ exercise: AIGeneratedExercise, index: Int) -> some View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
         let reasoning = nonEmptyText(exercise.reasoning)
         let tip = nonEmptyText(exercise.tip)
-        let hasDisclosure = reasoning != nil || tip != nil
         let isExpanded = expandedDetailIDs.contains(exercise.id)
+        let trimmedName = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 16) {
-                HStack(spacing: 8) {
-                    Text("EXERCISE \(index + 1)")
-                        .microLabel()
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(index + 1).")
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textTertiary)
+                .frame(width: Self.exerciseIndexWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(trimmedName.isEmpty ? "Exercise name" : trimmedName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(trimmedName.isEmpty ? AppTheme.textTertiary : AppTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ExerciseDetailDisclosureChevron(
+                        id: exercise.id,
+                        expandedIDs: $expandedDetailIDs,
+                        font: .caption
+                    )
+
+                    Spacer(minLength: 8)
+
+                    Text("\(max(1, exercise.sets)) sets • \(exercise.reps)")
+                        .font(.system(.caption, design: .monospaced))
                         .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize()
 
-                    if hasDisclosure {
-                        ExerciseDetailDisclosureChevron(id: exercise.id, expandedIDs: $expandedDetailIDs)
+                    ExerciseAskButton(
+                        context: ExerciseAskContext(draft: exercise),
+                        askTarget: $askTarget,
+                        font: .footnote,
+                        hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
+                    )
+
+                    if let matchedExercise {
+                        ExerciseInfoButton(
+                            exercise: matchedExercise,
+                            hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
+                        )
                     }
                 }
 
-                Spacer()
+                if matchedExercise == nil {
+                    aiStatusChip(title: "Check Name", color: AppTheme.secondary)
+                }
 
-                ExerciseAskButton(
-                    context: ExerciseAskContext(draft: exercise),
-                    askTarget: $askTarget,
-                    hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
-                )
-
-                if let matchedExercise {
-                    ExerciseInfoButton(
-                        exercise: matchedExercise,
-                        hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
+                if !isExpanded,
+                   let recommendedSets = exercise.recommendedSets,
+                   recommendedSets != max(1, exercise.sets) {
+                    RecommendedSetsChip(
+                        recommended: recommendedSets,
+                        count: setBinding(for: index),
+                        font: .caption
                     )
                 }
-            }
 
-            if matchedExercise == nil {
-                aiStatusChip(title: "Check Name", color: AppTheme.secondary)
+                if isExpanded {
+                    expandedRowDetails(exercise, index: index, reasoning: reasoning, tip: tip)
+                }
             }
+        }
+        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: true)
+    }
 
-            if isExpanded, let reasoning {
+    private func expandedRowDetails(
+        _ exercise: AIGeneratedExercise,
+        index: Int,
+        reasoning: String?,
+        tip: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let reasoning {
                 Text(reasoning)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if isExpanded, let tip {
+            if let tip {
                 Text(tip)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -367,7 +464,8 @@ struct AIWorkoutGeneratorView: View {
                         if let recommendedSets = exercise.recommendedSets {
                             RecommendedSetsChip(
                                 recommended: recommendedSets,
-                                count: setBinding(for: index)
+                                count: setBinding(for: index),
+                                font: .caption
                             )
                         }
                     }
@@ -397,33 +495,44 @@ struct AIWorkoutGeneratorView: View {
                     .lineLimit(1...3)
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Spacer()
 
                 Button("Smart Swap") {
                     smartSwapIndex = SmartSwapIndex(index: index)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Button("Remove") {
                     removeExercise(at: index)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
             }
         }
-        .padding(18)
-        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: hasDisclosure)
-        .glassCard()
+        .padding(.top, 4)
     }
 
-    private func reviewActions(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button("Save Routine") {
-                saveGeneratedRoutine()
+    // MARK: Draft actions
+
+    /// THE gradient pill of the screen — Save Routine — beside a fixed-width
+    /// Revise ghost that hands focus to the coach composer; Try a Different
+    /// Prompt as a ghost pill beneath.
+    private func draftActions(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Button("Save Routine") {
+                    saveGeneratedRoutine()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(isApplyingRevision || !canSave(generatedRoutine))
+                .opacity(!isApplyingRevision && canSave(generatedRoutine) ? 1 : 0.6)
+
+                Button("Revise") {
+                    revisionFocused = true
+                }
+                .buttonStyle(GhostButtonStyle(verticalPadding: 17))
+                .frame(width: 96)
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(isApplyingRevision || !canSave(generatedRoutine))
-            .opacity(!isApplyingRevision && canSave(generatedRoutine) ? 1 : 0.6)
 
             Button("Try a Different Prompt") {
                 self.generatedRoutine = nil
@@ -432,11 +541,147 @@ struct AIWorkoutGeneratorView: View {
                 revisionPrompt = ""
                 errorMessage = nil
                 expandedDetailIDs = []
+                isDraftListExpanded = false
                 stage = .prompt
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(GhostButtonStyle())
+        }
+        .padding(.top, 2)
+    }
+
+    // MARK: Coach chat (revisions)
+
+    /// COACH CHAT: the conversation in the Coach tab's vocabulary, the
+    /// "Draft updated" line, and the composer — a 50pt card capsule with a
+    /// hairline send circle (not the gradient: Save Routine owns it here).
+    private func revisionSection(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("COACH CHAT")
+                    .microLabel(AppTheme.textSecondary)
+
+                Spacer()
+
+                if isApplyingRevision {
+                    ProgressView()
+                        .tint(AppTheme.textSecondary)
+                }
+            }
+
+            if !conversationMessages.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(conversationMessages) { message in
+                            conversationMessageView(message)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+                .frame(maxHeight: 240)
+            }
+
+            if let latestCoachChangeSummary = nonEmptyText(latestCoachChangeSummary) {
+                coachChangeCard(summary: latestCoachChangeSummary)
+            }
+
+            revisionComposer(for: generatedRoutine)
+        }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private func revisionComposer(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
+        let canRevise = !isApplyingRevision && revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8
+
+        return HStack(spacing: 6) {
+            TrackerTextField("Try: swap barbell squat for something easier on my knees", text: $revisionPrompt, axis: .vertical)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
+                .lineLimit(1...4)
+                .focused($revisionFocused)
+                .padding(.leading, 12)
+                .padding(.vertical, 8)
+
+            Button {
+                applyRevision(to: generatedRoutine)
+            } label: {
+                ZStack {
+                    if isApplyingRevision {
+                        ProgressView()
+                            .tint(AppTheme.textPrimary)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    }
+                }
+                .frame(width: 38, height: 38)
+                .background(AppTheme.surfaceElevated)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+                .opacity(canRevise || isApplyingRevision ? 1 : 0.4)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRevise)
+            .accessibilityLabel(isApplyingRevision ? "Talking to Coach" : "Send to Coach")
+        }
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .background(AppTheme.fieldBackground)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(revisionFocused ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
         }
     }
+
+    /// Sent: hairline bubble on the elevated surface with the 4pt tail.
+    /// Coach: plain 14pt text on the card.
+    @ViewBuilder
+    private func conversationMessageView(_ message: AIWorkoutConversationMessage) -> some View {
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 44)
+
+                Text(message.text)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Self.sentBubbleShape.fill(AppTheme.surfaceElevated))
+                    .overlay {
+                        Self.sentBubbleShape
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+            }
+        } else {
+            Text(message.text)
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static var sentBubbleShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 18,
+            bottomLeadingRadius: 18,
+            bottomTrailingRadius: 4,
+            topTrailingRadius: 18,
+            style: .continuous
+        )
+    }
+
+    // MARK: - Bindings (unchanged)
 
     private var titleBinding: Binding<String> {
         Binding(
@@ -530,6 +775,8 @@ struct AIWorkoutGeneratorView: View {
         }
     }
 
+    // MARK: - Generation & revision (unchanged)
+
     private func generateWorkout() {
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedPrompt.count >= 8 else {
@@ -620,15 +867,19 @@ struct AIWorkoutGeneratorView: View {
         return "I can keep talking through this with you before changing the draft."
     }
 
-    private func coachChangeCard(summary: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "wand.and.stars")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textSecondary)
+    // MARK: - Small pieces
 
-            VStack(alignment: .leading, spacing: 4) {
+    /// "Draft updated" as a hairline line under the chat, not a box.
+    private func coachChangeCard(summary: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wand.and.stars")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Draft updated")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
 
                 Text(summary)
@@ -639,8 +890,7 @@ struct AIWorkoutGeneratorView: View {
 
             Spacer()
         }
-        .padding(14)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
+        .padding(.vertical, 2)
     }
 
     private func nonEmptyText(_ value: String?) -> String? {
@@ -648,72 +898,9 @@ struct AIWorkoutGeneratorView: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func statPill(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 26, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text(subtitle.uppercased())
-                .microLabel()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .surfaceCard()
-    }
-
-    private func reviewSummaryBanner(for generatedRoutine: AIGeneratedRoutineDraft) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: canSave(generatedRoutine) ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                .font(.headline)
-                .foregroundStyle(canSave(generatedRoutine) ? AppTheme.success : AppTheme.secondary)
-
-            Text(canSave(generatedRoutine) ? "Draft looks ready to save" : "A few details still need review")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Spacer()
-        }
-        .padding(14)
-        .surfaceCard()
-    }
-
-    private func conversationBubble(for message: AIWorkoutConversationMessage) -> some View {
-        let isUser = message.role == .user
-
-        return HStack {
-            if isUser {
-                Spacer(minLength: 32)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(isUser ? "YOU" : "LOKT COACH")
-                    .microLabel()
-
-                Text(message.text)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isUser ? AppTheme.mutedFill : AppTheme.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
-
-            if !isUser {
-                Spacer(minLength: 32)
-            }
-        }
-    }
-
     private func aiStatusChip(title: String, color: Color) -> some View {
         Text(title)
-            .font(.caption.weight(.bold))
+            .font(.system(size: 11, weight: .bold))
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -731,7 +918,8 @@ struct AIWorkoutGeneratorView: View {
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
         .overlay {

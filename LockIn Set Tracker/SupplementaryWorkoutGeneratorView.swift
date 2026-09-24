@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Add-On Block. Look v2: the same vocabulary as Generate Workout — 26pt
+/// title, prompt composer with hairline quick-idea chips under the one
+/// gradient pill; the review stage is the draft card (BLOCK PREVIEW micro
+/// label, editable title field, exercises • sets meta line with the LIVE chip
+/// when a workout is in progress, numbered mono rows folded behind "+ N
+/// more" that open into their fields) with Add This Block as THE gradient
+/// pill and Try a Different Request as a ghost. Bindings, the client and
+/// the destination sheet's routine-library calls are untouched.
 struct SupplementaryWorkoutGeneratorView: View {
     private struct SmartSwapIndex: Identifiable {
         let index: Int
@@ -24,9 +32,10 @@ struct SupplementaryWorkoutGeneratorView: View {
     @State private var showDestinationSheet = false
     @State private var smartSwapIndex: SmartSwapIndex?
     @State private var askTarget: ExerciseAskContext?
-    /// Exercise ids whose reasoning/tip block is open. Fresh blocks decode new
-    /// ids, so cards naturally start collapsed.
+    /// Exercise ids whose row is open (reasoning/tip plus the edit fields).
+    /// Fresh blocks decode new ids, so rows start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
+    @State private var isDraftListExpanded = false
 
     private let client = SupplementaryWorkoutClient()
     private let promptSuggestions = [
@@ -35,6 +44,9 @@ struct SupplementaryWorkoutGeneratorView: View {
         "Add a short warm-up for push day",
         "Give me a quick recovery block for sore legs"
     ]
+
+    private static let foldedExerciseCount = 4
+    private static let exerciseIndexWidth: CGFloat = 22
 
     var body: some View {
         ZStack {
@@ -51,14 +63,14 @@ struct SupplementaryWorkoutGeneratorView: View {
                         reviewContent
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .keyboardDoneBar()
-        .navigationTitle("Add-On Block")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $smartSwapIndex) { target in
             if let exercise = generatedBlock?.exercises[safe: target.index] {
@@ -88,9 +100,11 @@ struct SupplementaryWorkoutGeneratorView: View {
         }
     }
 
+    // MARK: - Prompt stage
+
     private var promptContent: some View {
         Group {
-            headerSection
+            screenTitle("Build a small extra block.")
             promptSection
 
             if let errorMessage {
@@ -99,11 +113,22 @@ struct SupplementaryWorkoutGeneratorView: View {
         }
     }
 
-    private var headerSection: some View {
-        Text("Build a small extra block.")
-            .font(.system(size: 30, weight: .bold))
-            .tracking(-0.5)
-            .foregroundStyle(AppTheme.textPrimary)
+    private func screenTitle(_ title: String, subtitle: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .padding(.bottom, 2)
     }
 
     private var promptSection: some View {
@@ -111,40 +136,23 @@ struct SupplementaryWorkoutGeneratorView: View {
             Text("YOUR REQUEST")
                 .microLabel()
 
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(AppTheme.fieldBackground)
-
-                if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Add a 10-minute ab finisher")
-                        .font(.body)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 16)
-                }
-
-                TextEditor(text: $prompt)
-                    .scrollContentBackground(.hidden)
-                    .padding(12)
-                    .frame(minHeight: 150)
-                    .trackerTextEditorStyle()
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
+            TrackerTextEditor(
+                "Add a 10-minute ab finisher",
+                text: $prompt,
+                minHeight: 150,
+                cornerRadius: 18
+            )
 
             VStack(alignment: .leading, spacing: 12) {
                 Text("QUICK IDEAS")
                     .microLabel()
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         ForEach(promptSuggestions, id: \.self) { suggestion in
-                            Button(suggestion) {
+                            promptChip(suggestion) {
                                 prompt = suggestion
                             }
-                            .buttonStyle(SecondaryButtonStyle())
                         }
                     }
                     .padding(.vertical, 2)
@@ -158,15 +166,32 @@ struct SupplementaryWorkoutGeneratorView: View {
             .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
             .opacity(prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
+
+    private func promptChip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(AppTheme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(AppTheme.surfaceElevated)
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
+    }
+
+    // MARK: - Generating stage
 
     private var generatingContent: some View {
         VStack(spacing: 18) {
             Text("Building your add-on...")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
 
@@ -176,8 +201,8 @@ struct SupplementaryWorkoutGeneratorView: View {
                 .scaleEffect(1.2)
 
             Text(prompt)
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(24)
@@ -185,10 +210,17 @@ struct SupplementaryWorkoutGeneratorView: View {
         .glassCard()
     }
 
+    // MARK: - Review stage
+
     private var reviewContent: some View {
         Group {
             if let generatedBlock {
                 VStack(alignment: .leading, spacing: 20) {
+                    screenTitle(
+                        "Review your add-on block",
+                        subtitle: "\(generatedBlock.exercises.count) exercises • \(generatedBlock.totalSets) sets"
+                    )
+
                     if let errorMessage {
                         messageCard(title: "Couldn’t Build the Add-On Yet", text: errorMessage, tint: AppTheme.secondary)
                     }
@@ -197,47 +229,41 @@ struct SupplementaryWorkoutGeneratorView: View {
                         messageCard(title: "Add-On Ready", text: destinationMessage, tint: AppTheme.success)
                     }
 
-                    reviewHeader(for: generatedBlock)
-                    exerciseSection(for: generatedBlock)
-                    reviewActions(for: generatedBlock)
+                    draftCard(for: generatedBlock)
                 }
             }
         }
     }
 
-    private func reviewHeader(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
+    private func draftCard(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Review your add-on block")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
+            HStack(alignment: .center, spacing: 10) {
+                Text("BLOCK PREVIEW")
+                    .microLabel(AppTheme.accent)
 
-            HStack(spacing: 10) {
-                statPill(title: "\(generatedBlock.exercises.count)", subtitle: "Exercises")
-                statPill(title: "\(generatedBlock.totalSets)", subtitle: "Sets")
+                Spacer(minLength: 8)
+
                 if let currentWorkoutTitle {
-                    statPill(title: "Live", subtitle: currentWorkoutTitle)
+                    TagChip(title: "LIVE · \(currentWorkoutTitle)", isActive: true, systemImage: "bolt.fill")
                 }
             }
 
-            RoutinePlainExplanationSection(draft: generatedBlock)
-
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("BLOCK TITLE")
                     .microLabel()
 
                 TrackerTextField("Block title", text: titleBinding)
                     .textFieldStyle(TrackerTextFieldStyle())
             }
-        }
-        .padding(20)
-        .glassCard()
-    }
 
-    private func exerciseSection(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("BLOCK PREVIEW")
-                .microLabel()
+            Text("\(generatedBlock.exercises.count) exercises • \(generatedBlock.totalSets) sets")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textSecondary)
+
+            RoutinePlainExplanationSection(draft: generatedBlock)
+
+            hairline
 
             if isDiscoveryNudgeVisible {
                 DiscoveryNudgeLine {
@@ -247,9 +273,15 @@ struct SupplementaryWorkoutGeneratorView: View {
                 }
             }
 
-            ForEach(Array(generatedBlock.exercises.enumerated()), id: \.element.id) { item in
-                exerciseCard(index: item.offset, exercise: item.element)
-            }
+            draftExerciseList(for: generatedBlock)
+
+            draftActions(for: generatedBlock)
+        }
+        .padding(18)
+        .glassCard()
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                .stroke(AppTheme.accentHairline, lineWidth: 1)
         }
         .onAppear {
             guard hints.shouldOfferNudge(sessionCount: workoutStore.sessions.count) else { return }
@@ -263,51 +295,128 @@ struct SupplementaryWorkoutGeneratorView: View {
         }
     }
 
-    private func exerciseCard(index: Int, exercise: AIGeneratedExercise) -> some View {
+    private var hairline: some View {
+        Rectangle()
+            .fill(AppTheme.cardBorder)
+            .frame(height: 1)
+    }
+
+    private func draftExerciseList(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
+        let rows = Array(generatedBlock.exercises.enumerated())
+        let hiddenCount = rows.count - Self.foldedExerciseCount
+        let isFolded = hiddenCount > 0 && !isDraftListExpanded
+        let visibleRows = isFolded ? Array(rows.prefix(Self.foldedExerciseCount)) : rows
+
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(visibleRows, id: \.element.id) { item in
+                draftExerciseRow(item.element, index: item.offset)
+            }
+
+            if isFolded {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        isDraftListExpanded = true
+                    }
+                } label: {
+                    Text("+ \(hiddenCount) more")
+                        .font(.caption.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .padding(.leading, Self.exerciseIndexWidth + 10)
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show \(hiddenCount) more exercises")
+            }
+        }
+    }
+
+    private func draftExerciseRow(_ exercise: AIGeneratedExercise, index: Int) -> some View {
         let matchedExercise = exerciseStore.exercises.resolvedExercise(named: exercise.name)
         let trimmedReasoning = exercise.reasoning?.trimmingCharacters(in: .whitespacesAndNewlines)
         let reasoning = (trimmedReasoning?.isEmpty == false) ? trimmedReasoning : nil
         let trimmedTip = exercise.tip?.trimmingCharacters(in: .whitespacesAndNewlines)
         let tip = (trimmedTip?.isEmpty == false) ? trimmedTip : nil
-        let hasDisclosure = reasoning != nil || tip != nil
         let isExpanded = expandedDetailIDs.contains(exercise.id)
+        let trimmedName = exercise.name.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 16) {
-                HStack(spacing: 8) {
-                    Text("EXERCISE \(index + 1)")
-                        .microLabel()
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(index + 1).")
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textTertiary)
+                .frame(width: Self.exerciseIndexWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(trimmedName.isEmpty ? "Exercise name" : trimmedName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(trimmedName.isEmpty ? AppTheme.textTertiary : AppTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ExerciseDetailDisclosureChevron(
+                        id: exercise.id,
+                        expandedIDs: $expandedDetailIDs,
+                        font: .caption
+                    )
+
+                    Spacer(minLength: 8)
+
+                    Text("\(max(1, exercise.sets)) sets • \(exercise.reps)")
+                        .font(.system(.caption, design: .monospaced))
                         .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize()
 
-                    if hasDisclosure {
-                        ExerciseDetailDisclosureChevron(id: exercise.id, expandedIDs: $expandedDetailIDs)
+                    ExerciseAskButton(
+                        context: ExerciseAskContext(draft: exercise),
+                        askTarget: $askTarget,
+                        font: .footnote,
+                        hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
+                    )
+
+                    if let matchedExercise {
+                        ExerciseInfoButton(
+                            exercise: matchedExercise,
+                            hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
+                        )
                     }
                 }
 
-                Spacer()
-
-                ExerciseAskButton(
-                    context: ExerciseAskContext(draft: exercise),
-                    askTarget: $askTarget,
-                    hinted: hints.showAskHint(sessionCount: workoutStore.sessions.count)
-                )
-
-                if let matchedExercise {
-                    ExerciseInfoButton(
-                        exercise: matchedExercise,
-                        hinted: hints.showInfoHint(sessionCount: workoutStore.sessions.count)
+                if !isExpanded,
+                   let recommendedSets = exercise.recommendedSets,
+                   recommendedSets != max(1, exercise.sets) {
+                    RecommendedSetsChip(
+                        recommended: recommendedSets,
+                        count: setBinding(for: index),
+                        font: .caption
                     )
                 }
-            }
 
-            if isExpanded, let reasoning {
+                if isExpanded {
+                    expandedRowDetails(exercise, index: index, reasoning: reasoning, tip: tip)
+                }
+            }
+        }
+        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: true)
+    }
+
+    private func expandedRowDetails(
+        _ exercise: AIGeneratedExercise,
+        index: Int,
+        reasoning: String?,
+        tip: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let reasoning {
                 Text(reasoning)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if isExpanded, let tip {
+            if let tip {
                 Text(tip)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -331,7 +440,8 @@ struct SupplementaryWorkoutGeneratorView: View {
                         if let recommendedSets = exercise.recommendedSets {
                             RecommendedSetsChip(
                                 recommended: recommendedSets,
-                                count: setBinding(for: index)
+                                count: setBinding(for: index),
+                                font: .caption
                             )
                         }
                     }
@@ -352,27 +462,26 @@ struct SupplementaryWorkoutGeneratorView: View {
                 }
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Spacer()
 
                 Button("Smart Swap") {
                     smartSwapIndex = SmartSwapIndex(index: index)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Button("Remove") {
                     removeExercise(at: index)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
             }
         }
-        .padding(18)
-        .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: hasDisclosure)
-        .glassCard()
+        .padding(.top, 4)
     }
 
-    private func reviewActions(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+    /// THE gradient pill — Add This Block — over a ghost Try a Different Request.
+    private func draftActions(for generatedBlock: AIGeneratedRoutineDraft) -> some View {
+        VStack(spacing: 8) {
             Button("Add This Block") {
                 showDestinationSheet = true
             }
@@ -385,11 +494,15 @@ struct SupplementaryWorkoutGeneratorView: View {
                 destinationMessage = nil
                 errorMessage = nil
                 expandedDetailIDs = []
+                isDraftListExpanded = false
                 stage = .prompt
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(GhostButtonStyle())
         }
+        .padding(.top, 2)
     }
+
+    // MARK: - Bindings (unchanged)
 
     private var titleBinding: Binding<String> {
         Binding(
@@ -463,6 +576,8 @@ struct SupplementaryWorkoutGeneratorView: View {
         }
     }
 
+    // MARK: - Generation (unchanged)
+
     private func generateBlock() {
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedPrompt.count >= 8 else {
@@ -492,21 +607,6 @@ struct SupplementaryWorkoutGeneratorView: View {
         dismiss()
     }
 
-    private func statPill(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 26, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text(subtitle.uppercased())
-                .microLabel()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .surfaceCard()
-    }
-
     private func messageCard(title: String, text: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -517,7 +617,8 @@ struct SupplementaryWorkoutGeneratorView: View {
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
         .overlay {
@@ -527,6 +628,10 @@ struct SupplementaryWorkoutGeneratorView: View {
     }
 }
 
+/// Where the block goes. Look v2: 22pt sheet title over the meta line,
+/// micro-label sections of hairline option cards (the current workout, each
+/// saved routine), and Create a New Routine as the sheet's one gradient pill
+/// — the add-to-routine sheet on the exercise page reads the same way.
 private struct SupplementaryWorkoutDestinationSheet: View {
     let draft: AIGeneratedRoutineDraft
     var currentWorkoutTitle: String?
@@ -543,8 +648,8 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                 AppBackground()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 20) {
-                        headerCard
+                    VStack(alignment: .leading, spacing: 24) {
+                        header
 
                         if let addToCurrentWorkout, let currentWorkoutTitle {
                             currentWorkoutSection(addToCurrentWorkout: addToCurrentWorkout, currentWorkoutTitle: currentWorkoutTitle)
@@ -553,7 +658,7 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                         existingRoutineSection
                         createRoutineSection
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AppTheme.screenPadding)
                     .padding(.vertical, 20)
                 }
             }
@@ -572,25 +677,23 @@ private struct SupplementaryWorkoutDestinationSheet: View {
         }
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
             Text(draft.title)
-                .font(.title3.weight(.bold))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("\(draft.exercises.count) exercises • \(draft.totalSets) sets")
-                .font(.subheadline)
+                .font(.system(size: 13))
                 .monospacedDigit()
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(20)
-        .glassCard()
     }
 
     private func currentWorkoutSection(addToCurrentWorkout: @escaping (AIGeneratedRoutineDraft) -> AddExerciseResult, currentWorkoutTitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("CURRENT WORKOUT")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             Button {
                 let result = addToCurrentWorkout(draft)
@@ -599,32 +702,17 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                     dismiss()
                 }
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "bolt.horizontal.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.primary)
-
-                    Text("Add to \(currentWorkoutTitle)")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Spacer()
-                }
-                .padding(16)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                optionRow(title: "Add to \(currentWorkoutTitle)", subtitle: nil, systemImage: "bolt.fill", accent: true)
             }
             .buttonStyle(.plain)
         }
-        .padding(20)
-        .glassCard()
     }
 
     @ViewBuilder
     private var existingRoutineSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("EXISTING ROUTINES")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             if routines.isEmpty {
                 Text("You don’t have any saved routines yet.")
@@ -644,65 +732,60 @@ private struct SupplementaryWorkoutDestinationSheet: View {
                             dismiss()
                         }
                     } label: {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(routine.name)
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(AppTheme.textPrimary)
-
-                                Text("\(routine.exercises.count) exercises")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(AppTheme.textPrimary)
-                        }
-                        .padding(16)
-                        .background(AppTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        optionRow(
+                            title: routine.name,
+                            subtitle: "\(routine.exercises.count) exercise\(routine.exercises.count == 1 ? "" : "s")",
+                            systemImage: "plus",
+                            accent: false
+                        )
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .padding(20)
-        .glassCard()
     }
 
     private var createRoutineSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("NEW ROUTINE")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            Button {
+            Button("Create a New Routine") {
                 if let routine = RoutineLibrary.createRoutine(from: draft, in: workoutStore) {
                     onComplete("Created \(routine.name).")
                     dismiss()
                 }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "plus.square.on.square")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Text("Create a New Routine")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    Spacer()
-                }
-                .padding(16)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PrimaryButtonStyle())
         }
-        .padding(20)
-        .glassCard()
+    }
+
+    /// Hairline option card: 16pt title (+ mono subtitle), a trailing glyph —
+    /// the accent only on the live-workout row.
+    private func optionRow(title: String, subtitle: String?, systemImage: String, accent: Bool) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.leading)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(accent ? AppTheme.primary : AppTheme.textSecondary)
+        }
+        .padding(AppTheme.rowPadding)
+        .contentShape(Rectangle())
+        .glassCard(cornerRadius: 18)
     }
 }
