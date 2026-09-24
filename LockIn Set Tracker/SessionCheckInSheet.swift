@@ -11,11 +11,15 @@ struct SessionCheckInPrompt: Identifiable {
 }
 
 /// M4's end-of-workout check-in: one ultra-light sheet. Two taps on the happy
-/// path (difficulty chip → "No"), a visible skip. Answers persist through
+/// path (difficulty tile → "No"), a visible skip. Answers persist through
 /// `WorkoutStore.recordCheckIn`; a clean check-in offers a constrained
 /// next-session nudge (applied only on the explicit Apply tap — review-before-
 /// save holds); pain or repeated too-hard routes to a real coach conversation
 /// instead of a silent adjustment (spine §6).
+///
+/// Look (v2, "Check-in — two taps, then a nudge"): a card-colored sheet with
+/// 28pt corners and a hairline, 64pt effort tiles, 52pt pain tiles, and the
+/// NEXT SESSION card whose rows carry the payload's targets verbatim.
 struct SessionCheckInSheet: View {
     let prompt: SessionCheckInPrompt
 
@@ -45,9 +49,13 @@ struct SessionCheckInSheet: View {
 
     private let nudgeService = WorkoutNudgeService()
 
+    private let sheetCornerRadius: CGFloat = 28
+    private let tileCornerRadius: CGFloat = 16
+    private let nudgeCardCornerRadius: CGFloat = 18
+
     var body: some View {
-        ZStack {
-            AppBackground()
+        VStack(spacing: 0) {
+            handle
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
@@ -68,13 +76,23 @@ struct SessionCheckInSheet: View {
                         failedSection(message)
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, AppTheme.screenPadding)
+                .padding(.top, 16)
+                .padding(.bottom, AppTheme.screenPadding)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(sheetCornerRadius)
+        .presentationBackground {
+            AppTheme.card
+                .overlay {
+                    RoundedRectangle(cornerRadius: sheetCornerRadius, style: .continuous)
+                        .strokeBorder(AppTheme.cardBorder, lineWidth: 1)
+                }
+        }
         .onAppear {
             guard !didCountShown else { return }
             didCountShown = true
@@ -90,15 +108,30 @@ struct SessionCheckInSheet: View {
         }
     }
 
+    // MARK: - Chrome
+
+    private var handle: some View {
+        Capsule()
+            .fill(AppTheme.textTertiary)
+            .frame(width: 40, height: 4)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+    }
+
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top) {
-            Text(headerTitle)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SESSION CHECK-IN")
+                    .microLabel()
 
-            Spacer()
+                Text(headerTitle)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+
+            Spacer(minLength: 0)
 
             Button {
                 dismiss()
@@ -130,7 +163,7 @@ struct SessionCheckInSheet: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 8) {
                 ForEach(CheckInOutcome.allCases) { outcome in
-                    selectChip(outcome.label, isSelected: selectedOutcome == outcome) {
+                    choiceTile(outcome.label, height: 64, isSelected: selectedOutcome == outcome) {
                         selectedOutcome = outcome
                         maybeAutoSubmit()
                     }
@@ -142,18 +175,16 @@ struct SessionCheckInSheet: View {
                     .microLabel()
 
                 HStack(spacing: 8) {
-                    selectChip("No", isSelected: painAnswer == false) {
+                    choiceTile("No", height: 52, isSelected: painAnswer == false) {
                         painAnswer = false
                         painExercise = nil
                         painNoteText = ""
                         maybeAutoSubmit()
                     }
 
-                    selectChip("Yes", isSelected: painAnswer == true) {
+                    choiceTile("Yes, something", height: 52, isSelected: painAnswer == true) {
                         painAnswer = true
                     }
-
-                    Spacer()
                 }
             }
 
@@ -179,42 +210,72 @@ struct SessionCheckInSheet: View {
 
             TrackerTextField("Where it hurt — optional", text: $painNoteText)
                 .font(.subheadline)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(AppTheme.mutedFill)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(AppTheme.fieldBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
 
             Button("Continue") {
                 submit()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(selectedOutcome == nil)
             .opacity(selectedOutcome == nil ? 0.55 : 1)
         }
     }
 
+    /// The board's answer tile: `surfaceElevated` under a hairline at rest;
+    /// selected = `accentChipFill` + `accentHairline` + accent label (the
+    /// app's selected-chip vocabulary — state encoding, not chrome).
+    private func choiceTile(_ label: String, height: CGFloat, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(isSelected ? AppTheme.accent : AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .background(isSelected ? AppTheme.accentChipFill : AppTheme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: tileCornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: tileCornerRadius, style: .continuous)
+                        .stroke(isSelected ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: tileCornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Capsule chip for the pain quick-pick — same selected vocabulary as the tiles.
     private func selectChip(_ label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isSelected ? AppTheme.backgroundTop : AppTheme.textPrimary)
+                .foregroundStyle(isSelected ? AppTheme.accent : AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
-                .background(isSelected ? AppTheme.textPrimary : AppTheme.surfaceElevated)
+                .background(isSelected ? AppTheme.accentChipFill : AppTheme.surfaceElevated)
                 .clipShape(Capsule())
                 .overlay {
                     Capsule()
-                        .stroke(AppTheme.cardBorder, lineWidth: isSelected ? 0 : 1)
+                        .stroke(isSelected ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
                 }
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
 
     // MARK: - Loading / settled / failed
 
+    /// Holds the nudge card's place while the backend sizes the next session.
     private var loadingSection: some View {
         HStack(spacing: 12) {
             ProgressView()
@@ -224,26 +285,19 @@ struct SessionCheckInSheet: View {
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .surfaceCard(cornerRadius: nudgeCardCornerRadius)
     }
 
     private func settledSection(_ note: String?) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(AppTheme.success)
-
-                Text(note ?? "Your targets are working. No changes.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            stateCapsule(note ?? "Your targets are working. No changes.")
 
             Button("Done") {
                 dismiss()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(GhostButtonStyle())
         }
     }
 
@@ -257,7 +311,30 @@ struct SessionCheckInSheet: View {
             Button("Done") {
                 dismiss()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(GhostButtonStyle())
+        }
+    }
+
+    /// Saved-style capsule (the coach draft's "Saved"): success check + the
+    /// state's existing copy on `mutedFill` under a hairline.
+    private func stateCapsule(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "checkmark")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppTheme.success)
+
+            Text(text)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(AppTheme.mutedFill)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
         }
     }
 
@@ -265,6 +342,29 @@ struct SessionCheckInSheet: View {
 
     private func nudgeSection(_ nudge: WorkoutNudge) -> some View {
         VStack(alignment: .leading, spacing: 16) {
+            nudgeCard(nudge)
+
+            Button("APPLY TO ROUTINE") {
+                applyNudge(nudge)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            Button("Not now") {
+                dismiss()
+            }
+            .buttonStyle(GhostButtonStyle())
+        }
+    }
+
+    /// NEXT SESSION card: one row per changed exercise, then the nudge's own
+    /// one-line note. The fallback line only appears when the payload carries
+    /// no note — it states the mechanism (targets come from the last completed
+    /// set), never a claim about the result.
+    private func nudgeCard(_ nudge: WorkoutNudge) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("NEXT SESSION")
+                .microLabel(AppTheme.accent)
+
             VStack(spacing: 0) {
                 ForEach(Array(nudge.changedItems.enumerated()), id: \.element.name) { index, item in
                     nudgeRow(item)
@@ -276,77 +376,86 @@ struct SessionCheckInSheet: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .surfaceCard(cornerRadius: AppTheme.rowCornerRadius)
 
-            if let overallNote = nudge.overallNote {
-                Text(overallNote)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button("Apply") {
-                applyNudge(nudge)
-            }
-            .buttonStyle(PrimaryButtonStyle())
-
-            Button("Not now") {
-                dismiss()
-            }
-            .buttonStyle(.plain)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(AppTheme.textSecondary)
-            .frame(maxWidth: .infinity)
+            Text(nudge.overallNote ?? "Sized from today's completed sets")
+                .font(.system(size: 12))
+                .foregroundStyle(AppTheme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(alignment: .topTrailing) {
+            nudgeCardGlow
+        }
+        .surfaceCard(cornerRadius: nudgeCardCornerRadius)
+    }
+
+    /// The board's faint accent glow in the card's top-right corner: the
+    /// `.heroGlow()` token drawn behind an empty 120pt box pinned top-trailing
+    /// and nudged into the corner; the card's clip trims the overflow. The
+    /// radial itself lives in Theme.swift.
+    private var nudgeCardGlow: some View {
+        Color.clear
+            .frame(width: 120, height: 120)
+            .heroGlow()
+            .offset(x: 28, y: -28)
+            .allowsHitTesting(false)
     }
 
     private func nudgeRow(_ item: WorkoutNudgeItem) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(item.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(item.name)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
-                Spacer(minLength: 12)
+            Spacer(minLength: 12)
 
-                Text(targetLine(for: item))
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
-            }
-
-            if let whyNote = item.whyNote {
-                Text(whyNote)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(2)
+            VStack(alignment: .trailing, spacing: 2) {
+                ForEach(changeLines(for: item), id: \.self) { line in
+                    Text(line)
+                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
         }
         .padding(.vertical, 12)
     }
 
-    private func targetLine(for item: WorkoutNudgeItem) -> String {
+    /// Display only. The "to" side of every line is the payload's echo-verbatim
+    /// field (`suggestedWeightText` / `repText` / `setCount`); the "from" side is
+    /// the routine's own current value — the very number the request sent as
+    /// `lastWeightText` / `sets` — read back, never recomputed.
+    private func changeLines(for item: WorkoutNudgeItem) -> [String] {
         let routine = store.routine(withID: prompt.routineID)
-        let sets = item.setCount ?? routine?.preferredSetCount(for: item.name)
-        var pieces: [String] = []
-
-        if let sets, let reps = item.repText {
-            pieces.append("\(sets)×\(reps)")
-        } else if item.setCount != nil, let sets {
-            pieces.append("\(sets) sets")
-        } else if let reps = item.repText {
-            pieces.append("\(reps) reps")
-        }
+        var lines: [String] = []
 
         if let weight = item.suggestedWeightText {
-            pieces.append(weight)
+            var line = weight
+            if let last = routine?.progression?[item.name]?.lastWeight, !last.isEmpty {
+                line = "\(last) → \(weight)"
+            }
+            if let reps = item.repText {
+                line += " × \(reps)"
+            }
+            lines.append(line)
+        } else if let reps = item.repText {
+            lines.append("\(reps) reps")
         }
 
-        return pieces.joined(separator: " · ")
+        if let sets = item.setCount {
+            if let current = routine?.preferredSetCount(for: item.name), current != sets {
+                lines.append("\(current) → \(sets) sets")
+            } else {
+                lines.append("\(sets) sets")
+            }
+        }
+
+        return lines
     }
 
     // MARK: - Safety branch (spine §6)
@@ -366,10 +475,7 @@ struct SessionCheckInSheet: View {
             Button("Not now") {
                 dismiss()
             }
-            .buttonStyle(.plain)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(AppTheme.textSecondary)
-            .frame(maxWidth: .infinity)
+            .buttonStyle(GhostButtonStyle())
         }
     }
 
