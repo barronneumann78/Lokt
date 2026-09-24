@@ -56,7 +56,7 @@ struct WorkoutAddExercisePicker: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Add Exercise")
-                        .font(.title3.weight(.bold))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
 
                     Spacer()
@@ -67,14 +67,18 @@ struct WorkoutAddExercisePicker: View {
                     .buttonStyle(SecondaryButtonStyle())
                 }
 
-                TrackerTextField("Search exercises", text: $searchText)
-                    .textFieldStyle(TrackerTextFieldStyle())
-                    .autocorrectionDisabled()
+                TrackerSearchField("Search exercises", text: $searchText)
 
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 10) {
-                        ForEach(filteredExercises) { exercise in
-                            exerciseRow(exercise)
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(filteredExercises.enumerated()), id: \.element.id) { item in
+                            if item.offset > 0 {
+                                Rectangle()
+                                    .fill(AppTheme.cardBorder)
+                                    .frame(height: 1)
+                            }
+
+                            exerciseRow(item.element)
                         }
 
                         if filteredExercises.isEmpty {
@@ -88,7 +92,7 @@ struct WorkoutAddExercisePicker: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, AppTheme.screenPadding)
             .padding(.top, 24)
         }
         .dismissKeyboardOnTap()
@@ -96,6 +100,8 @@ struct WorkoutAddExercisePicker: View {
         .onAppear(perform: exerciseStore.reloadCustomExercises)
     }
 
+    /// Hairline row: 16pt name over a muscle chip; a plus on the right, or
+    /// the quiet Added chip once the exercise is already in the session.
     private func exerciseRow(_ exercise: Exercise) -> some View {
         let added = isInWorkout(exercise)
 
@@ -104,37 +110,36 @@ struct WorkoutAddExercisePicker: View {
             _ = onAdd(exercise)
         } label: {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(exercise.name)
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(added ? AppTheme.textTertiary : AppTheme.textPrimary)
                         .multilineTextAlignment(.leading)
 
-                    Text(exercise.muscleGroup.rawValue)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textTertiary)
+                    TagChip(title: exercise.muscleGroup.rawValue)
                 }
 
                 Spacer()
 
                 if added {
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark")
-                            .font(.caption.weight(.bold))
-
-                        Text("Added")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(AppTheme.textTertiary)
+                    TagChip(title: "Added", systemImage: "checkmark")
                 } else {
                     Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.textSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(AppTheme.surfaceElevated)
+                        .clipShape(Circle())
+                        .overlay {
+                            Circle()
+                                .stroke(AppTheme.cardBorder, lineWidth: 1)
+                        }
                 }
             }
-            .padding(16)
-            .surfaceCard()
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(added ? "\(exercise.name), already in this workout" : "Add \(exercise.name)")
     }
 }

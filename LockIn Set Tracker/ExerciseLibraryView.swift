@@ -62,26 +62,46 @@ struct ExerciseLibraryView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
+                    header
+
+                    TrackerSearchField("Search Exercises", text: $searchText)
+
                     filterSection
                     librarySection
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
-        .navigationTitle("Exercise Library")
+        // The screen carries its own 26pt title; the search capsule replaces
+        // the nav-bar search field (same binding, same alias-aware filter).
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "Search Exercises")
         // Cheap safety net: pick up custom exercises saved elsewhere.
         .onAppear(perform: exerciseStore.reloadCustomExercises)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Exercise Library")
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Text("\(exerciseStore.exercises.count) exercises")
+                .font(.system(size: 13))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(.bottom, 2)
     }
 
     private var filterSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("FILTERS")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             HStack(spacing: 12) {
                 filterPicker(title: "Muscle", selection: $selectedMuscleGroup, options: muscleGroupOptions)
@@ -90,22 +110,21 @@ struct ExerciseLibraryView: View {
 
             filterPicker(title: "Movement", selection: $selectedMovementPattern, options: movementPatternOptions)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
+    /// Hairline rows inside one card: thumbnail, 16pt name, one tag chip,
+    /// chevron. Same row the routine editor's library uses.
     private var librarySection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text("EXERCISES")
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
 
                 Spacer()
 
-                Text("\(filteredExercises.count)")
-                    .font(.subheadline.weight(.bold))
-                    .monospacedDigit()
-                    .foregroundStyle(AppTheme.textSecondary)
+                TagChip(title: "\(filteredExercises.count)")
             }
 
             if filteredExercises.isEmpty {
@@ -114,52 +133,58 @@ struct ExerciseLibraryView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .padding(.vertical, 12)
             } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(filteredExercises) { exercise in
-                        NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
-                            HStack(spacing: 14) {
-                                ExerciseMediaView(
-                                    imageName: exercise.imageName,
-                                    placeholderSystemImageName: exercise.placeholderSystemImageName,
-                                    height: 56,
-                                    cornerRadius: 16,
-                                    iconSize: 24,
-                                    animateGIF: false,
-                                    contentPadding: 6
-                                )
-                                .frame(width: 56)
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(filteredExercises.enumerated()), id: \.element.id) { item in
+                        if item.offset > 0 {
+                            Rectangle()
+                                .fill(AppTheme.cardBorder)
+                                .frame(height: 1)
+                        }
 
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(exercise.name)
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                        .multilineTextAlignment(.leading)
-
-                                    if let displayTag = exercise.summaryTags.first {
-                                        Text(displayTag)
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(AppTheme.textSecondary)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 5)
-                                            .background(AppTheme.mutedFill)
-                                            .clipShape(Capsule())
-                                    }
-                                }
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                            .padding(16)
-                            .surfaceCard()
+                        NavigationLink(destination: ExerciseDetailView(exercise: item.element)) {
+                            libraryRow(item.element)
                         }
                         .buttonStyle(.plain)
                     }
                 }
             }
         }
+        .padding(AppTheme.cardPadding)
+        .glassCard()
+    }
+
+    private func libraryRow(_ exercise: Exercise) -> some View {
+        HStack(spacing: 14) {
+            ExerciseMediaView(
+                imageName: exercise.imageName,
+                placeholderSystemImageName: exercise.placeholderSystemImageName,
+                height: 48,
+                cornerRadius: 12,
+                iconSize: 20,
+                animateGIF: false,
+                contentPadding: 6
+            )
+            .frame(width: 48)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(exercise.name)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.leading)
+
+                if let displayTag = exercise.summaryTags.first {
+                    TagChip(title: displayTag)
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppTheme.textTertiary)
+        }
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 
     private func filterPicker(title: String, selection: Binding<String>, options: [String]) -> some View {
@@ -179,6 +204,10 @@ struct ExerciseLibraryView: View {
             .padding(.vertical, 12)
             .background(AppTheme.fieldBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
