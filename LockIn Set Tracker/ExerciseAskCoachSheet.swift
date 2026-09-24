@@ -95,77 +95,121 @@ struct ExerciseAskCoachSheet: View {
         ZStack {
             AppBackground()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("ASK LOKT")
-                        .microLabel()
+            VStack(spacing: 0) {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ASK LOKT")
+                                .microLabel(AppTheme.textSecondary)
 
-                    Text(context.name)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    TrackerTextField("Ask about this exercise", text: $question)
-                        .textFieldStyle(TrackerTextFieldStyle())
-                        .submitLabel(.send)
-                        .onSubmit(ask)
-
-                    Button(isRequesting ? "Thinking..." : "Ask Lokt") {
-                        ask()
-                    }
-                    .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
-                    .disabled(!canAsk)
-                    .opacity(canAsk ? 1 : 0.6)
-
-                    if isRequesting {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                                .tint(AppTheme.textSecondary)
-
-                            Text("Lokt is looking at the lift.")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(AppTheme.textSecondary)
+                            Text(context.name)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-                    }
 
-                    if let reply {
-                        if let onSwitchAlternative {
-                            ExerciseCoachReplyCard(
-                                reply: reply,
-                                exercises: exerciseStore.exercises,
-                                allowsSuggestionNavigation: false,
-                                onSelectSuggestion: { suggestion in
-                                    onSwitchAlternative(suggestion)
-                                    dismiss()
-                                }
-                            )
-                        } else {
-                            ExerciseCoachReplyCard(
-                                reply: reply,
-                                exercises: exerciseStore.exercises,
-                                allowsSuggestionNavigation: false
-                            )
+                        if isRequesting {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(AppTheme.textSecondary)
+
+                                Text("Lokt is looking at the lift.")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+
+                        if let reply {
+                            if let onSwitchAlternative {
+                                ExerciseCoachReplyCard(
+                                    reply: reply,
+                                    exercises: exerciseStore.exercises,
+                                    allowsSuggestionNavigation: false,
+                                    onSelectSuggestion: { suggestion in
+                                        onSwitchAlternative(suggestion)
+                                        dismiss()
+                                    }
+                                )
+                            } else {
+                                ExerciseCoachReplyCard(
+                                    reply: reply,
+                                    exercises: exerciseStore.exercises,
+                                    allowsSuggestionNavigation: false
+                                )
+                            }
+                        }
+
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.secondary)
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.secondary.opacity(0.25))
                         }
                     }
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.secondary)
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .surfaceCard(cornerRadius: AppTheme.controlCornerRadius, border: AppTheme.secondary.opacity(0.25))
-                    }
+                    .padding(.horizontal, AppTheme.screenPadding)
+                    .padding(.top, 24)
+                    .padding(.bottom, 12)
                 }
-                .padding(20)
+                .scrollDismissesKeyboard(.interactively)
+
+                composer
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
+    }
+
+    /// The exercise page's ASK LOKT composer, pinned at the bottom of the
+    /// sheet: a 50pt card-fill capsule holding the question field and the
+    /// 38pt gradient send circle (the sheet's one gradient). Return sends.
+    private var composer: some View {
+        HStack(spacing: 6) {
+            TrackerTextField("Ask about this exercise", text: $question)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
+                .submitLabel(.send)
+                .onSubmit(ask)
+                .padding(.leading, 12)
+
+            Button {
+                ask()
+            } label: {
+                ZStack {
+                    if isRequesting {
+                        ProgressView()
+                            .tint(AppTheme.backgroundTop)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.backgroundTop)
+                    }
+                }
+                .frame(width: 38, height: 38)
+                .background(AppTheme.primaryGradient)
+                .clipShape(Circle())
+                .opacity(canAsk || isRequesting ? 1 : 0.4)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canAsk)
+            .accessibilityLabel(isRequesting ? "Thinking" : "Ask Lokt")
+        }
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .background(AppTheme.card)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        }
+        .padding(.horizontal, AppTheme.screenPadding)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .background(AppTheme.backgroundTop)
     }
 
     private var canAsk: Bool {

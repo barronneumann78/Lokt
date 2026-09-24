@@ -21,6 +21,7 @@ struct VoiceWorkoutImportView: View {
     /// Imported exercise ids whose tip line is open. New extractions and
     /// revisions decode fresh ids, so rows naturally start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
+    @FocusState private var revisionFocused: Bool
     @State private var showFilteredPhrases = false
 
     private let reviewSecondaryText = AppTheme.textSecondary
@@ -44,14 +45,14 @@ struct VoiceWorkoutImportView: View {
                         reviewContent
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .keyboardDoneBar()
-        .navigationTitle("Import by Voice")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editorTarget) { target in
             if let draft = draftForEditor(target) {
@@ -86,68 +87,73 @@ struct VoiceWorkoutImportView: View {
             if let errorMessage {
                 messageCard(title: "Voice Import Couldn’t Finish", text: errorMessage, tint: AppTheme.secondary)
             }
-
-            trustSection
         }
     }
 
+    /// 26pt screen title; the explainer captions that sat under it and in
+    /// the old WHAT VOICE IMPORT HANDLES card are gone (look v2).
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Talk through the workout you want.")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("List exercises or describe the workout you want. You’ll review the matched routine before saving.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
+        Text("Talk through the workout you want.")
+            .font(.system(size: 26, weight: .bold))
+            .tracking(-0.3)
+            .foregroundStyle(AppTheme.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 2)
     }
 
     private var recorderSection: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("RECORD A VOICE NOTE")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             VStack(spacing: 16) {
+                // The mic circle is the input stage's one gradient (its
+                // primary action); recording swaps it for the logger's red
+                // dot under `.recordingGlow()`.
                 Button {
                     toggleRecording()
                 } label: {
                     VStack(spacing: 12) {
-                        Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(AppTheme.backgroundTop)
-                            .frame(width: 84, height: 84)
-                            .background(recorder.isRecording ? AppTheme.secondary : AppTheme.primary)
-                            .clipShape(Circle())
+                        ZStack {
+                            if recorder.isRecording {
+                                Circle()
+                                    .fill(AppTheme.danger)
+                                    .frame(width: 84, height: 84)
+                                    .recordingGlow()
+                            } else {
+                                Circle()
+                                    .fill(AppTheme.primaryGradient)
+                                    .frame(width: 84, height: 84)
+                            }
+
+                            Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundStyle(AppTheme.backgroundTop)
+                        }
 
                         Text(recorder.isRecording ? "Stop Recording" : "Start Recording")
-                            .font(.headline.weight(.bold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.textPrimary)
-
-                        Text(recorder.isRecording ? "Speak normally, then tap stop when you are done." : "Examples: Bench press, incline dumbbell press, lateral raises. Or: Make me a dumbbell-only pull day.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
                     .padding(.horizontal, 18)
-                    .background(AppTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(recorder.isRecording ? "Stop Recording" : "Start Recording")
 
                 if recorder.isRecording {
-                    Text("Recording is live. The routine will not be saved automatically when you stop.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondary)
-
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("LIVE TRANSCRIPT")
-                            .microLabel()
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(AppTheme.danger)
+                                .frame(width: 7, height: 7)
+                                .recordingGlow()
+
+                            Text("LIVE TRANSCRIPT")
+                                .microLabel()
+                        }
 
                         Text(
                             recorder.liveTranscript.isEmpty
@@ -165,24 +171,17 @@ struct VoiceWorkoutImportView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private var processingContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Turning your voice note into a workout...")
-                    .font(.system(size: 30, weight: .bold))
-                    .tracking(-0.5)
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text("Lokt is transcribing, matching exercises, and preparing a review draft.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .padding(20)
-            .glassCard()
+            Text("Turning your voice note into a workout...")
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 18) {
                 ProgressView()
@@ -191,12 +190,7 @@ struct VoiceWorkoutImportView: View {
                     .scaleEffect(1.2)
 
                 Text(processingMessage)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .multilineTextAlignment(.center)
-
-                Text("You’ll get a full review screen before the routine is created.")
-                    .font(.subheadline)
+                    .font(.system(size: 15))
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -230,13 +224,10 @@ struct VoiceWorkoutImportView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             Text("Review the voice workout")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Quickly check names and any missing details, then save the routine.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             reviewReadinessCard(
                 title: unresolvedCount == 0 ? "Ready to save" : "\(unresolvedCount) quick check\(unresolvedCount == 1 ? "" : "s") left",
@@ -253,15 +244,13 @@ struct VoiceWorkoutImportView: View {
                 importStat(title: "\(unresolvedCount)", subtitle: "Check")
             }
         }
-        .padding(20)
-        .glassCard()
     }
 
     private func revisionSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("COACH CHAT")
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
 
                 Spacer()
 
@@ -281,33 +270,24 @@ struct VoiceWorkoutImportView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 240)
-                .padding(4)
-                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
             }
 
             if let latestCoachChangeSummary = latestCoachChangeSummary?.nilIfEmpty {
                 coachChangeCard(summary: latestCoachChangeSummary)
             }
 
-            TrackerTextField("Try: take out pull-ups and add something easier", text: $revisionPrompt, axis: .vertical)
-                .textFieldStyle(TrackerTextFieldStyle())
-                .lineLimit(2...4)
-
-            Button(isApplyingRevision ? "Talking to Coach..." : "Send to Coach") {
+            revisionComposer(placeholder: "Try: take out pull-ups and add something easier") {
                 applyRevision(to: importedWorkout)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
-            .disabled(isApplyingRevision || revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
-            .opacity(isApplyingRevision || revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private func transcriptSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("TRANSCRIPT")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             Text(importedWorkout.sourceText)
                 .font(.body)
@@ -316,14 +296,14 @@ struct VoiceWorkoutImportView: View {
                 .padding(14)
                 .surfaceCard()
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private func daySection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("ROUTINE PREVIEW")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             ForEach(importedWorkout.days.indices, id: \.self) { dayIndex in
                 dayCard(dayIndex: dayIndex)
@@ -358,7 +338,7 @@ struct VoiceWorkoutImportView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
@@ -373,7 +353,7 @@ struct VoiceWorkoutImportView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         ExerciseTextNavigationLink(exerciseName: exercise.resolvedExerciseName, exercises: exerciseStore.exercises) {
                             Text(exercise.resolvedExerciseName)
-                                .font(.headline.weight(.bold))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
                         }
 
@@ -413,7 +393,7 @@ struct VoiceWorkoutImportView: View {
 
             if exercise.isCustomExercise {
                 Text("Custom")
-                    .font(.caption.weight(.bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AppTheme.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -427,17 +407,14 @@ struct VoiceWorkoutImportView: View {
                 Text(warningText)
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondary)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.secondary.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(spacing: 10) {
                 Button("Edit") {
                     editorTarget = ImportedExerciseEditorTarget(dayIndex: dayIndex, exerciseIndex: exerciseIndex)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Menu("Swap") {
                     ForEach(exercise.matchCandidates.prefix(5)) { candidate in
@@ -446,22 +423,22 @@ struct VoiceWorkoutImportView: View {
                         }
                     }
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Button("Smart Swap") {
                     smartSwapTarget = ImportedExerciseEditorTarget(dayIndex: dayIndex, exerciseIndex: exerciseIndex)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Button("Remove") {
                     removeExercise(at: ImportedExerciseEditorTarget(dayIndex: dayIndex, exerciseIndex: exerciseIndex))
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
             }
         }
         .padding(16)
         .exerciseDetailDisclosureTapArea(id: exercise.id, expandedIDs: $expandedDetailIDs, enabled: tip != nil)
-        .surfaceCard(border: AppTheme.cardBorder.opacity(0.75))
+        .surfaceCard()
     }
 
     /// One compact row for phrases the parse left out (non-exercise talk or
@@ -504,7 +481,7 @@ struct VoiceWorkoutImportView: View {
                             Button("Add") {
                                 rescueFilteredPhrase(phrase)
                             }
-                            .buttonStyle(SecondaryButtonStyle())
+                            .buttonStyle(GhostButtonStyle(isCompact: true))
                         }
                     }
                 }
@@ -558,21 +535,8 @@ struct VoiceWorkoutImportView: View {
             Button("Record Again") {
                 resetImportFlow()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(GhostButtonStyle())
         }
-    }
-
-    private var trustSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("WHAT VOICE IMPORT HANDLES")
-                .microLabel()
-
-            Text("Works with exercise lists like Bench press, incline dumbbell press, lateral raises, or requests like Make me a dumbbell-only pull day. Nothing saves until you review it.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
     }
 
     private func toggleRecording() {
@@ -794,28 +758,6 @@ struct VoiceWorkoutImportView: View {
         return "I can keep helping you think through this before we change the draft."
     }
 
-    private func coachChangeCard(summary: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "wand.and.stars")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Draft updated")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-        }
-        .padding(14)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-    }
 
     private func voiceWarningText(for exercise: ImportedExerciseDraft) -> String? {
         if exercise.isCustomExercise {
@@ -863,20 +805,6 @@ struct VoiceWorkoutImportView: View {
         }
     }
 
-    private func importStat(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 26, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text(subtitle.uppercased())
-                .microLabel()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .surfaceCard()
-    }
 
     private func messageCard(title: String, text: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -933,7 +861,7 @@ struct VoiceWorkoutImportView: View {
         }()
 
         return Text(confidenceChipTitle(for: exercise))
-            .font(.caption.weight(.bold))
+            .font(.system(size: 11, weight: .bold))
             .foregroundStyle(color.opacity(0.95))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -956,55 +884,148 @@ struct VoiceWorkoutImportView: View {
         }
     }
 
+
+    /// COACH CHAT composer: a 50pt field-fill capsule holding the revision
+    /// field and a hairline send circle — not the gradient, which the Save
+    /// pill owns on this screen. The accent hairline follows focus.
+    private func revisionComposer(placeholder: String, action: @escaping () -> Void) -> some View {
+        let canRevise = !isApplyingRevision && revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8
+
+        return HStack(spacing: 6) {
+            TrackerTextField(placeholder, text: $revisionPrompt, axis: .vertical)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
+                .lineLimit(1...4)
+                .focused($revisionFocused)
+                .padding(.leading, 12)
+                .padding(.vertical, 8)
+
+            Button(action: action) {
+                ZStack {
+                    if isApplyingRevision {
+                        ProgressView()
+                            .tint(AppTheme.textPrimary)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    }
+                }
+                .frame(width: 38, height: 38)
+                .background(AppTheme.surfaceElevated)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+                .opacity(canRevise || isApplyingRevision ? 1 : 0.4)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRevise)
+            .accessibilityLabel(isApplyingRevision ? "Talking to Coach" : "Send to Coach")
+        }
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .background(AppTheme.fieldBackground)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(revisionFocused ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+        }
+    }
+
+    /// Sent: hairline bubble on the elevated surface with the 4pt tail.
+    /// Coach: plain 14pt text.
+    @ViewBuilder
+    private func conversationBubble(for message: AIWorkoutConversationMessage) -> some View {
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 44)
+
+                Text(message.text)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Self.sentBubbleShape.fill(AppTheme.surfaceElevated))
+                    .overlay {
+                        Self.sentBubbleShape
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+            }
+        } else {
+            Text(message.text)
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static var sentBubbleShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 18,
+            bottomLeadingRadius: 18,
+            bottomTrailingRadius: 4,
+            topTrailingRadius: 18,
+            style: .continuous
+        )
+    }
+
+    /// 16pt stat tile: micro label over a 22pt mono number (the exercise
+    /// page's BEST / e1RM / LAST row).
+    private func importStat(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(subtitle.uppercased())
+                .microLabel()
+
+            Text(title)
+                .font(.system(size: 22, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .glassCard(cornerRadius: 16)
+    }
+
+    /// "Draft updated" as a hairline line under the chat, not a box.
+    private func coachChangeCard(summary: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wand.and.stars")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Draft updated")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
     private func detailTagWrap(values: [String]) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], alignment: .leading, spacing: 8) {
             ForEach(values, id: \.self) { value in
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(reviewMutedText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(AppTheme.surfaceElevated)
-                    .clipShape(Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(AppTheme.cardBorder.opacity(0.65), lineWidth: 1)
-                }
+                TagChip(title: value)
             }
         }
     }
 
-    private func conversationBubble(for message: AIWorkoutConversationMessage) -> some View {
-        let isUser = message.role == .user
-
-        return HStack {
-            if isUser {
-                Spacer(minLength: 32)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(isUser ? "YOU" : "LOKT COACH")
-                    .microLabel()
-
-                Text(message.text)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isUser ? AppTheme.mutedFill : AppTheme.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
-
-            if !isUser {
-                Spacer(minLength: 32)
-            }
-        }
-    }
 }
 
 private struct VoiceExerciseEditorSheet: View {
@@ -1091,7 +1112,7 @@ private struct VoiceExerciseEditorSheet: View {
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
@@ -1114,8 +1135,7 @@ private struct VoiceExerciseEditorSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
-            TrackerTextField("Search existing exercises to swap", text: $searchText)
-                .textFieldStyle(TrackerTextFieldStyle())
+            TrackerSearchField("Search existing exercises to swap", text: $searchText)
 
             LazyVStack(spacing: 10) {
                 ForEach(searchResults) { exercise in
@@ -1146,7 +1166,7 @@ private struct VoiceExerciseEditorSheet: View {
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
@@ -1168,7 +1188,7 @@ private struct VoiceExerciseEditorSheet: View {
                 .lineLimit(2...4)
                 .textFieldStyle(TrackerTextFieldStyle())
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 

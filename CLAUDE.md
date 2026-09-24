@@ -207,3 +207,4 @@ Phase 9 (done, Onboarding): `OnboardingView` matches the "Onboarding — tap a t
   are junk; never commit them.
 - OpenAI calls cost real money: live-test AI endpoints with a small budget
   (≤2–3 calls) and say how many you used.
+- Consistency pass (agent G, 2026-09-24): Settings, routine editing, exercise picking, AI generation, imports + small sheets restyled to the v2 vocabulary; tab bar already token-clean. Look v2 rollout complete.

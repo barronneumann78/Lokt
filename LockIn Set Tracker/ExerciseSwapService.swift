@@ -303,38 +303,54 @@ struct ExerciseSwapSheet: View {
     }
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(target.exerciseName)
-                .font(.title3.weight(.bold))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let sourceNote = target.sourceNote, !sourceNote.isEmpty {
                 Text(sourceNote)
-                    .font(.subheadline)
+                    .font(.system(size: 13))
                     .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Tell Lokt why you want a change and it will suggest replacements that keep the workout’s purpose intact.")
-                    .font(.subheadline)
+                    .font(.system(size: 13))
                     .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(20)
-        .glassCard()
     }
 
+    /// WHY SWAP IT?: quick reasons as hairline prompt chips, the reason
+    /// field, and Find Swaps as the sheet's one gradient pill.
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("WHY SWAP IT?")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], alignment: .leading, spacing: 10) {
-                ForEach(quickReasons, id: \.self) { quickReason in
-                    Button(quickReason) {
-                        reason = quickReason
-                        requestSuggestions()
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(quickReasons, id: \.self) { quickReason in
+                        Button(quickReason) {
+                            reason = quickReason
+                            requestSuggestions()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(AppTheme.surfaceElevated)
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(AppTheme.cardBorder, lineWidth: 1)
+                        }
                     }
-                    .buttonStyle(TertiaryButtonStyle())
                 }
+                .padding(.vertical, 2)
             }
 
             TrackerTextField("Example: machine taken, dumbbell version, easier on shoulders", text: $reason, axis: .vertical)
@@ -344,71 +360,80 @@ struct ExerciseSwapSheet: View {
             Button(isLoading ? "Finding Swaps..." : "Find Swaps") {
                 requestSuggestions()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.primary))
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(isLoading || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 4)
             .opacity(isLoading || reason.trimmingCharacters(in: .whitespacesAndNewlines).count < 4 ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
+    /// Hairline rows: name link, reason, what it preserves as chips, the
+    /// caution as an amber line, and a compact ghost Apply Swap.
     private var suggestionsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("SUGGESTED REPLACEMENTS")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
-            ForEach(suggestions) { suggestion in
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ExerciseTextNavigationLink(
-                                exerciseName: suggestion.exerciseName,
-                                exercises: exercises
-                            ) {
-                                Text(suggestion.exerciseName)
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(AppTheme.textPrimary)
-                            }
-
-                            Text(suggestion.reason)
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer()
+            VStack(spacing: 0) {
+                ForEach(Array(suggestions.enumerated()), id: \.element.id) { item in
+                    if item.offset > 0 {
+                        Rectangle()
+                            .fill(AppTheme.cardBorder)
+                            .frame(height: 1)
                     }
 
-                    if !suggestion.preserves.isEmpty {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], alignment: .leading, spacing: 8) {
-                            ForEach(suggestion.preserves, id: \.self) { item in
-                                TagChip(title: item)
-                            }
-                        }
-                    }
-
-                    if let caution = suggestion.caution, !caution.isEmpty {
-                        Text(caution)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondary)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(AppTheme.secondary.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-
-                    Button("Apply Swap") {
-                        onApply(suggestion)
-                        dismiss()
-                    }
-                    .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+                    suggestionRow(item.element)
                 }
-                .padding(16)
-                .surfaceCard()
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
+    }
+
+    private func suggestionRow(_ suggestion: ExerciseSwapSuggestion) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ExerciseTextNavigationLink(
+                exerciseName: suggestion.exerciseName,
+                exercises: exercises
+            ) {
+                Text(suggestion.exerciseName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Text(suggestion.reason)
+                .font(.system(size: 13))
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !suggestion.preserves.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(suggestion.preserves, id: \.self) { item in
+                        TagChip(title: item)
+                    }
+                }
+            }
+
+            if let caution = suggestion.caution, !caution.isEmpty {
+                Text(caution)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Spacer()
+
+                Button("Apply Swap") {
+                    onApply(suggestion)
+                    dismiss()
+                }
+                .buttonStyle(GhostButtonStyle(isCompact: true))
+            }
+        }
+        .padding(.vertical, 12)
     }
 
     private func requestSuggestions() {

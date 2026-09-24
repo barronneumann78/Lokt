@@ -25,6 +25,7 @@ struct WorkoutPhotoImportView: View {
     /// Imported exercise ids whose tip line is open. New extractions and
     /// revisions decode fresh ids, so rows naturally start collapsed.
     @State private var expandedDetailIDs: Set<UUID> = []
+    @FocusState private var revisionFocused: Bool
 
     private let pipeline = WorkoutPhotoImportPipeline()
     private let revisionService = ImportedWorkoutRevisionService()
@@ -44,14 +45,14 @@ struct WorkoutPhotoImportView: View {
                         reviewContent
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppTheme.screenPadding)
                 .padding(.vertical, 20)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
         .keyboardDoneBar()
-        .navigationTitle("Import from Photo")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: selectedPhotoItem) { _, item in
             guard let item else { return }
@@ -98,34 +99,28 @@ struct WorkoutPhotoImportView: View {
             if let errorMessage {
                 messageCard(title: "Photo Import Couldn’t Finish", text: errorMessage, tint: AppTheme.secondary)
             }
-
-            trustSection
         }
     }
 
+    /// 26pt screen title; the explainer captions that sat under it and in
+    /// the old WHAT THE IMPORTER HANDLES card are gone (look v2).
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Turn a photo into a routine.")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Import a screenshot, typed plan, split sheet, or clear handwritten workout. You’ll review the routine before saving.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
+        Text("Turn a photo into a routine.")
+            .font(.system(size: 26, weight: .bold))
+            .tracking(-0.3)
+            .foregroundStyle(AppTheme.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.bottom, 2)
     }
 
     private var imageSelectionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("PICK A PHOTO")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(AppTheme.surface)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(AppTheme.fieldBackground)
 
                 if let selectedImage {
                     Image(uiImage: selectedImage)
@@ -141,24 +136,20 @@ struct WorkoutPhotoImportView: View {
                             .foregroundStyle(AppTheme.textTertiary)
 
                         Text("Use the clearest crop you can")
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.textPrimary)
-
-                        Text("Portrait screenshots and close photos of your routine usually parse best.")
-                            .font(.subheadline)
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(AppTheme.textSecondary)
-                            .multilineTextAlignment(.center)
                     }
                     .padding(24)
                 }
             }
-            .frame(height: 260)
+            .frame(height: 240)
             .overlay {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
 
-            HStack(spacing: 12) {
+            // THE gradient pill of the input stage beside a matching-height ghost.
+            HStack(spacing: 10) {
                 Button("Take Photo") {
                     showCamera = true
                 }
@@ -167,27 +158,20 @@ struct WorkoutPhotoImportView: View {
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Text("Upload Image")
                 }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+                .buttonStyle(GhostButtonStyle(verticalPadding: 17))
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private var processingContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Importing your workout...")
-                    .font(.system(size: 30, weight: .bold))
-                    .tracking(-0.5)
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text("Lokt is reading the image, matching exercises, and flagging anything unclear.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .padding(20)
-            .glassCard()
+            Text("Importing your workout...")
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 18) {
                 if let selectedImage {
@@ -203,11 +187,11 @@ struct WorkoutPhotoImportView: View {
                     .tint(AppTheme.primary)
 
                 Text(processingMessage)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
-            .padding(20)
+            .padding(AppTheme.cardPadding)
             .frame(maxWidth: .infinity)
             .glassCard()
         }
@@ -236,13 +220,10 @@ struct WorkoutPhotoImportView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             Text("Review the imported routine")
-                .font(.system(size: 30, weight: .bold))
-                .tracking(-0.5)
+                .font(.system(size: 26, weight: .bold))
+                .tracking(-0.3)
                 .foregroundStyle(AppTheme.textPrimary)
-
-            Text("Nothing saves until you confirm. Review the matches, fix anything unclear, and keep custom exercises only when they really belong.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             reviewReadinessCard(
                 title: reviewCount == 0 ? "Everything looks ready" : "\(reviewCount) item\(reviewCount == 1 ? "" : "s") still need review",
@@ -261,15 +242,13 @@ struct WorkoutPhotoImportView: View {
                 importStat(title: "\(importedWorkout.unmatchedExercises.count)", subtitle: "Custom")
             }
         }
-        .padding(20)
-        .glassCard()
     }
 
     private func revisionSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("COACH CHAT")
-                    .microLabel()
+                    .microLabel(AppTheme.textSecondary)
 
                 Spacer()
 
@@ -289,33 +268,24 @@ struct WorkoutPhotoImportView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 240)
-                .padding(4)
-                .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
             }
 
             if let latestCoachChangeSummary = latestCoachChangeSummary?.nilIfEmpty {
                 coachChangeCard(summary: latestCoachChangeSummary)
             }
 
-            TrackerTextField("Try: replace barbell work with easier machine exercises", text: $revisionPrompt, axis: .vertical)
-                .textFieldStyle(TrackerTextFieldStyle())
-                .lineLimit(2...4)
-
-            Button(isApplyingRevision ? "Talking to Coach..." : "Send to Coach") {
+            revisionComposer(placeholder: "Try: replace barbell work with easier machine exercises") {
                 applyRevision(to: importedWorkout)
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
-            .disabled(isApplyingRevision || revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8)
-            .opacity(isApplyingRevision || revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 8 ? 0.6 : 1)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private func recognizedTextSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("EXTRACTED TEXT")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             Text(importedWorkout.sourceText)
                 .font(.caption)
@@ -324,14 +294,14 @@ struct WorkoutPhotoImportView: View {
                 .padding(14)
                 .surfaceCard()
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
     private func reviewDaysSection(for importedWorkout: ImportedWorkoutDraft) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("ROUTINE PREVIEW")
-                .microLabel()
+                .microLabel(AppTheme.textSecondary)
 
             ForEach(importedWorkout.days.indices, id: \.self) { dayIndex in
                 reviewDayCard(dayIndex: dayIndex)
@@ -365,7 +335,7 @@ struct WorkoutPhotoImportView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
@@ -380,7 +350,7 @@ struct WorkoutPhotoImportView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         ExerciseTextNavigationLink(exerciseName: exercise.resolvedExerciseName, exercises: exerciseStore.exercises) {
                             Text(exercise.resolvedExerciseName)
-                                .font(.headline.weight(.bold))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
                         }
 
@@ -418,7 +388,7 @@ struct WorkoutPhotoImportView: View {
 
             if exercise.isCustomExercise {
                 Text("Custom Imported Exercise")
-                    .font(.caption.weight(.bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AppTheme.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -432,17 +402,14 @@ struct WorkoutPhotoImportView: View {
                 Text(warningText)
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondary)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.secondary.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(spacing: 10) {
                 Button("Edit Details") {
                     editorTarget = ImportedExerciseEditorTarget(dayIndex: dayIndex, exerciseIndex: exerciseIndex)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Menu("Swap Match") {
                     ForEach(exercise.matchCandidates.prefix(5)) { candidate in
@@ -451,17 +418,17 @@ struct WorkoutPhotoImportView: View {
                         }
                     }
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Button("Smart Swap") {
                     smartSwapTarget = ImportedExerciseEditorTarget(dayIndex: dayIndex, exerciseIndex: exerciseIndex)
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
 
                 Button("Remove") {
                     removeExercise(at: ImportedExerciseEditorTarget(dayIndex: dayIndex, exerciseIndex: exerciseIndex))
                 }
-                .buttonStyle(SecondaryButtonStyle())
+                .buttonStyle(GhostButtonStyle(isCompact: true))
             }
         }
         .padding(16)
@@ -481,21 +448,8 @@ struct WorkoutPhotoImportView: View {
             Button("Import Another Photo") {
                 resetImportFlow()
             }
-            .buttonStyle(PrimaryButtonStyle(fill: AppTheme.surfaceElevated))
+            .buttonStyle(GhostButtonStyle())
         }
-    }
-
-    private var trustSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("WHAT THE IMPORTER HANDLES")
-                .microLabel()
-
-            Text("Works with typed routines, shorthand like DB Bench 3x10, split names like Push/Pull/Legs, and clear handwritten notes. Nothing saves until you review it.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .padding(20)
-        .glassCard()
     }
 
     private func loadPhotoPickerItem(_ item: PhotosPickerItem) {
@@ -686,43 +640,7 @@ struct WorkoutPhotoImportView: View {
         return "I can keep helping you think through this before we change the draft."
     }
 
-    private func coachChangeCard(summary: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "wand.and.stars")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textSecondary)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Draft updated")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-        }
-        .padding(14)
-        .surfaceCard(cornerRadius: AppTheme.controlCornerRadius)
-    }
-
-    private func importStat(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 26, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
-
-            Text(subtitle.uppercased())
-                .microLabel()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .surfaceCard()
-    }
 
     private func importStatusLine(for exercise: ImportedExerciseDraft) -> String {
         if exercise.isCustomExercise {
@@ -811,7 +729,7 @@ struct WorkoutPhotoImportView: View {
         }()
 
         return Text(exercise.confidence.title)
-            .font(.caption.weight(.bold))
+            .font(.system(size: 11, weight: .bold))
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -819,51 +737,148 @@ struct WorkoutPhotoImportView: View {
             .clipShape(Capsule())
     }
 
+
+    /// COACH CHAT composer: a 50pt field-fill capsule holding the revision
+    /// field and a hairline send circle — not the gradient, which the Save
+    /// pill owns on this screen. The accent hairline follows focus.
+    private func revisionComposer(placeholder: String, action: @escaping () -> Void) -> some View {
+        let canRevise = !isApplyingRevision && revisionPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count >= 8
+
+        return HStack(spacing: 6) {
+            TrackerTextField(placeholder, text: $revisionPrompt, axis: .vertical)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .tint(AppTheme.primary)
+                .lineLimit(1...4)
+                .focused($revisionFocused)
+                .padding(.leading, 12)
+                .padding(.vertical, 8)
+
+            Button(action: action) {
+                ZStack {
+                    if isApplyingRevision {
+                        ProgressView()
+                            .tint(AppTheme.textPrimary)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    }
+                }
+                .frame(width: 38, height: 38)
+                .background(AppTheme.surfaceElevated)
+                .clipShape(Circle())
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
+                }
+                .opacity(canRevise || isApplyingRevision ? 1 : 0.4)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRevise)
+            .accessibilityLabel(isApplyingRevision ? "Talking to Coach" : "Send to Coach")
+        }
+        .padding(.horizontal, 6)
+        .frame(minHeight: 50)
+        .background(AppTheme.fieldBackground)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(revisionFocused ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+        }
+    }
+
+    /// Sent: hairline bubble on the elevated surface with the 4pt tail.
+    /// Coach: plain 14pt text.
+    @ViewBuilder
+    private func conversationBubble(for message: AIWorkoutConversationMessage) -> some View {
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 44)
+
+                Text(message.text)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Self.sentBubbleShape.fill(AppTheme.surfaceElevated))
+                    .overlay {
+                        Self.sentBubbleShape
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    }
+            }
+        } else {
+            Text(message.text)
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static var sentBubbleShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 18,
+            bottomLeadingRadius: 18,
+            bottomTrailingRadius: 4,
+            topTrailingRadius: 18,
+            style: .continuous
+        )
+    }
+
+    /// 16pt stat tile: micro label over a 22pt mono number (the exercise
+    /// page's BEST / e1RM / LAST row).
+    private func importStat(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(subtitle.uppercased())
+                .microLabel()
+
+            Text(title)
+                .font(.system(size: 22, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .glassCard(cornerRadius: 16)
+    }
+
+    /// "Draft updated" as a hairline line under the chat, not a box.
+    private func coachChangeCard(summary: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wand.and.stars")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Draft updated")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+
     private func detailTagWrap(values: [String]) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], alignment: .leading, spacing: 8) {
             ForEach(values, id: \.self) { value in
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(AppTheme.mutedFill)
-                    .clipShape(Capsule())
+                TagChip(title: value)
             }
         }
     }
 
-    private func conversationBubble(for message: AIWorkoutConversationMessage) -> some View {
-        let isUser = message.role == .user
-
-        return HStack {
-            if isUser {
-                Spacer(minLength: 32)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(isUser ? "YOU" : "LOKT COACH")
-                    .microLabel()
-
-                Text(message.text)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isUser ? AppTheme.mutedFill : AppTheme.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
-            }
-
-            if !isUser {
-                Spacer(minLength: 32)
-            }
-        }
-    }
 }
 
 private struct ImportedExerciseEditorSheet: View {
@@ -957,7 +972,7 @@ private struct ImportedExerciseEditorSheet: View {
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
@@ -980,8 +995,7 @@ private struct ImportedExerciseEditorSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
-            TrackerTextField("Search existing exercises to swap", text: $searchText)
-                .textFieldStyle(TrackerTextFieldStyle())
+            TrackerSearchField("Search existing exercises to swap", text: $searchText)
 
             LazyVStack(spacing: 10) {
                 ForEach(searchResults) { exercise in
@@ -1012,7 +1026,7 @@ private struct ImportedExerciseEditorSheet: View {
                 }
             }
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
@@ -1042,7 +1056,7 @@ private struct ImportedExerciseEditorSheet: View {
                 .lineLimit(1...3)
                 .textFieldStyle(TrackerTextFieldStyle())
         }
-        .padding(20)
+        .padding(AppTheme.cardPadding)
         .glassCard()
     }
 
