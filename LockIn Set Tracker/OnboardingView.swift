@@ -1,11 +1,20 @@
 import SwiftUI
 import UIKit
 
+/// The onboarding quiz — "tap a tile, it slides on" (look v2). One question
+/// per `OnboardingStep`: an accent micro label, a 30pt question, big tiles.
+/// Single-choice steps advance on tap (the check lands, ~250ms, then the
+/// slide); age / areas / the note pin the screen's one gradient pill.
+/// Stored keys and values are untouched — `savePreferences` writes the same
+/// `AIUserPreferences` as before, and `onComplete` still flips the
+/// `hasCompletedOnboarding` flag at the app root (Settings → Retake Quiz
+/// clears it to restart here).
 struct OnboardingView: View {
     var onComplete: () -> Void
 
-    @State private var step = 0
+    @State private var step: OnboardingStep = .startingPoint
     @State private var goingForward = true
+    @State private var advancingFrom: OnboardingStep?
 
     @State private var selectedExperience: TrainingExperience?
     @State private var selectedGoal: OnboardingPrimaryGoal?
@@ -15,7 +24,9 @@ struct OnboardingView: View {
     @State private var selectedInjuryFlags: Set<InjuryFlag> = []
     @State private var limitations = ""
 
-    private let totalSteps = 4
+    @FocusState private var ageFieldFocused: Bool
+
+    private static let tileCornerRadius: CGFloat = 20
 
     var body: some View {
         ZStack {
@@ -36,44 +47,43 @@ struct OnboardingView: View {
         .keyboardDoneBar()
     }
 
-    // MARK: - Top bar (back · progress · skip)
+    // MARK: - Top row (back · segments · counter)
 
     private var topBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Button {
                 goBack()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.headline.weight(.bold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(AppTheme.fieldBackground, in: Circle())
+                    .frame(width: 36, height: 36, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .opacity(step > 0 ? 1 : 0)
-            .disabled(step == 0)
+            .opacity(step.isFirst ? 0 : 1)
+            .disabled(step.isFirst)
 
-            Spacer()
+            progressSegments
 
-            progressDots
-
-            Spacer()
-
-            Button("Skip") {
-                onComplete()
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(AppTheme.textSecondary)
-            .frame(minWidth: 40, alignment: .trailing)
+            Text(step.counterText)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.textTertiary)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 
-    private var progressDots: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<totalSteps, id: \.self) { index in
+    /// One 4pt segment per step: done + current wear the gradient token, the
+    /// rest stay hairline.
+    private var progressSegments: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<OnboardingStep.count, id: \.self) { index in
                 Capsule()
-                    .fill(index == step ? AppTheme.primary : AppTheme.cardBorder)
-                    .frame(width: index == step ? 24 : 8, height: 8)
+                    .fill(step.fillsSegment(index)
+                          ? AnyShapeStyle(AppTheme.primaryGradient)
+                          : AnyShapeStyle(AppTheme.cardBorder))
+                    .frame(height: 4)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: step)
@@ -84,326 +94,306 @@ struct OnboardingView: View {
     @ViewBuilder
     private var stepContent: some View {
         switch step {
-        case 0:
-            questionStep(
-                eyebrow: "Your starting point",
-                title: "What best describes you right now?",
-                options: TrainingExperience.allCases,
-                selection: selectedExperience
-            ) { option in
-                selectedExperience = option
-                scheduleAdvance()
+        case .startingPoint:
+            tapStep(options: TrainingExperience.allCases, selection: selectedExperience) {
+                selectedExperience = $0
             }
-        case 1:
-            questionStep(
-                eyebrow: "Your focus",
-                title: "What are you focused on right now?",
-                options: OnboardingPrimaryGoal.allCases,
-                selection: selectedGoal
-            ) { option in
-                selectedGoal = option
-                scheduleAdvance()
+        case .focus:
+            tapStep(options: OnboardingPrimaryGoal.allCases, selection: selectedGoal) {
+                selectedGoal = $0
             }
-        case 2:
-            setupStep
-        default:
-            safetyStep
+        case .location:
+            tapStep(options: OnboardingTrainingLocation.allCases, selection: selectedLocation) {
+                selectedLocation = $0
+            }
+        case .session:
+            tapStep(options: OnboardingTimeLimit.allCases, selection: selectedTimeLimit) {
+                selectedTimeLimit = $0
+            }
+        case .age:
+            ageStep
+        case .areas:
+            areasStep
+        case .avoid:
+            avoidStep
         }
     }
 
-    private func questionStep<Option: OnboardingOption>(
-        eyebrow: String,
-        title: String,
+    /// A single-choice step: tiles that select and slide on.
+    private func tapStep<Option: OnboardingOption>(
         options: [Option],
         selection: Option?,
-        onSelect: @escaping (Option) -> Void
+        select: @escaping (Option) -> Void
     ) -> some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                stepHeader(eyebrow: eyebrow, title: title, subtitle: nil)
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    stepHeader
 
-                VStack(spacing: 12) {
-                    ForEach(options) { option in
-                        optionCard(
-                            option: option,
-                            isSelected: selection?.id == option.id,
-                            action: { onSelect(option) }
-                        )
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 28)
-        }
-    }
-
-    private var setupStep: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                stepHeader(
-                    eyebrow: "Your setup",
-                    title: "What can your plan use?",
-                    subtitle: "Pick where you train and the time you usually have."
-                )
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("WHERE YOU TRAIN")
-                        .microLabel()
-
-                    ForEach(OnboardingTrainingLocation.allCases) { option in
-                        optionCard(
-                            option: option,
-                            isSelected: selectedLocation?.id == option.id,
-                            action: { selectedLocation = option }
-                        )
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("USUAL SESSION")
-                        .microLabel()
-
-                    HStack(spacing: 10) {
-                        ForEach(OnboardingTimeLimit.allCases) { option in
-                            timeLimitButton(option)
+                    VStack(spacing: 12) {
+                        ForEach(options) { option in
+                            optionTile(
+                                title: option.title,
+                                subtitle: option.subtitle,
+                                isSelected: selection?.id == option.id
+                            ) {
+                                select(option)
+                                scheduleAdvance()
+                            }
                         }
                     }
                 }
-
-                Button("Continue") {
-                    scheduleAdvance()
-                }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
-                .disabled(selectedLocation == nil || selectedTimeLimit == nil)
-                .opacity(selectedLocation == nil || selectedTimeLimit == nil ? 0.5 : 1)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 28)
+
+            tapFooter
         }
     }
 
-    private func timeLimitButton(_ option: OnboardingTimeLimit) -> some View {
-        let isSelected = selectedTimeLimit == option
+    private var ageStep: some View {
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    stepHeader
 
-        return Button {
-            selectedTimeLimit = option
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        } label: {
-            VStack(spacing: 4) {
-                Text(option.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        TrackerTextField("Your age", text: $ageText)
+                            .textFieldStyle(TrackerTextFieldStyle())
+                            .font(.system(size: 22, weight: .bold))
+                            .keyboardType(.numberPad)
+                            .focused($ageFieldFocused)
 
-                Text(option.shortTitle)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(isSelected ? AppTheme.primary.opacity(0.16) : AppTheme.fieldBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
-                    .stroke(isSelected ? AppTheme.primary.opacity(0.65) : AppTheme.cardBorder, lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var safetyStep: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                stepHeader(
-                    eyebrow: "A safer starting plan",
-                    title: "Anything we should work around?",
-                    subtitle: "These details help Lokt keep your first plan simple. You can change them anytime in Settings."
-                )
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("AGE")
-                        .microLabel()
-
-                    TrackerTextField("Your age", text: $ageText)
-                        .textFieldStyle(TrackerTextFieldStyle())
-                        .keyboardType(.numberPad)
-
-                    Text("Required to personalize your starting point.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-
-                    if !ageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                       AIUserPreferences.validAge(from: ageText) == nil {
-                        Text("Enter an age from 13 to 120 to continue.")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.danger)
+                        Text(OnboardingFlow.ageHint(for: ageText))
+                            .font(.system(size: 13))
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
+            }
+            .scrollDismissesKeyboard(.interactively)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("AREAS TO WORK AROUND")
-                        .microLabel()
+            continueFooter(enabled: OnboardingFlow.canContinue(from: .age, ageText: ageText)) {
+                ageFieldFocused = false
+                advance()
+            }
+        }
+        .onAppear {
+            // Land the keyboard after the slide, not during it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if step == .age {
+                    ageFieldFocused = true
+                }
+            }
+        }
+    }
 
-                    Button {
-                        selectedInjuryFlags.removeAll()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: selectedInjuryFlags.isEmpty ? "checkmark.circle.fill" : "circle")
-                            Text("None right now")
-                                .font(.subheadline.weight(.semibold))
+    /// Multi-select: "None right now" is the empty set, every flag toggles.
+    private var areasStep: some View {
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    stepHeader
+
+                    VStack(spacing: 12) {
+                        optionTile(title: "None right now", subtitle: nil, isSelected: selectedInjuryFlags.isEmpty) {
+                            selectedInjuryFlags.removeAll()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         }
-                        .foregroundStyle(selectedInjuryFlags.isEmpty ? AppTheme.primary : AppTheme.textSecondary)
-                    }
-                    .buttonStyle(.plain)
 
-                    LazyVGrid(
-                        columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                        spacing: 10
-                    ) {
                         ForEach(InjuryFlag.allCases) { flag in
-                            injuryFlagButton(flag)
+                            optionTile(title: flag.title, subtitle: nil, isSelected: selectedInjuryFlags.contains(flag)) {
+                                toggle(flag)
+                            }
                         }
                     }
                 }
-
-                multilineLimitationsField
-
-                Text("Lokt is not medical care. Stop if a movement hurts, and get professional guidance before training with symptoms or a medical condition.")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(14)
-                    .surfaceCard(cornerRadius: AppTheme.rowCornerRadius)
-
-                Button("Finish Setup") {
-                    finish()
-                }
-                .buttonStyle(PrimaryButtonStyle(fill: AppTheme.accent))
-                .disabled(!hasValidAge)
-                .opacity(hasValidAge ? 1 : 0.5)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 28)
+
+            continueFooter(enabled: true) {
+                advance()
+            }
         }
-        .scrollDismissesKeyboard(.interactively)
     }
 
-    private var multilineLimitationsField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ANYTHING ELSE TO AVOID? (OPTIONAL)")
-                .microLabel()
+    private var avoidStep: some View {
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    stepHeader
 
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .fill(AppTheme.fieldBackground)
+                    limitationsField
 
-                if limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("For example: avoid overhead pressing or deep knee bends")
-                        .font(.body)
+                    Text("Lokt is not medical care. Stop if a movement hurts, and get professional guidance before training with symptoms or a medical condition.")
+                        .font(.system(size: 13))
                         .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                TextEditor(text: $limitations)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 86)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .trackerTextEditorStyle()
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous)
-                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            .scrollDismissesKeyboard(.interactively)
+
+            continueFooter(enabled: true) {
+                finish()
             }
         }
     }
 
-    private func injuryFlagButton(_ flag: InjuryFlag) -> some View {
-        let isSelected = selectedInjuryFlags.contains(flag)
+    private var limitationsField: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous)
+                .fill(AppTheme.fieldBackground)
 
-        return Button {
-            if isSelected {
-                selectedInjuryFlags.remove(flag)
-            } else {
-                selectedInjuryFlags.insert(flag)
+            if limitations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("For example: avoid overhead pressing or deep knee bends")
+                    .font(.body)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
             }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.subheadline)
-                Text(flag.title)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textPrimary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? AppTheme.primary.opacity(0.14) : AppTheme.fieldBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.rowCornerRadius, style: .continuous)
-                    .stroke(isSelected ? AppTheme.primary.opacity(0.65) : AppTheme.cardBorder, lineWidth: 1)
-            }
+
+            TextEditor(text: $limitations)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 120)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .trackerTextEditorStyle()
         }
-        .buttonStyle(.plain)
+        .overlay {
+            RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous)
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        }
     }
 
-    private func stepHeader(eyebrow: String, title: String, subtitle: String?) -> some View {
+    // MARK: - Pieces
+
+    private var stepHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(eyebrow.uppercased())
-                .microLabel()
+            Text(step.label)
+                .microLabel(AppTheme.accent)
 
-            Text(title)
+            Text(step.question)
                 .font(.system(size: 30, weight: .bold))
                 .tracking(-0.5)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
                 .foregroundStyle(AppTheme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            if let subtitle {
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func optionCard<Option: OnboardingOption>(
-        option: Option,
+    /// The board's tile: 17pt bold title, optional 13pt subtitle, a 26pt
+    /// mark on the right — hairline at rest, the gradient token with a
+    /// near-black check when selected (tile fill `accentChipFill`, border
+    /// `accentHairline`: the app's chip vocabulary).
+    private func optionTile(
+        title: String,
+        subtitle: String?,
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        let borderColor = isSelected ? AppTheme.primary.opacity(0.55) : AppTheme.cardBorder
-
-        return Button(action: action) {
+        Button(action: action) {
             HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(option.title)
-                        .font(.headline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 17, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(AppTheme.textPrimary)
-
-                    Text(option.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
                         .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.system(size: 13))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
-                Spacer()
+                Spacer(minLength: 12)
 
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "chevron.right")
-                    .font(.headline)
-                    .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textSecondary)
+                selectionMark(isSelected: isSelected)
             }
-            .padding(16)
-            .surfaceCard(cornerRadius: 18, border: borderColor)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous)
+                        .fill(AppTheme.accentChipFill)
+                }
+            }
+            .glassCard(cornerRadius: Self.tileCornerRadius)
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous)
+                        .stroke(AppTheme.accentHairline, lineWidth: 1)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: Self.tileCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    private func selectionMark(isSelected: Bool) -> some View {
+        ZStack {
+            if isSelected {
+                Circle()
+                    .fill(AppTheme.primaryGradient)
+
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(AppTheme.backgroundTop)
+            } else {
+                Circle()
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
+            }
+        }
+        .frame(width: 26, height: 26)
+    }
+
+    /// Under the tiles on tap-to-advance steps: the hint on the left, the
+    /// existing leave-the-quiz Skip on the right.
+    private var tapFooter: some View {
+        HStack {
+            Text("Tap one — it slides on")
+                .font(.system(size: 12))
+                .foregroundStyle(AppTheme.textTertiary)
+
+            Spacer()
+
+            if step.isSkippable {
+                Button {
+                    onComplete()
+                } label: {
+                    Text("Skip")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .padding(.vertical, 6)
+                        .padding(.leading, 12)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+
+    /// The screen's one gradient pill, pinned under the Continue steps.
+    private func continueFooter(enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(step.continueTitle, action: action)
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(!enabled)
+            .opacity(enabled ? 1 : 0.55)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
     }
 
     // MARK: - Navigation
@@ -415,29 +405,55 @@ struct OnboardingView: View {
         )
     }
 
-    /// Selecting an answer briefly shows the highlight, then slides to the next question.
+    /// Tap-to-advance: the check lands, then ~250ms later the slide. A second
+    /// tap inside that window re-points the selection without scheduling a
+    /// second slide; leaving the step cancels the pending one.
     private func scheduleAdvance() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            goingForward = true
-            withAnimation(.easeInOut(duration: 0.35)) {
-                if step < totalSteps - 1 {
-                    step += 1
-                }
-            }
+        guard advancingFrom == nil else { return }
+        advancingFrom = step
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            let pending = advancingFrom
+            advancingFrom = nil
+            guard pending == step else { return }
+            advance()
+        }
+    }
+
+    private func advance() {
+        guard let next = step.next else { return }
+        goingForward = true
+        withAnimation(.easeInOut(duration: 0.35)) {
+            step = next
         }
     }
 
     private func goBack() {
-        guard step > 0 else { return }
+        guard let previous = step.previous else { return }
         goingForward = false
         withAnimation(.easeInOut(duration: 0.35)) {
-            step -= 1
+            step = previous
         }
     }
 
+    private func toggle(_ flag: InjuryFlag) {
+        if selectedInjuryFlags.contains(flag) {
+            selectedInjuryFlags.remove(flag)
+        } else {
+            selectedInjuryFlags.insert(flag)
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
     private func finish() {
-        guard hasValidAge else { return }
+        guard hasValidAge else {
+            // Age was cleared after passing its step — slide back to it.
+            goingForward = false
+            withAnimation(.easeInOut(duration: 0.35)) {
+                step = .age
+            }
+            return
+        }
         savePreferences()
         onComplete()
     }
@@ -493,15 +509,10 @@ private enum OnboardingTrainingLocation: String, CaseIterable, Hashable, Onboard
         }
     }
 
+    /// Factual: exactly the equipment list the plan will be told to use.
     var subtitle: String {
-        switch self {
-        case .commercialGym:
-            return "Lokt can comfortably use machines, cables, dumbbells, and barbells."
-        case .homeGym:
-            return "Bias toward practical home setups and fewer machine-dependent choices."
-        case .minimalEquipment:
-            return "Keep things simple with bodyweight, bands, or a few dumbbells."
-        }
+        let list = preferredEquipment.joined(separator: ", ")
+        return list.prefix(1).uppercased() + list.dropFirst()
     }
 
     var preferredEquipment: [String] {
@@ -578,11 +589,11 @@ private enum OnboardingTimeLimit: String, CaseIterable, Hashable, OnboardingOpti
     var subtitle: String {
         switch self {
         case .minutes30:
-            return "Short, efficient sessions."
+            return "Quick"
         case .minutes45:
-            return "A solid default for most workouts."
+            return "Balanced"
         case .minutes60:
-            return "More room for fuller sessions."
+            return "Full"
         }
     }
 
@@ -594,17 +605,6 @@ private enum OnboardingTimeLimit: String, CaseIterable, Hashable, OnboardingOpti
             return 45
         case .minutes60:
             return 60
-        }
-    }
-
-    var shortTitle: String {
-        switch self {
-        case .minutes30:
-            return "Quick"
-        case .minutes45:
-            return "Balanced"
-        case .minutes60:
-            return "Full"
         }
     }
 }
