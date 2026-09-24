@@ -157,13 +157,14 @@ struct AnalyticsView: View {
         HStack(spacing: 8) {
             statTile(label: "VOLUME · 7D", value: AnalyticsFormat.compact(headline.volumeLast7Days))
             statTile(label: "SETS · 30D", value: "\(headline.setsLast30Days)")
-            statTile(label: "PRs · e1RM", value: "\(prCount)", accent: true)
+            statTile(label: "PRs · e1RM", value: "\(prCount)")
         }
     }
 
-    /// Concept tile: 16pt card, 10pt micro label, 22pt mono number — the PR
-    /// count in the accent. The three keep the phase-1 hero glow.
-    private func statTile(label: String, value: String, accent: Bool = false) -> some View {
+    /// Concept tile: 16pt card, 10pt micro label, 22pt mono number — all
+    /// `textPrimary`, no glow (restraint pass). The progression's latest
+    /// value is the screen's one accent number.
+    private func statTile(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.system(size: 10, weight: .semibold))
@@ -176,11 +177,10 @@ struct AnalyticsView: View {
                 .font(.system(size: 22, weight: .bold))
                 .monospacedDigit()
                 .tracking(-0.5)
-                .foregroundStyle(accent ? AppTheme.primary : AppTheme.textPrimary)
+                .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .contentTransition(.numericText())
-                .heroGlow()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)

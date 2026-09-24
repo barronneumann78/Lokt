@@ -129,17 +129,17 @@ struct ExerciseDetailView: View {
 
             ChipFlowLayout(spacing: 6) {
                 ForEach(primaryMuscles, id: \.self) { muscle in
-                    muscleChip(muscle, accent: true)
+                    muscleChip(muscle)
                 }
                 ForEach(secondaryMuscles, id: \.self) { muscle in
-                    muscleChip(muscle, accent: false)
+                    muscleChip(muscle)
                 }
             }
         }
     }
 
-    /// The MUSCLES data (`ExerciseMuscleRoles`), as chips: primaries wear the
-    /// accent, secondaries a plain hairline. Spellings that collapse onto the
+    /// The MUSCLES data (`ExerciseMuscleRoles`), as chips: primaries first,
+    /// all on the plain hairline. Spellings that collapse onto the
     /// same muscle show once, and a secondary never repeats a primary.
     private var primaryMuscles: [String] {
         ExerciseMuscleRoles.primaryRoles(for: exercise).map { $0.muscle.sentenceStyled }
@@ -158,17 +158,18 @@ struct ExerciseDetailView: View {
         }
     }
 
-    private func muscleChip(_ title: String, accent: Bool) -> some View {
+    /// Plain hairline chip for every muscle (primaries listed first). No
+    /// accent: the chips describe, they are not a selected state.
+    private func muscleChip(_ title: String) -> some View {
         Text(title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(accent ? AppTheme.primary : AppTheme.textSecondary)
+            .foregroundStyle(AppTheme.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(accent ? AppTheme.accentChipFill : Color.clear)
             .clipShape(Capsule())
             .overlay {
                 Capsule()
-                    .stroke(accent ? AppTheme.accentHairline : AppTheme.cardBorder, lineWidth: 1)
+                    .stroke(AppTheme.cardBorder, lineWidth: 1)
             }
     }
 
@@ -177,14 +178,15 @@ struct ExerciseDetailView: View {
     private var statsRow: some View {
         HStack(spacing: 8) {
             statTile(label: "BEST", value: stats.bestLabel)
-            statTile(label: "e1RM", value: stats.e1RMLabel, hero: true)
+            statTile(label: "e1RM", value: stats.e1RMLabel)
             statTile(label: "LAST", value: stats.lastLabel)
         }
     }
 
     /// The Analytics headline tile: 16pt card, 10pt label, 22pt mono number.
-    /// e1RM is the page's one hero — accent under `.heroGlow()`.
-    private func statTile(label: String, value: String, hero: Bool = false) -> some View {
+    /// All three are `textPrimary` with no glow (restraint pass) — the page
+    /// spends its accent on the ASK LOKT send circle only.
+    private func statTile(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.system(size: 10, weight: .semibold))
@@ -192,28 +194,17 @@ struct ExerciseDetailView: View {
                 .foregroundStyle(AppTheme.textTertiary)
                 .lineLimit(1)
 
-            tileValue(value, hero: hero)
+            Text(value)
+                .font(.system(size: 22, weight: .bold))
+                .monospacedDigit()
+                .tracking(-0.5)
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .glassCard(cornerRadius: 16)
-    }
-
-    @ViewBuilder
-    private func tileValue(_ value: String, hero: Bool) -> some View {
-        let text = Text(value)
-            .font(.system(size: 22, weight: .bold))
-            .monospacedDigit()
-            .tracking(-0.5)
-            .foregroundStyle(hero ? AppTheme.primary : AppTheme.textPrimary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-
-        if hero {
-            text.heroGlow()
-        } else {
-            text
-        }
     }
 
     /// Only for exercises that ship a real demo (custom entries with media);
@@ -280,20 +271,20 @@ struct ExerciseDetailView: View {
         }
     }
 
-    /// Concept cue row: a 22pt accent-outlined circle number on the elevated
-    /// surface, then 14pt text.
+    /// Concept cue row: a 22pt hairline circle number (`textSecondary`) on
+    /// the elevated surface, then 14pt text. No accent — cues are content.
     private func numberedCue(_ number: Int, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text("\(number)")
                 .font(.system(size: 11, weight: .bold))
                 .monospacedDigit()
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.textSecondary)
                 .frame(width: 22, height: 22)
                 .background(AppTheme.surfaceElevated)
                 .clipShape(Circle())
                 .overlay {
                     Circle()
-                        .stroke(AppTheme.accentHairline, lineWidth: 1)
+                        .stroke(AppTheme.cardBorder, lineWidth: 1)
                 }
 
             Text(text)

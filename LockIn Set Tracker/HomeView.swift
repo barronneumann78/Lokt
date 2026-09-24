@@ -204,7 +204,7 @@ struct HomeView: View {
 
             verticalHairline
 
-            statTile(label: "PRs · 30D", value: "\(prsLast30Days)", accent: true)
+            statTile(label: "PRs · 30D", value: "\(prsLast30Days)")
 
             verticalHairline
 
@@ -218,7 +218,7 @@ struct HomeView: View {
         .glassCard()
     }
 
-    private func statTile(label: String, value: String, unit: String = "", accent: Bool = false) -> some View {
+    private func statTile(label: String, value: String, unit: String = "") -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .microLabel()
@@ -230,7 +230,7 @@ struct HomeView: View {
                     .font(.system(size: 28, weight: .bold))
                     .monospacedDigit()
                     .tracking(-0.5)
-                    .foregroundStyle(accent ? AppTheme.primary : AppTheme.textPrimary)
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 if !unit.isEmpty {
                     Text(unit)
